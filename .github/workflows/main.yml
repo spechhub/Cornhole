@@ -1,0 +1,92 @@
+name: Setup Project Structure
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Create folder structure
+        run: |
+          mkdir -p templates/admin
+          mkdir -p templates/display
+          mkdir -p static/css
+          mkdir -p static/js
+          mkdir -p static/img
+          mkdir -p tournaments
+          mkdir -p exports
+          
+          touch templates/admin/.gitkeep
+          touch templates/display/.gitkeep
+          touch static/css/.gitkeep
+          touch static/js/.gitkeep
+          touch static/img/.gitkeep
+          touch tournaments/.gitkeep
+          touch exports/.gitkeep
+          
+      - name: Create requirements.txt
+        run: |
+          cat > requirements.txt << 'EOF'
+          Flask==2.3.0
+          pandas==2.0.0
+          EOF
+          
+      - name: Create .gitignore
+        run: |
+          cat > .gitignore << 'EOF'
+          # Python
+          *.pyc
+          __pycache__/
+          *.py[cod]
+          *$py.class
+          *.so
+          .Python
+          venv/
+          env/
+          ENV/
+
+          # Flask
+          instance/
+          .webassets-cache
+
+          # Datenbanken
+          *.db
+          tournaments/*.db
+
+          # Exports
+          exports/
+
+          # IDE
+          .vscode/
+          .idea/
+          *.swp
+          *.swo
+
+          # OS
+          .DS_Store
+          Thumbs.db
+          EOF
+          
+      - name: Create README.md
+        run: |
+          cat > README.md << 'EOF'
+          # Ultimate Frisbee Turnier-Management System
+
+          Professionelles Turnier-Management für bis zu 60 Teams.
+
+          ## Features
+          - ✅ Team-Management mit Ghost-Teams
+          - ✅ Round Robin (10 Gruppen, 5 Runden)
+          - ✅ Double Elimination (2 separate Brackets)
+          - ✅ Automatische Spielnummern (#1-245+)
+          - ✅ Automatische Zeitberechnung
+          - ✅ CSV-Export
+
+          ## Installation
+
+          1. Repository klonen:
+```bash
