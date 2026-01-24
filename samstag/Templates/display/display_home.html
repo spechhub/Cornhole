@@ -1,0 +1,28 @@
+{% extends "display/base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column justify-content-center align-items-center h-100">
+    <h1 class="display-1 font-weight-bold mb-5">{{ game_name }}</h1>
+
+    <div class="row w-100">
+        <div class="col-4 text-center">
+            <a href="{{ url_for('display_groups', game_name=game_name) }}"
+                class="btn btn-outline-dark btn-lg btn-block py-5">
+                <i class="fas fa-list-ol fa-3x mb-3"></i><br>Gruppen
+            </a>
+        </div>
+        <div class="col-4 text-center">
+            <a href="{{ url_for('display_brackets', game_name=game_name) }}"
+                class="btn btn-outline-dark btn-lg btn-block py-5">
+                <i class="fas fa-sitemap fa-3x mb-3"></i><br>Brackets
+            </a>
+        </div>
+        <div class="col-4 text-center">
+            <a href="{{ url_for('display_super_finals', game_name=game_name) }}"
+                class="btn btn-outline-dark btn-lg btn-block py-5">
+                <i class="fas fa-trophy fa-3x mb-3"></i><br>Super Finals
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

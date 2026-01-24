@@ -1,0 +1,106 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Ergebnisse eintragen <small class="text-muted">Round Robin</small></h1>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary filter-btn active"
+                    data-filter="all">Alle</button>
+                <button type="button" class="btn btn-outline-secondary filter-btn" data-filter="open">Offene</button>
+                <button type="button" class="btn btn-outline-secondary filter-btn"
+                    data-filter="completed">Beendete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="matchesFilterContainer">
+        {% for match in matches %}
+        <div class="card match-card {% if match.score1 is not none %}status-completed{% else %}status-open{% endif %}">
+            <div class="row align-items-center">
+                <div class="col-md-2 text-center text-muted">
+                    <small>Spiel #{{ match.match_number if match.match_number else match.id }}</small><br>
+                    <span class="badge badge-info">Runde {{ match.round }}</span><br>
+                    <small>Gr. {{ match.group_number }} / Feld {{ match.field }}</small>
+                </div>
+
+                <div class="col-md-7">
+                    <form action="{{ url_for('save_result', game_name=game_name, match_id=match.id) }}" method="POST"
+                        class="d-flex justify-content-center align-items-center">
+                        <div class="text-right mr-2" style="width: 150px;">
+                            <strong>{{ match.team1 }}</strong>
+                        </div>
+
+                        <input type="number" name="score1" class="form-control score-input mx-1"
+                            value="{{ match.score1 if match.score1 is not none else '' }}" min="0" max="42" required {%
+                            if match.score1 is not none %}readonly{% endif %}>
+                        :
+                        <input type="number" name="score2" class="form-control score-input mx-1"
+                            value="{{ match.score2 if match.score2 is not none else '' }}" min="0" max="42" required {%
+                            if match.score2 is not none %}readonly{% endif %}>
+
+                        <div class="text-left ml-2" style="width: 150px;">
+                            <strong>{{ match.team2 }}</strong>
+                        </div>
+
+                        <div class="ml-3">
+                            {% if match.score1 is none %}
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="fas fa-save"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+
+                <div class="col-md-3 text-right">
+                    {% if match.score1 is not none %}
+                    <form action="{{ url_for('delete_result', game_name=game_name, match_id=match.id) }}" method="POST"
+                        class="d-inline" onsubmit="return confirm('Ergebnis wirklich löschen?');">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash"></i> Reset
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    $(document).ready(function () {
+        $(".filter-btn").click(function () {
+            $(".filter-btn").removeClass("active");
+            $(this).addClass("active");
+
+            var filter = $(this).data("filter");
+
+            if (filter === "all") {
+                $(".match-card").show();
+            } else if (filter === "open") {
+                $(".status-completed").hide();
+                $(".status-open").show();
+            } else if (filter === "completed") {
+                $(".status-open").hide();
+                $(".status-completed").show();
+            }
+        });
+
+        // Make inputs editable on double click if they are readonly
+        $(".score-input[readonly]").dblclick(function () {
+            if (confirm("Ergebnis bearbeiten?")) {
+                var form = $(this).closest("form");
+                form.find("input").prop("readonly", false);
+                form.find("button[type='submit']").remove(); // Remove existing submit if any
+                form.find(".ml-3").append('<button type="submit" class="btn btn-warning btn-sm"><i class="fas fa-save"></i></button>');
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

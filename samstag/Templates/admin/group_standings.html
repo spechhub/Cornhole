@@ -1,0 +1,120 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Gruppentabellen <small class="text-muted">{{ game_name }}</small></h1>
+        <form action="{{ url_for('recalculate_rankings', game_name=game_name) }}" method="POST">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-sync"></i> Neu berechnen
+            </button>
+        </form>
+    </div>
+
+    <!-- Bracket A (Groups 1-5) -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <h4>Bracket A (Gruppen 1-5)</h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for i in range(1, 6) %}
+                <div class="col-md-6 col-xl-4 mb-3">
+                    <div class="card">
+                        <div class="card-header py-1">Gruppe {{ i }}</div>
+                        <div class="card-body p-0">
+                            <table class="table table-sm table-striped m-0" style="font-size: 0.9rem;">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Team</th>
+                                        <th>Sp</th>
+                                        <th>Diff</th>
+                                        <th>Pkt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in groups.get(i, []) %}
+                                    <tr
+                                        class="{% if loop.index <= 3 %}qualified-row{% elif loop.index == 4 %}best-fourth-row{% endif %}">
+                                        <td>{{ loop.index }}</td>
+                                        <td>
+                                            <span class="{% if row.is_ghost %}ghost-team{% endif %}">
+                                                {{ row.team }}
+                                            </span>
+                                        </td>
+                                        <td>{{ row.matches_played }}</td>
+                                        <td>{{ row.goal_difference }}</td>
+                                        <th>{{ row.points }}</th>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% if best_4th_a %}
+            <div class="alert alert-warning mt-2">
+                <strong>Bester 4. Platzierter (A):</strong> {{ best_4th_a.team }} (Gruppe {{ best_4th_a.group_number }})
+                - {{ best_4th_a.points }} Pkt, {{ best_4th_a.goal_difference }} Diff
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Bracket B (Groups 6-10) -->
+    <div class="card mb-4 border-info">
+        <div class="card-header bg-info text-white">
+            <h4>Bracket B (Gruppen 6-10)</h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for i in range(6, 11) %}
+                <div class="col-md-6 col-xl-4 mb-3">
+                    <div class="card">
+                        <div class="card-header py-1">Gruppe {{ i }}</div>
+                        <div class="card-body p-0">
+                            <table class="table table-sm table-striped m-0" style="font-size: 0.9rem;">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Team</th>
+                                        <th>Sp</th>
+                                        <th>Diff</th>
+                                        <th>Pkt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in groups.get(i, []) %}
+                                    <tr
+                                        class="{% if loop.index <= 3 %}qualified-row{% elif loop.index == 4 %}best-fourth-row{% endif %}">
+                                        <td>{{ loop.index }}</td>
+                                        <td>
+                                            <span class="{% if row.is_ghost %}ghost-team{% endif %}">
+                                                {{ row.team }}
+                                            </span>
+                                        </td>
+                                        <td>{{ row.matches_played }}</td>
+                                        <td>{{ row.goal_difference }}</td>
+                                        <th>{{ row.points }}</th>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% if best_4th_b %}
+            <div class="alert alert-warning mt-2">
+                <strong>Bester 4. Platzierter (B):</strong> {{ best_4th_b.team }} (Gruppe {{ best_4th_b.group_number }})
+                - {{ best_4th_b.points }} Pkt, {{ best_4th_b.goal_difference }} Diff
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

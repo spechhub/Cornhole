@@ -1,0 +1,37 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3><i class="fas fa-database"></i> Turnier laden</h3>
+                </div>
+                <div class="card-body">
+                    {% if tournaments %}
+                    <div class="list-group">
+                        {% for tournament in tournaments %}
+                        <form action="{{ url_for('load_selected_game') }}" method="POST"
+                            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <input type="hidden" name="tournament" value="{{ tournament }}">
+                            <span class="lead">{{ tournament }}</span>
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-upload"></i> Laden
+                            </button>
+                        </form>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">Keine gespeicherten Turniere gefunden.</div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">Zurück</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

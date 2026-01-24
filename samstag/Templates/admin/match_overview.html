@@ -1,0 +1,103 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Spielplan: Round Robin <small class="text-muted">{{ game_name }}</small></h1>
+        <a href="{{ url_for('enter_results', game_name=game_name) }}" class="btn btn-success">
+            <i class="fas fa-edit"></i> Ergebnisse eintragen
+        </a>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" id="matchTabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="bracket-a-tab" data-toggle="tab" href="#bracket-a" role="tab">Bracket A (Gr.
+                1-5)</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="bracket-b-tab" data-toggle="tab" href="#bracket-b" role="tab">Bracket B (Gr.
+                6-10)</a>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="matchTabContent">
+        <!-- Bracket A -->
+        <div class="tab-pane fade show active" id="bracket-a" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-sm">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>Runde</th>
+                            <th>Gr</th>
+                            <th>Team 1</th>
+                            <th>Team 2</th>
+                            <th>Feld</th>
+                            <th>Ergebnis</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for match in bracket_a %}
+                        <tr>
+                            <td><span class="badge badge-secondary">#{{ match.match_number if match.match_number else
+                                    '-' }}</span></td>
+                            <td>{{ match.round }}</td>
+                            <td>{{ match.group_number }}</td>
+                            <td>{{ match.team1 }}</td>
+                            <td>{{ match.team2 }}</td>
+                            <td><span class="badge badge-info">{{ match.field }}</span></td>
+                            <td>
+                                {% if match.score1 is not none %}
+                                <strong>{{ match.score1 }} : {{ match.score2 }}</strong>
+                                {% else %}
+                                <span class="text-muted">- : -</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bracket B -->
+        <div class="tab-pane fade" id="bracket-b" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-sm">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>Runde</th>
+                            <th>Gr</th>
+                            <th>Team 1</th>
+                            <th>Team 2</th>
+                            <th>Feld</th>
+                            <th>Ergebnis</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for match in bracket_b %}
+                        <tr>
+                            <td><span class="badge badge-secondary">#{{ match.match_number if match.match_number else
+                                    '-' }}</span></td>
+                            <td>{{ match.round }}</td>
+                            <td>{{ match.group_number }}</td>
+                            <td>{{ match.team1 }}</td>
+                            <td>{{ match.team2 }}</td>
+                            <td><span class="badge badge-info">{{ match.field }}</span></td>
+                            <td>
+                                {% if match.score1 is not none %}
+                                <strong>{{ match.score1 }} : {{ match.score2 }}</strong>
+                                {% else %}
+                                <span class="text-muted">- : -</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

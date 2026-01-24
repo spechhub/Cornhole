@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Follower Cup <small class="text-muted">K.O. System</small></h1>
+
+    <div class="row flex-nowrap overflow-auto pb-4">
+        <!-- 1/8 Finale -->
+        <div class="col-md-3" style="min-width: 300px;">
+            <h4 class="text-center mb-3">Achtelfinale</h4>
+            {% for match in matches_eighth %}
+            {% include "admin/_cup_match_card.html" %}
+            {% endfor %}
+        </div>
+
+        <!-- 1/4 Finale -->
+        <div class="col-md-3" style="min-width: 300px;">
+            <h4 class="text-center mb-3">Viertelfinale</h4>
+            {% for match in matches_quarter %}
+            {% include "admin/_cup_match_card.html" %}
+            {% endfor %}
+        </div>
+
+        <!-- 1/2 Finale -->
+        <div class="col-md-3" style="min-width: 300px;">
+            <h4 class="text-center mb-3">Halbfinale</h4>
+            {% for match in matches_semi %}
+            {% include "admin/_cup_match_card.html" %}
+            {% endfor %}
+        </div>
+
+        <!-- Finale & Platz 3 -->
+        <div class="col-md-3" style="min-width: 300px;">
+            <h4 class="text-center mb-3">Finale</h4>
+            {% for match in matches_final %}
+            {% include "admin/_cup_match_card.html" %}
+            {% endfor %}
+
+            <h4 class="text-center mt-5 mb-3">Spiel um Platz 3</h4>
+            {% for match in matches_third %}
+            {% include "admin/_cup_match_card.html" %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

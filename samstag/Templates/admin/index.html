@@ -1,0 +1,96 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="jumbotron text-center">
+    <h1 class="display-4">Ultimate Frisbee Turnierverwaltung</h1>
+    <p class="lead">Willkommen im System. Bitte wähle eine Option:</p>
+    <hr class="my-4">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h3><i class="fas fa-plus-circle text-success"></i> Neues Turnier</h3>
+                    <p>Erstelle ein neues Turnier und konfiguriere die Parameter.</p>
+                    <button class="btn btn-success btn-lg btn-block" data-toggle="modal"
+                        data-target="#newGameModal">Erstellen</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h3><i class="fas fa-folder-open text-primary"></i> Turnier laden</h3>
+                    <p>Lade ein bestehendes Turnier aus der Datenbank.</p>
+                    <a href="{{ url_for('load_game') }}" class="btn btn-primary btn-lg btn-block">Laden</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Game Modal -->
+<div class="modal fade" id="newGameModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Neues Turnier erstellen</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <form action="{{ url_for('create_new_game') }}" method="POST">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Turniername (Dateiname)</label>
+                        <input type="text" class="form-control" name="game_name" required pattern="[A-Za-z0-9_-]+"
+                            title="Nur Buchstaben, Zahlen, Bindestrich und Unterstrich">
+                    </div>
+
+                    <hr>
+                    <h5>Zeitkonfiguration</h5>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Spieldauer (Minuten)</label>
+                            <select class="form-control" name="match_duration">
+                                <option value="8">8 Min</option>
+                                <option value="10">10 Min</option>
+                                <option value="12" selected>12 Min</option>
+                                <option value="15">15 Min</option>
+                                <option value="20">20 Min</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Startzeit</label>
+                            <input type="time" class="form-control" name="start_time" value="09:00">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Pause zwischen Spielen (Min)</label>
+                            <select class="form-control" name="break_between_games">
+                                <option value="2">2 Min</option>
+                                <option value="3" selected>3 Min</option>
+                                <option value="5">5 Min</option>
+                                <option value="10">10 Min</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Pause zwischen Runden (Min)</label>
+                            <select class="form-control" name="break_between_rounds">
+                                <option value="5" selected>5 Min</option>
+                                <option value="10">10 Min</option>
+                                <option value="15">15 Min</option>
+                                <option value="20">20 Min</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-success">Turnier erstellen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

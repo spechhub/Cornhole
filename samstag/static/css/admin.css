@@ -1,0 +1,48 @@
+body {
+    padding-bottom: 20px;
+}
+
+.table td, .table th {
+    vertical-align: middle;
+}
+
+.card-header {
+    font-weight: bold;
+}
+
+.score-input {
+    width: 60px;
+    text-align: center;
+}
+
+.ghost-team {
+    color: #dc3545;
+    font-style: italic;
+}
+
+.qualified-row {
+    background-color: #d4edda;
+}
+
+.best-fourth-row {
+    background-color: #fff3cd;
+}
+
+.match-card {
+    border: 1px solid #dee2e6;
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.winner-bracket {
+    border-left: 5px solid #28a745;
+}
+
+.loser-bracket {
+    border-left: 5px solid #dc3545;
+}
+
+.navbar-brand i {
+    margin-right: 10px;
+}

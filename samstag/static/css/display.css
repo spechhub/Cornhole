@@ -1,0 +1,54 @@
+.display-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 30px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.table-display {
+    font-size: 1.2rem;
+}
+
+.table-display th {
+    background-color: #343a40;
+    color: white;
+}
+
+.qualified-row {
+    background-color: #d4edda !important;
+}
+
+.best-fourth-row {
+    background-color: #fff3cd !important;
+}
+
+.bracket-match {
+    background: white;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.winner-highlight {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.bracket-column {
+    min-width: 250px;
+    margin-right: 20px;
+}
+
+.super-finals-card {
+    border: 2px solid #007bff;
+    font-size: 1.5rem;
+}
+
+/* Fullscreen tweaks */
+body.fullscreen {
+    background: white;
+}
