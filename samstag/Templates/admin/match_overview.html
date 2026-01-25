@@ -47,8 +47,8 @@
                                     <td><span class="badge badge-secondary">#{{ match.match_number if match.match_number else '-' }}</span></td>
                                     <td>{{ match.round }}</td>
                                     <td>
-                                        {% if match.scheduled_time %}
-                                        <i class="fas fa-clock text-muted"></i> {{ match.scheduled_time }}
+                                        {% if match.time %}
+                                        <i class="fas fa-clock text-muted"></i> {{ match.time }}
                                         {% else %}
                                         <span class="text-muted">--:--</span>
                                         {% endif %}
@@ -101,8 +101,8 @@
                                     <td><span class="badge badge-secondary">#{{ match.match_number if match.match_number else '-' }}</span></td>
                                     <td>{{ match.round }}</td>
                                     <td>
-                                        {% if match.scheduled_time %}
-                                        <i class="fas fa-clock text-muted"></i> {{ match.scheduled_time }}
+                                        {% if match.time %}
+                                        <i class="fas fa-clock text-muted"></i> {{ match.time }}
                                         {% else %}
                                         <span class="text-muted">--:--</span>
                                         {% endif %}
