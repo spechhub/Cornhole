@@ -3715,21 +3715,6 @@ def add_minutes_to_time(time_str, minutes):
 # ============================================================================
 
 def calculate_round_robin_times(conn):
-    """
-    Berechnet Spielzeiten für alle Round Robin Matches.
-    
-    Logik:
-    - Pro Gruppe laufen 3 Spiele parallel (auf verschiedenen Feldern)
-    - Nach jedem Spiel: break_between_games Pause
-    - Nach jeder kompletten Runde: break_between_rounds Pause
-    - 10 Gruppen spielen gleichzeitig (30 parallele Spiele pro Zeitslot)
-    
-    Args:
-        conn: SQLite Connection
-    
-    Returns:
-        int: Anzahl der Matches mit Zeiten
-    """
     cursor = conn.cursor()
     config = get_tournament_config(conn)
     
@@ -3738,74 +3723,32 @@ def calculate_round_robin_times(conn):
     break_between_rounds = config['break_between_rounds']
     current_time = config['start_time']
     
-    print(f"\n⏰ ZEITBERECHNUNG ROUND ROBIN")
-    print(f"   Spieldauer: {match_duration} Min")
-    print(f"   Pause zwischen Spielen: {break_between_games} Min")
-    print(f"   Pause zwischen Runden: {break_between_rounds} Min")
-    print(f"   Startzeit: {current_time}")
-    print()
-    
     updated_count = 0
     
-    # Matches nach Runde und ID sortiert holen
-    cursor.execute("""
-        SELECT * FROM matches 
-        ORDER BY round, group_number, id
-    """)
-    
-    matches = cursor.fetchall()
-    
-    if not matches:
-        print("⚠️  Keine Matches gefunden!")
-        return 0
-    
-    current_round = None
-    round_match_count = 0
-    
-    for match in matches:
-        match_id = match['id']
-        round_num = match['round']
-        group_num = match['group_number']
+    for round_num in range(1, 6):
+        cursor.execute("SELECT id FROM matches WHERE round = ? AND group_number BETWEEN 1 AND 5 ORDER BY group_number, id", (round_num,))
+        bracket_a_matches = cursor.fetchall()
         
-        # Neue Runde beginnt
-        if current_round != round_num:
-            if current_round is not None:
-                # Rundenpause hinzufügen
-                current_time = add_minutes_to_time(current_time, break_between_rounds)
-                print(f"   → Rundenpause: +{break_between_rounds} Min → {current_time}")
-            
-            current_round = round_num
-            round_match_count = 0
-            print(f"\n   Runde {round_num}: Startet um {current_time}")
+        for match in bracket_a_matches:
+            cursor.execute("UPDATE matches SET time = ? WHERE id = ?", (current_time, match['id']))
+            updated_count += 1
         
-        # Zeit für dieses Match
-        match_time = current_time
+        current_time = add_minutes_to_time(current_time, match_duration + break_between_games)
         
-        # Aktualisiere Datenbank
-        cursor.execute("""
-            UPDATE matches 
-            SET time = ?
-            WHERE id = ?
-        """, (match_time, match_id))
+        cursor.execute("SELECT id FROM matches WHERE round = ? AND group_number BETWEEN 6 AND 10 ORDER BY group_number, id", (round_num,))
+        bracket_b_matches = cursor.fetchall()
         
-        updated_count += 1
-        round_match_count += 1
+        for match in bracket_b_matches:
+            cursor.execute("UPDATE matches SET time = ? WHERE id = ?", (current_time, match['id']))
+            updated_count += 1
         
-        # Nach 30 Matches (alle Gruppen haben gespielt) → nächster Zeitslot
-        if round_match_count % 30 == 0:
-            # Spieldauer + Pause
-            current_time = add_minutes_to_time(
-                current_time, 
-                match_duration + break_between_games
-            )
+        current_time = add_minutes_to_time(current_time, match_duration + break_between_games)
+        
+        if round_num < 5:
+            current_time = add_minutes_to_time(current_time, break_between_rounds)
     
     conn.commit()
-    
-    print(f"\n✅ {updated_count} Matches mit Zeiten versehen")
-    print(f"   Letztes Spiel endet ca. um: {current_time}")
-    
     return updated_count
-
 
 def calculate_round_robin_times_alternative(conn):
     """
