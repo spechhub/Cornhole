@@ -3714,21 +3714,10 @@ def add_minutes_to_time(time_str, minutes):
 # ROUND ROBIN ZEITBERECHNUNG
 # ============================================================================
 
-def calculate_round_robin_times(conn):
+﻿def calculate_round_robin_times(conn):
     """
-    Berechnet Spielzeiten für alle Round Robin Matches.
-    
-    Logik:
-    - Pro Gruppe laufen 3 Spiele parallel (auf verschiedenen Feldern)
-    - Nach jedem Spiel: break_between_games Pause
-    - Nach jeder kompletten Runde: break_between_rounds Pause
-    - 10 Gruppen spielen gleichzeitig (30 parallele Spiele pro Zeitslot)
-    
-    Args:
-        conn: SQLite Connection
-    
-    Returns:
-        int: Anzahl der Matches mit Zeiten
+    Berechnet Spielzeiten für Round Robin mit ABWECHSELNDEN Brackets.
+    Bracket A spielt, dann Bracket B, dann Bracket A, usw.
     """
     cursor = conn.cursor()
     config = get_tournament_config(conn)
@@ -3738,74 +3727,89 @@ def calculate_round_robin_times(conn):
     break_between_rounds = config['break_between_rounds']
     current_time = config['start_time']
     
-    print(f"\n⏰ ZEITBERECHNUNG ROUND ROBIN")
+    print(f"
+ ZEITBERECHNUNG ROUND ROBIN")
     print(f"   Spieldauer: {match_duration} Min")
     print(f"   Pause zwischen Spielen: {break_between_games} Min")
     print(f"   Pause zwischen Runden: {break_between_rounds} Min")
-    print(f"   Startzeit: {current_time}")
-    print()
+    print(f"   Startzeit: {current_time}
+")
     
     updated_count = 0
     
-    # Matches nach Runde und ID sortiert holen
-    cursor.execute("""
-        SELECT * FROM matches 
-        ORDER BY round, group_number, id
-    """)
-    
-    matches = cursor.fetchall()
-    
-    if not matches:
-        print("⚠️  Keine Matches gefunden!")
-        return 0
-    
-    current_round = None
-    round_match_count = 0
-    
-    for match in matches:
-        match_id = match['id']
-        round_num = match['round']
-        group_num = match['group_number']
+    # HAUPTSCHLEIFE: Pro Runde beide Brackets abwechselnd
+    for round_num in range(1, 6):  # 5 Runden
         
-        # Neue Runde beginnt
-        if current_round != round_num:
-            if current_round is not None:
-                # Rundenpause hinzufügen
-                current_time = add_minutes_to_time(current_time, break_between_rounds)
-                print(f"   → Rundenpause: +{break_between_rounds} Min → {current_time}")
-            
-            current_round = round_num
-            round_match_count = 0
-            print(f"\n   Runde {round_num}: Startet um {current_time}")
+        print(f"   Runde {round_num}:")
         
-        # Zeit für dieses Match
-        match_time = current_time
-        
-        # Aktualisiere Datenbank
+        # BRACKET A (Gruppen 1-5)
         cursor.execute("""
-            UPDATE matches 
-            SET time = ?
-            WHERE id = ?
-        """, (match_time, match_id))
+            SELECT id FROM matches 
+            WHERE round = ? AND group_number BETWEEN 1 AND 5
+            ORDER BY group_number, id
+        """, (round_num,))
         
-        updated_count += 1
-        round_match_count += 1
+        bracket_a_matches = cursor.fetchall()
         
-        # Nach 30 Matches (alle Gruppen haben gespielt) → nächster Zeitslot
-        if round_match_count % 30 == 0:
-            # Spieldauer + Pause
+        for match in bracket_a_matches:
+            cursor.execute("""
+                UPDATE matches 
+                SET time = ?
+                WHERE id = ?
+            """, (current_time, match['id']))
+            updated_count += 1
+        
+        print(f"      Bracket A (Gr. 1-5): {current_time} ({len(bracket_a_matches)} Matches)")
+        
+        # Zeit nach Bracket A vorwärts
+        current_time = add_minutes_to_time(
+            current_time, 
+            match_duration + break_between_games
+        )
+        
+        # BRACKET B (Gruppen 6-10)
+        cursor.execute("""
+            SELECT id FROM matches 
+            WHERE round = ? AND group_number BETWEEN 6 AND 10
+            ORDER BY group_number, id
+        """, (round_num,))
+        
+        bracket_b_matches = cursor.fetchall()
+        
+        for match in bracket_b_matches:
+            cursor.execute("""
+                UPDATE matches 
+                SET time = ?
+                WHERE id = ?
+            """, (current_time, match['id']))
+            updated_count += 1
+        
+        print(f"      Bracket B (Gr. 6-10): {current_time} ({len(bracket_b_matches)} Matches)")
+        
+        # Zeit nach Bracket B vorwärts
+        current_time = add_minutes_to_time(
+            current_time, 
+            match_duration + break_between_games
+        )
+        
+        # EXTRA-PAUSE zwischen Runden (außer nach letzter Runde)
+        if round_num < 5:
             current_time = add_minutes_to_time(
                 current_time, 
-                match_duration + break_between_games
+                break_between_rounds
             )
+            print(f"       Rundenpause: +{break_between_rounds} Min
+")
+        else:
+            print("")  # Nur Leerzeile nach Runde 5
     
     conn.commit()
     
-    print(f"\n✅ {updated_count} Matches mit Zeiten versehen")
-    print(f"   Letztes Spiel endet ca. um: {current_time}")
+    print(f" {updated_count} Matches mit Zeiten versehen")
+    print(f"   Letztes Spiel endet ca. um: {current_time}
+")
     
     return updated_count
-
 
 def calculate_round_robin_times_alternative(conn):
     """
