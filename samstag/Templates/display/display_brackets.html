@@ -1,0 +1,62 @@
+{% extends "display/base.html" %}
+
+{% block content %}
+<h1 class="display-title">Double Elimination Brackets</h1>
+
+<div class="row h-100">
+    <!-- Bracket A -->
+    <div class="col-6 border-right">
+        <h2 class="text-center bg-primary text-white py-2">Bracket A</h2>
+        <div class="row">
+            <div class="col-12">
+                <h4 class="text-center text-muted">Winner Bracket</h4>
+                <div class="d-flex overflow-hidden">
+                    <!-- Just showing last round matches for brevity on display -->
+                    {% for match in matches_a if match.bracket == 'Winners' and match.round >= 3 %}
+                    <div class="bracket-match mx-auto" style="width: 80%;">
+                        <div>R{{ match.round }} - #{{ match.match_number }}</div>
+                        <div class="d-flex justify-content-between">
+                            <span class="{% if match.winner == match.team1 %}winner-highlight{% endif %}">{{ match.team1
+                                }}</span>
+                            <b>{{ match.score1 }}</b>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="{% if match.winner == match.team2 %}winner-highlight{% endif %}">{{ match.team2
+                                }}</span>
+                            <b>{{ match.score2 }}</b>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bracket B -->
+    <div class="col-6">
+        <h2 class="text-center bg-info text-white py-2">Bracket B</h2>
+        <div class="row">
+            <div class="col-12">
+                <h4 class="text-center text-muted">Winner Bracket</h4>
+                <div class="d-flex overflow-hidden">
+                    {% for match in matches_b if match.bracket == 'Winners' and match.round >= 3 %}
+                    <div class="bracket-match mx-auto" style="width: 80%;">
+                        <div>R{{ match.round }} - #{{ match.match_number }}</div>
+                        <div class="d-flex justify-content-between">
+                            <span class="{% if match.winner == match.team1 %}winner-highlight{% endif %}">{{ match.team1
+                                }}</span>
+                            <b>{{ match.score1 }}</b>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="{% if match.winner == match.team2 %}winner-highlight{% endif %}">{{ match.team2
+                                }}</span>
+                            <b>{{ match.score2 }}</b>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

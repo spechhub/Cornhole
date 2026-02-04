@@ -1,0 +1,143 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Team-Verwaltung <small class="text-muted">{{ game_name }}</small></h1>
+        <div>
+            {% if missing_teams > 0 %}
+            <button class="btn btn-warning" data-toggle="modal" data-target="#ghostModal">
+                <i class="fas fa-ghost"></i> Ghost-Teams generieren ({{ missing_teams }} fehlen)
+            </button>
+            {% endif %}
+            <button class="btn btn-success" data-toggle="modal" data-target="#addTeamModal">
+                <i class="fas fa-plus"></i> Team hinzufügen
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for group_num in range(1, 11) %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center 
+                            {% if group_num <= 5 %}bg-primary text-white{% else %}bg-info text-white{% endif %}">
+                    <span>Gruppe {{ group_num }}</span>
+                    <span class="badge badge-light badge-pill">{{ groups.get(group_num, [])|length }}/6</span>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for team in groups.get(group_num, []) %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span class="{% if team.is_ghost %}ghost-team{% endif %}">
+                                {{ team.name }}
+                                {% if team.is_ghost %}<i class="fas fa-ghost small"></i>{% endif %}
+                            </span>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary"
+                                    onclick="editTeam({{ team.id }}, '{{ team.name }}', {{ team.group_number }})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-danger"
+                                    onclick="deleteTeam({{ team.id }}, '{{ team.name }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </li>
+                        {% endfor %}
+                        {% if groups.get(group_num, [])|length < 6 %} <li
+                            class="list-group-item text-center text-muted">
+                            <small><i>Noch {{ 6 - groups.get(group_num, [])|length }} Plätze frei</i></small>
+                            </li>
+                            {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Add Team Modal -->
+<div class="modal fade" id="addTeamModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Neues Team hinzufügen</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addTeamForm">
+                    <input type="hidden" id="gameName" value="{{ game_name }}">
+                    <div class="form-group">
+                        <label>Teamname</label>
+                        <input type="text" class="form-control" id="teamName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Gruppe</label>
+                        <select class="form-control" id="groupNumber">
+                            {% for i in range(1, 11) %}
+                            <option value="{{ i }}">Gruppe {{ i }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-block">Speichern</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Team Modal -->
+<div class="modal fade" id="editTeamModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Team bearbeiten</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editTeamForm">
+                    <input type="hidden" id="editTeamId">
+                    <div class="form-group">
+                        <label>Teamname</label>
+                        <input type="text" class="form-control" id="editTeamName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Gruppe</label>
+                        <select class="form-control" id="editGroupNumber">
+                            {% for i in range(1, 11) %}
+                            <option value="{{ i }}">Gruppe {{ i }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Änderungen speichern</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ghost Modal -->
+<div class="modal fade" id="ghostModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-warning"><i class="fas fa-ghost"></i> Ghost-Teams generieren</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Es fehlen noch <strong>{{ missing_teams }}</strong> Teams bis zur vollen Teilnehmerzahl von 60.</p>
+                <p>Sollen automatisch Ghost-Teams erstellt werden, um die Gruppen aufzufüllen?</p>
+                <p class="small text-muted">Ghost-Teams verlieren automatisch alle Spiele 0:42 und qualifizieren sich
+                    nicht für Endrunden.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-warning" onclick="generateGhostTeams('{{ game_name }}')">Ja,
+                    generieren</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

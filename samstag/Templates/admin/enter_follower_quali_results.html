@@ -1,0 +1,79 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Follower Cup <small class="text-muted">Qualifikationsrunde</small></h1>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        Hier spielen die 4. Platzierten (außer den 2 Besten), alle 5. und alle 6. Platzierten gegeneinander.
+        Die Gewinner qualifizieren sich für das 1/8-Finale des Follower Cups.
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-secondary text-white">
+            Qualifikations-Matches
+        </div>
+        <div class="card-body">
+            {% if matches %}
+            <div class="row">
+                {% for match in matches %}
+                <div class="col-md-6 mb-3">
+                    <div class="card match-card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge badge-secondary">#{{ match.match_number }}</span>
+                                <span class="small text-muted">Feld {{ match.court or '?' }}</span>
+                            </div>
+                            <form
+                                action="{{ url_for('save_follower_quali_result', game_name=game_name, match_id=match.id) }}"
+                                method="POST">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="text-right flex-grow-1">
+                                        <strong>{{ match.team1 }}</strong>
+                                    </div>
+                                    <div class="mx-2 d-flex">
+                                        <input type="number" name="score1" class="form-control score-input mx-1"
+                                            value="{{ match.score1 if match.score1 is not none else '' }}" min="0"
+                                            max="42">
+                                        <span class="align-self-center">:</span>
+                                        <input type="number" name="score2" class="form-control score-input mx-1"
+                                            value="{{ match.score2 if match.score2 is not none else '' }}" min="0"
+                                            max="42">
+                                    </div>
+                                    <div class="text-left flex-grow-1">
+                                        <strong>{{ match.team2 }}</strong>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm ml-2">
+                                        <i class="fas fa-save"></i>
+                                    </button>
+                                </div>
+                            </form>
+                            {% if match.winner %}
+                            <div class="mt-2 text-center text-success font-weight-bold">
+                                Sieger: {{ match.winner }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-center text-muted py-4">Noch keine Spiele generiert.</p>
+            <div class="text-center">
+                <a href="{{ url_for('generate_follower_cup', game_name=game_name) }}" class="btn btn-warning">
+                    <i class="fas fa-magic"></i> Paarungen generieren
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-4 text-center">
+        <a href="{{ url_for('follower_cup_overview', game_name=game_name) }}" class="btn btn-outline-primary btn-lg">
+            Zum Cup-System (K.O.) &rarr;
+        </a>
+    </div>
+</div>
+{% endblock %}

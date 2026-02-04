@@ -1,0 +1,415 @@
+"""
+TEMPLATE-PATCHES FÜR ZEITANZEIGE
+=================================
+
+Diese Datei enthält alle HTML/Jinja2-Änderungen für die Zeitanzeige.
+"""
+
+# ============================================================================
+# 1. TOURNAMENT_CONFIG.HTML (NEU ERSTELLEN)
+# ============================================================================
+
+"""
+Speicherort: templates/admin/tournament_config.html
+"""
+
+TOURNAMENT_CONFIG_HTML = """
+{% extends "admin/base.html" %}
+
+{% block title %}Zeitkonfiguration - {{ game_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3><i class="fas fa-clock"></i> ⏰ Zeitkonfiguration</h3>
+                </div>
+                
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('update_tournament_config', game_name=game_name) }}">
+                        
+                        <h5 class="mb-3">Turnier: {{ game_name }}</h5>
+                        
+                        <div class="form-group">
+                            <label for="match_duration">
+                                <strong>Spieldauer (Minuten)</strong>
+                            </label>
+                            <select class="form-control" id="match_duration" name="match_duration" required>
+                                <option value="8" {% if config.match_duration == 8 %}selected{% endif %}>8 Minuten</option>
+                                <option value="10" {% if config.match_duration == 10 %}selected{% endif %}>10 Minuten</option>
+                                <option value="12" {% if config.match_duration == 12 %}selected{% endif %}>12 Minuten (Standard)</option>
+                                <option value="15" {% if config.match_duration == 15 %}selected{% endif %}>15 Minuten</option>
+                                <option value="20" {% if config.match_duration == 20 %}selected{% endif %}>20 Minuten</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                Dauer eines einzelnen Spiels
+                            </small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="break_between_games">
+                                <strong>Pause zwischen Spielen (Minuten)</strong>
+                            </label>
+                            <select class="form-control" id="break_between_games" name="break_between_games" required>
+                                <option value="2" {% if config.break_between_games == 2 %}selected{% endif %}>2 Minuten</option>
+                                <option value="3" {% if config.break_between_games == 3 %}selected{% endif %}>3 Minuten (Standard)</option>
+                                <option value="4" {% if config.break_between_games == 4 %}selected{% endif %}>4 Minuten</option>
+                                <option value="5" {% if config.break_between_games == 5 %}selected{% endif %}>5 Minuten</option>
+                                <option value="10" {% if config.break_between_games == 10 %}selected{% endif %}>10 Minuten</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                Umstellungszeit zwischen aufeinanderfolgenden Spielen
+                            </small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="break_between_rounds">
+                                <strong>Pause zwischen Runden (Minuten)</strong>
+                            </label>
+                            <select class="form-control" id="break_between_rounds" name="break_between_rounds" required>
+                                <option value="5" {% if config.break_between_rounds == 5 %}selected{% endif %}>5 Minuten (Standard)</option>
+                                <option value="10" {% if config.break_between_rounds == 10 %}selected{% endif %}>10 Minuten</option>
+                                <option value="15" {% if config.break_between_rounds == 15 %}selected{% endif %}>15 Minuten</option>
+                                <option value="20" {% if config.break_between_rounds == 20 %}selected{% endif %}>20 Minuten</option>
+                                <option value="30" {% if config.break_between_rounds == 30 %}selected{% endif %}>30 Minuten</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                Längere Pause zwischen Round Robin Runden
+                            </small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="start_time">
+                                <strong>Turnier-Startzeit</strong>
+                            </label>
+                            <input type="time" class="form-control" id="start_time" 
+                                   name="start_time" 
+                                   value="{{ config.start_time }}" 
+                                   required>
+                            <small class="form-text text-muted">
+                                Wann beginnt das erste Spiel?
+                            </small>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" 
+                                   id="recalculate" name="recalculate" value="yes" checked>
+                            <label class="form-check-label" for="recalculate">
+                                <strong>Spielzeiten automatisch neu berechnen</strong>
+                            </label>
+                            <small class="form-text text-muted">
+                                Empfohlen: Alle Spielzeiten werden mit den neuen Einstellungen neu berechnet
+                            </small>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-lg btn-block">
+                            <i class="fas fa-save"></i> Konfiguration speichern
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    📊 Geschätzte Turnierdauer
+                </div>
+                <div class="card-body">
+                    <p><strong>Round Robin (150 Spiele, 10 Gruppen parallel):</strong></p>
+                    <ul>
+                        <li>5 Runden à 3 Spiele = 15 Spiele pro Gruppe</li>
+                        <li>Pro Zeitslot: {{ config.match_duration }} Min Spiel + {{ config.break_between_games }} Min Pause</li>
+                        <li>Zwischen Runden: {{ config.break_between_rounds }} Min Pause</li>
+                        <li><strong>Geschätzte Dauer: ca. {{ ((config.match_duration + config.break_between_games) * 5 + config.break_between_rounds * 4) // 60 }} Stunden</strong></li>
+                    </ul>
+                    
+                    <p class="mt-3"><strong>Gesamtturnier (inkl. Double Elim + Super Finals):</strong></p>
+                    <ul>
+                        <li><strong>Geschätzte Dauer: ca. 8-12 Stunden</strong></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <a href="{{ url_for('game_overview', game_name=game_name) }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+                </a>
+            </div>
+            
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
+
+
+# ============================================================================
+# 2. INDEX.HTML - ERWEITERTE TURNIER-ERSTELLUNG
+# ============================================================================
+
+"""
+Erweitere templates/admin/index.html
+Füge Zeitkonfigurations-Felder zum "Neues Turnier erstellen" Formular hinzu
+"""
+
+INDEX_HTML_PATCH = """
+<!-- In der "Neues Turnier erstellen" Form NACH dem game_name Feld einfügen: -->
+
+<hr>
+<h5>⏰ Zeitkonfiguration</h5>
+
+<div class="form-group">
+    <label for="match_duration">Spieldauer (Minuten)</label>
+    <select class="form-control" id="match_duration" name="match_duration">
+        <option value="8">8 Minuten</option>
+        <option value="10">10 Minuten</option>
+        <option value="12" selected>12 Minuten (Standard)</option>
+        <option value="15">15 Minuten</option>
+        <option value="20">20 Minuten</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label for="break_between_games">Pause zwischen Spielen (Minuten)</label>
+    <select class="form-control" id="break_between_games" name="break_between_games">
+        <option value="2">2 Minuten</option>
+        <option value="3" selected>3 Minuten (Standard)</option>
+        <option value="5">5 Minuten</option>
+        <option value="10">10 Minuten</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label for="break_between_rounds">Pause zwischen Runden (Minuten)</label>
+    <select class="form-control" id="break_between_rounds" name="break_between_rounds">
+        <option value="5" selected>5 Minuten (Standard)</option>
+        <option value="10">10 Minuten</option>
+        <option value="15">15 Minuten</option>
+        <option value="20">20 Minuten</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label for="start_time">Turnier-Startzeit</label>
+    <input type="time" class="form-control" id="start_time" name="start_time" value="09:00">
+</div>
+
+<hr>
+"""
+
+
+# ============================================================================
+# 3. GAME_OVERVIEW.HTML - ZEITPLAN-STATUS ANZEIGEN
+# ============================================================================
+
+"""
+Erweitere templates/admin/game_overview.html
+Füge nach der Spielnummern-Status-Card hinzu:
+"""
+
+GAME_OVERVIEW_PATCH = """
+<!-- NACH der Spielnummern-Status Card einfügen: -->
+
+<div class="card mt-3">
+    <div class="card-header bg-info text-white">
+        ⏰ Zeitplan-Status
+    </div>
+    <div class="card-body">
+        {% if config %}
+            <h6>Konfiguration:</h6>
+            <ul>
+                <li><strong>Spieldauer:</strong> {{ config.match_duration }} Minuten</li>
+                <li><strong>Pause (Spiele):</strong> {{ config.break_between_games }} Minuten</li>
+                <li><strong>Pause (Runden):</strong> {{ config.break_between_rounds }} Minuten</li>
+                <li><strong>Startzeit:</strong> {{ config.start_time }} Uhr</li>
+            </ul>
+            
+            <hr>
+            
+            <p><strong>Spielzeiten:</strong> {{ matches_with_time }} / {{ match_count }} Matches</p>
+            
+            {% if time_start and time_end %}
+                <p><strong>Zeitfenster:</strong> {{ time_start }} - {{ time_end }} Uhr</p>
+            {% endif %}
+            
+            <div class="btn-group" role="group">
+                <a href="{{ url_for('tournament_config', game_name=game_name) }}" 
+                   class="btn btn-sm btn-primary">
+                    <i class="fas fa-edit"></i> Konfiguration bearbeiten
+                </a>
+                
+                <button onclick="recalculateTimes()" class="btn btn-sm btn-warning">
+                    <i class="fas fa-sync"></i> Zeiten neu berechnen
+                </button>
+            </div>
+        {% else %}
+            <p class="text-muted">Keine Zeitkonfiguration vorhanden</p>
+            <a href="{{ url_for('tournament_config', game_name=game_name) }}" 
+               class="btn btn-primary">
+                Jetzt konfigurieren
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function recalculateTimes() {
+    if (!confirm('Alle Spielzeiten neu berechnen?')) return;
+    
+    fetch('/recalculate_times/{{ game_name }}', {method: 'POST'})
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Spielzeiten erfolgreich neu berechnet!');
+                location.reload();
+            } else {
+                alert('❌ Fehler: ' + data.error);
+            }
+        })
+        .catch(err => {
+            alert('❌ Netzwerkfehler: ' + err);
+        });
+}
+</script>
+"""
+
+
+# ============================================================================
+# 4. MATCH_OVERVIEW.HTML - ZEIT-SPALTE HINZUFÜGEN
+# ============================================================================
+
+"""
+Erweitere templates/admin/match_overview.html
+Füge Spalte für Spielzeit hinzu
+"""
+
+MATCH_OVERVIEW_PATCH = """
+<!-- Im <thead> nach der "Spiel #" Spalte einfügen: -->
+
+<th>Zeit</th>
+
+<!-- Im <tbody> nach der Spielnummer-Zelle einfügen: -->
+
+<td>
+    {% if match.time %}
+        <strong>{{ match.time }}</strong>
+    {% else %}
+        <span class="text-muted">-</span>
+    {% endif %}
+</td>
+"""
+
+
+# ============================================================================
+# 5. ENTER_RESULTS.HTML - ZEIT ANZEIGEN
+# ============================================================================
+
+"""
+Erweitere templates/admin/enter_results.html
+Zeige Spielzeit bei Ergebniseingabe an
+"""
+
+ENTER_RESULTS_PATCH = """
+<!-- Bei jedem Match-Block NACH der Spielnummer anzeigen: -->
+
+<div class="form-group">
+    <label>Spiel #{{ match.match_number }}</label>
+    {% if match.time %}
+        <span class="badge badge-info ml-2">⏰ {{ match.time }} Uhr</span>
+    {% endif %}
+    <br>
+    <small class="text-muted">
+        Runde {{ match.round }}, Gruppe {{ match.group_number }}, Feld {{ match.field }}
+    </small>
+</div>
+"""
+
+
+# ============================================================================
+# 6. DOUBLE_ELIM_BRACKET.HTML - ZEITEN ANZEIGEN
+# ============================================================================
+
+"""
+Erweitere templates/admin/double_elim_bracket.html
+Zeige Spielzeiten in Brackets
+"""
+
+DOUBLE_ELIM_BRACKET_PATCH = """
+<!-- Bei jedem Match im Bracket UNTER den Teams anzeigen: -->
+
+{% if match.time %}
+    <div class="match-time">
+        <small><i class="far fa-clock"></i> {{ match.time }}</small>
+    </div>
+{% endif %}
+
+<!-- CSS im <style> Block hinzufügen: -->
+<style>
+.match-time {
+    text-align: center;
+    color: #666;
+    margin-top: 5px;
+}
+</style>
+"""
+
+
+# ============================================================================
+# INSTALLATION DER TEMPLATES
+# ============================================================================
+
+"""
+SCHRITT-FÜR-SCHRITT:
+====================
+
+1. TOURNAMENT_CONFIG.HTML ERSTELLEN
+------------------------------------
+- Erstelle: templates/admin/tournament_config.html
+- Kopiere kompletten HTML-Code von oben
+
+
+2. INDEX.HTML ERWEITERN
+------------------------
+- Öffne: templates/admin/index.html
+- Suche: <form method="POST" action="{{ url_for('create_new_game') }}">
+- Füge Zeitkonfigurations-Felder ein (siehe INDEX_HTML_PATCH)
+
+
+3. GAME_OVERVIEW.HTML ERWEITERN
+--------------------------------
+- Öffne: templates/admin/game_overview.html
+- Füge Zeitplan-Status Card ein (siehe GAME_OVERVIEW_PATCH)
+
+
+4. MATCH_OVERVIEW.HTML ERWEITERN
+---------------------------------
+- Öffne: templates/admin/match_overview.html
+- Füge "Zeit" Spalte im Table Header ein
+- Füge Zeit-Zelle in Table Rows ein
+
+
+5. ENTER_RESULTS.HTML ERWEITERN
+--------------------------------
+- Öffne: templates/admin/enter_results.html
+- Zeige Spielzeit bei jedem Match an
+
+
+6. DOUBLE_ELIM_BRACKET.HTML ERWEITERN (OPTIONAL)
+-------------------------------------------------
+- Öffne: templates/admin/double_elim_bracket.html
+- Zeige Spielzeiten unter jedem Match
+
+
+FERTIG! 🎉
+----------
+Nach diesen Änderungen hast du:
+✅ Zeitkonfiguration beim Turnier-Erstellen
+✅ Bearbeitbare Zeitkonfiguration
+✅ Automatische Zeitberechnung
+✅ Zeitanzeige in allen Übersichten
+✅ Manuelle Neuberechnung per Button
+"""

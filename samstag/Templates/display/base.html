@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Auto Refresh Meta Tag will be injected by individual pages if needed -->
+    {% block meta_refresh %}{% endblock %}
+
+    <title>{{ game_name }} - Display</title>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/display.css') }}">
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+            overflow: hidden;
+        }
+
+        .display-container {
+            padding: 20px;
+            height: 100vh;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="display-container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="{{ url_for('static', filename='js/display.js') }}"></script>
+</body>
+
+</html>

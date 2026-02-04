@@ -1,0 +1,108 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Ergebnisse eintragen <small class="text-muted">Double Elimination</small></h1>
+
+    <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="pills-a-tab" data-toggle="pill" href="#pills-a" role="tab">Bracket A</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="pills-b-tab" data-toggle="pill" href="#pills-b" role="tab">Bracket B</a>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="pills-tabContent">
+        <!-- Bracket A -->
+        <div class="tab-pane fade show active" id="pills-a" role="tabpanel">
+            {% for match in matches_a %}
+            <div class="card match-card mb-2 border-primary">
+                <div class="row align-items-center">
+                    <div class="col-md-2 text-center text-muted">
+                        <small>#{{ match.match_number }}</small><br>
+                        <span class="badge badge-info">{{ match.bracket }} R{{ match.round }}</span>
+                    </div>
+                    <div class="col-md-8">
+                        <form
+                            action="{{ url_for('update_double_elim_result', game_name=game_name, bracket_id='A', match_id=match.id) }}"
+                            method="POST" class="d-flex justify-content-center align-items-center">
+                            <div class="text-right mr-2" style="width: 150px;">
+                                <strong>{{ match.team1 }}</strong>
+                            </div>
+
+                            <input type="number" name="score1" class="form-control score-input mx-1"
+                                value="{{ match.score1 if match.score1 is not none else '' }}" min="0" max="42"
+                                required>
+                            :
+                            <input type="number" name="score2" class="form-control score-input mx-1"
+                                value="{{ match.score2 if match.score2 is not none else '' }}" min="0" max="42"
+                                required>
+
+                            <div class="text-left ml-2" style="width: 150px;">
+                                <strong>{{ match.team2 }}</strong>
+                            </div>
+
+                            <div class="ml-3">
+                                <button type="submit" class="btn btn-success btn-sm"><i
+                                        class="fas fa-save"></i></button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        {% if match.winner %}
+                        <span class="badge badge-success">Sieger: {{ match.winner }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Bracket B -->
+        <div class="tab-pane fade" id="pills-b" role="tabpanel">
+            {% for match in matches_b %}
+            <div class="card match-card mb-2 border-info">
+                <div class="row align-items-center">
+                    <div class="col-md-2 text-center text-muted">
+                        <small>#{{ match.match_number }}</small><br>
+                        <span class="badge badge-info">{{ match.bracket }} R{{ match.round }}</span>
+                    </div>
+                    <div class="col-md-8">
+                        <form
+                            action="{{ url_for('update_double_elim_result', game_name=game_name, bracket_id='B', match_id=match.id) }}"
+                            method="POST" class="d-flex justify-content-center align-items-center">
+                            <div class="text-right mr-2" style="width: 150px;">
+                                <strong>{{ match.team1 }}</strong>
+                            </div>
+
+                            <input type="number" name="score1" class="form-control score-input mx-1"
+                                value="{{ match.score1 if match.score1 is not none else '' }}" min="0" max="42"
+                                required>
+                            :
+                            <input type="number" name="score2" class="form-control score-input mx-1"
+                                value="{{ match.score2 if match.score2 is not none else '' }}" min="0" max="42"
+                                required>
+
+                            <div class="text-left ml-2" style="width: 150px;">
+                                <strong>{{ match.team2 }}</strong>
+                            </div>
+
+                            <div class="ml-3">
+                                <button type="submit" class="btn btn-success btn-sm"><i
+                                        class="fas fa-save"></i></button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        {% if match.winner %}
+                        <span class="badge badge-success">Sieger: {{ match.winner }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

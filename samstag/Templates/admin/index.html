@@ -1,0 +1,161 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="jumbotron text-center">
+    <h1 class="display-4">Ultimate Frisbee Turnierverwaltung</h1>
+    <p class="lead">Willkommen im System. Bitte wähle eine Option:</p>
+    <hr class="my-4">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h3><i class="fas fa-plus-circle text-success"></i> Neues Turnier</h3>
+                    <p>Erstelle ein neues Turnier und konfiguriere die Parameter.</p>
+                    <button class="btn btn-success btn-lg btn-block" data-toggle="modal"
+                        data-target="#newGameModal">Erstellen</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h3><i class="fas fa-folder-open text-primary"></i> Turnier laden</h3>
+                    <p>Lade ein bestehendes Turnier aus der Datenbank.</p>
+                    <a href="{{ url_for('load_game') }}" class="btn btn-primary btn-lg btn-block">Laden</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Neues Turnier erstellen -->
+<div class="modal fade" id="newGameModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">🏆 Neues Turnier erstellen</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            
+            <form method="POST" action="{{ url_for('create_new_game') }}">
+                <div class="modal-body">
+                    <!-- Turniername -->
+                    <div class="form-group">
+                        <label><strong>Turniername (Dateiname)</strong></label>
+                        <input type="text" name="game_name" class="form-control" 
+                               required placeholder="z.B. Turnier_2025">
+                        <small class="form-text text-muted">
+                            Wird als Dateiname verwendet (keine Leerzeichen!)
+                        </small>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Zeitkonfiguration -->
+                    <h5 class="mb-3">⏰ Zeitkonfiguration</h5>
+                    
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Spieldauer (Minuten)</label>
+                            <select name="match_duration" class="form-control">
+                                <option value="8">8 Min</option>
+                                <option value="10">10 Min</option>
+                                <option value="12" selected>12 Min</option>
+                                <option value="15">15 Min</option>
+                                <option value="20">20 Min</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group col-md-4">
+                            <label>Startzeit</label>
+                            <input type="time" name="start_time" 
+                                   class="form-control" value="09:00" required>
+                        </div>
+                        
+                        <div class="form-group col-md-4">
+                            <label>Pause (Minuten)</label>
+                            <select name="break_between_games" class="form-control">
+                                <option value="2">2 Min</option>
+                                <option value="3" selected>3 Min</option>
+                                <option value="4">4 Min</option>
+                                <option value="5">5 Min</option>
+                                <option value="10">10 Min</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                Gilt für <strong>ALLES</strong> (Brackets & Runden)
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Mittagspause -->
+                    <h5 class="mb-3">🍽️ Mittagspause (optional)</h5>
+                    
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" 
+                                   id="lunch_break_checkbox" name="lunch_break_enabled">
+                            <label class="custom-control-label" for="lunch_break_checkbox">
+                                <strong>Mittagspause aktivieren</strong>
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            Matches die in die Mittagspause fallen werden automatisch danach eingeplant
+                        </small>
+                    </div>
+                    
+                    <div class="form-row" id="lunch_times_container" style="display: none;">
+                        <div class="form-group col-md-6">
+                            <label>Von</label>
+                            <input type="time" name="lunch_break_start" 
+                                   class="form-control" value="12:00">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Bis</label>
+                            <input type="time" name="lunch_break_end" 
+                                   class="form-control" value="13:00">
+                        </div>
+                    </div>
+                    
+                    <!-- Erklärung -->
+                    <div class="alert alert-info mt-3">
+                        <strong>ℹ️ Wie funktioniert die Zeitplanung?</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Alle Spiele einer Runde/Bracket spielen <strong>PARALLEL</strong></li>
+                            <li>Beispiel: Runde 1 Bracket A (Gruppen 1-5) → alle 5 gleichzeitig</li>
+                            <li>Dann Pause, dann Runde 1 Bracket B (Gruppen 6-10)</li>
+                            <li>Bei Mittagspause: Automatische Verschiebung falls nötig</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        Abbrechen
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        ✅ Turnier erstellen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript für Show/Hide Mittagspause -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const lunchCheckbox = document.getElementById('lunch_break_checkbox');
+    const lunchContainer = document.getElementById('lunch_times_container');
+    
+    if (lunchCheckbox) {
+        lunchCheckbox.addEventListener('change', function() {
+            lunchContainer.style.display = this.checked ? 'flex' : 'none';
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="alert alert-danger shadow-lg">
+        <h4 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Fehler aufgetreten!</h4>
+        <p>{{ error_message }}</p>
+        <hr>
+        <p class="mb-0">
+            <a href="javascript:history.back()" class="btn btn-outline-danger">Zurück</a>
+            <a href="{{ url_for('index') }}" class="btn btn-danger">Zum Hauptmenü</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h3><i class="fas fa-cogs"></i> Turnierkonfiguration</h3>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('update_config', game_name=game_name) }}" method="POST">
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Änderungen hier führen zu einer Neuberechnung aller
+                            Spielzeiten!
+                        </div>
+
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Spieldauer (Minuten)</label>
+                            <div class="col-sm-8">
+                                <select class="form-control" name="match_duration">
+                                    <option value="8" {% if config.match_duration==8 %}selected{% endif %}>8 Min
+                                    </option>
+                                    <option value="10" {% if config.match_duration==10 %}selected{% endif %}>10 Min
+                                    </option>
+                                    <option value="12" {% if config.match_duration==12 %}selected{% endif %}>12 Min
+                                    </option>
+                                    <option value="15" {% if config.match_duration==15 %}selected{% endif %}>15 Min
+                                    </option>
+                                    <option value="20" {% if config.match_duration==20 %}selected{% endif %}>20 Min
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Pause zwischen Spielen (Min)</label>
+                            <div class="col-sm-8">
+                                <select class="form-control" name="break_between_games">
+                                    <option value="2" {% if config.break_between_games==2 %}selected{% endif %}>2 Min
+                                    </option>
+                                    <option value="3" {% if config.break_between_games==3 %}selected{% endif %}>3 Min
+                                    </option>
+                                    <option value="5" {% if config.break_between_games==5 %}selected{% endif %}>5 Min
+                                    </option>
+                                    <option value="10" {% if config.break_between_games==10 %}selected{% endif %}>10 Min
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Pause zwischen Runden (Min)</label>
+                            <div class="col-sm-8">
+                                <select class="form-control" name="break_between_rounds">
+                                    <option value="5" {% if config.break_between_rounds==5 %}selected{% endif %}>5 Min
+                                    </option>
+                                    <option value="10" {% if config.break_between_rounds==10 %}selected{% endif %}>10
+                                        Min</option>
+                                    <option value="15" {% if config.break_between_rounds==15 %}selected{% endif %}>15
+                                        Min</option>
+                                    <option value="20" {% if config.break_between_rounds==20 %}selected{% endif %}>20
+                                        Min</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Turnier Startzeit</label>
+                            <div class="col-sm-8">
+                                <input type="time" class="form-control" name="start_time"
+                                    value="{{ config.start_time }}">
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="text-right">
+                            <a href="{{ url_for('game_overview', game_name=game_name) }}"
+                                class="btn btn-secondary">Abbrechen</a>
+                            <button type="submit" class="btn btn-primary">Speichern & Zeiten neu berechnen</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

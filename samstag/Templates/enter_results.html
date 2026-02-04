@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ game_name }} - Ergebnisse eintragen</title>
+    
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <style>
+        body {
+            background-color: #f4f6f9;
+            padding: 20px 0;
+        }
+        
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .filter-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .match-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+        
+        .match-card:hover {
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            transform: translateY(-3px);
+        }
+        
+        .match-card.completed {
+            border-left: 5px solid #28a745;
+        }
+        
+        .match-card.pending {
+            border-left: 5px solid #ffc107;
+        }
+        
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .match-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .match-time {
+            background: #28a745;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .match-info {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .match-info span {
+            margin-right: 15px;
+        }
+        
+        .team-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .team-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            flex: 1;
+        }
+        
+        .score-input {
+            width: 100px;
+            font-size: 1.5rem;
+            text-align: center;
+            font-weight: bold;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+        }
+        
+        .score-input:focus {
+            border-color: #764ba2;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .vs-divider {
+            text-align: center;
+            color: #6c757d;
+            font-weight: bold;
+            font-size: 1.5rem;
+            margin: 10px 0;
+        }
+        
+        .completed-score {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .btn-save {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            font-weight: 600;
+        }
+        
+        .btn-save:hover {
+            background: linear-gradient(135deg, #20c997 0%, #28a745 100%);
+            color: white;
+        }
+        
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            font-weight: 600;
+        }
+        
+        .btn-delete:hover {
+            background: #c82333;
+            color: white;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+        
+        .badge-round {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-weight: 600;
+        }
+        
+        .badge-group {
+            background: #17a2b8;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-weight: 600;
+        }
+        
+        .badge-field {
+            background: #6c757d;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-weight: 600;
+        }
+        
+        .quick-score-buttons {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        
+        .quick-score-buttons button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        
+        .quick-score-buttons button:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1><i class="fas fa-keyboard"></i> Ergebnisse eintragen</h1>
+                    <p class="mb-0">{{ game_name }}</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('game_overview', game_name=game_name) }}" 
+                       class="btn btn-light">
+                        <i class="fas fa-arrow-left"></i> Zurück
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="filterRound"><i class="fas fa-filter"></i> Runde filtern:</label>
+                    <select class="form-control" id="filterRound">
+                        <option value="">Alle Runden</option>
+                        <option value="1">Runde 1</option>
+                        <option value="2">Runde 2</option>
+                        <option value="3">Runde 3</option>
+                        <option value="4">Runde 4</option>
+                        <option value="5">Runde 5</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filterGroup">Gruppe filtern:</label>
+                    <select class="form-control" id="filterGroup">
+                        <option value="">Alle Gruppen</option>
+                        {% for i in range(1, 11) %}
+                            <option value="{{ i }}">Gruppe {{ i }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filterStatus">Status filtern:</label>
+                    <select class="form-control" id="filterStatus">
+                        <option value="">Alle</option>
+                        <option value="pending">Ausstehend</option>
+                        <option value="completed">Abgeschlossen</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-secondary btn-block" onclick="clearFilters()">
+                        <i class="fas fa-times"></i> Filter zurücksetzen
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Matches -->
+        <div id="matchesContainer">
+            {% if matches %}
+                {% for match in matches %}
+                <div class="match-card {% if match.score1 is not none %}completed{% else %}pending{% endif %}"
+                     data-round="{{ match.round }}"
+                     data-group="{{ match.group_number }}"
+                     data-status="{% if match.score1 is not none %}completed{% else %}pending{% endif %}">
+                    
+                    <!-- Match Header -->
+                    <div class="match-header">
+                        <div>
+                            <span class="match-number">
+                                #{{ match.match_number if match.match_number else '?' }}
+                            </span>
+                        </div>
+                        <div>
+                            {% if match.time %}
+                                <span class="match-time">
+                                    <i class="far fa-clock"></i> {{ match.time }} Uhr
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Match Info -->
+                    <div class="match-info">
+                        <span class="badge-round">Runde {{ match.round }}</span>
+                        <span class="badge-group">Gruppe {{ match.group_number }}</span>
+                        <span class="badge-field">Feld {{ match.field }}</span>
+                    </div>
+                    
+                    {% if match.score1 is none or match.score2 is none %}
+                        <!-- Ergebnis eintragen Form -->
+                        <form method="POST" 
+                              action="{{ url_for('save_result', game_name=game_name, match_id=match.id) }}"
+                              onsubmit="return validateScore(this)">
+                            
+                            <!-- Team 1 -->
+                            <div class="team-section">
+                                <div class="team-name">
+                                    <i class="fas fa-users text-primary"></i>
+                                    {{ match.team1 }}
+                                </div>
+                                <div>
+                                    <input type="number" 
+                                           class="form-control score-input" 
+                                           name="score1" 
+                                           min="0" 
+                                           max="42" 
+                                           placeholder="0"
+                                           value="{{ match.score1 if match.score1 is not none else '' }}"
+                                           required>
+                                    <div class="quick-score-buttons">
+                                        <button type="button" onclick="setScore(this, 1, 10)">10</button>
+                                        <button type="button" onclick="setScore(this, 1, 15)">15</button>
+                                        <button type="button" onclick="setScore(this, 1, 20)">20</button>
+                                        <button type="button" onclick="setScore(this, 1, 25)">25</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="vs-divider">VS</div>
+                            
+                            <!-- Team 2 -->
+                            <div class="team-section">
+                                <div class="team-name">
+                                    <i class="fas fa-users text-danger"></i>
+                                    {{ match.team2 }}
+                                </div>
+                                <div>
+                                    <input type="number" 
+                                           class="form-control score-input" 
+                                           name="score2" 
+                                           min="0" 
+                                           max="42" 
+                                           placeholder="0"
+                                           value="{{ match.score2 if match.score2 is not none else '' }}"
+                                           required>
+                                    <div class="quick-score-buttons">
+                                        <button type="button" onclick="setScore(this, 2, 10)">10</button>
+                                        <button type="button" onclick="setScore(this, 2, 15)">15</button>
+                                        <button type="button" onclick="setScore(this, 2, 20)">20</button>
+                                        <button type="button" onclick="setScore(this, 2, 25)">25</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Buttons -->
+                            <div class="text-center mt-3">
+                                <button type="submit" class="btn btn-save btn-lg">
+                                    <i class="fas fa-save"></i> Ergebnis speichern
+                                </button>
+                            </div>
+                        </form>
+                    {% else %}
+                        <!-- Ergebnis anzeigen (bereits eingetragen) -->
+                        <div class="team-section">
+                            <div class="team-name">
+                                <i class="fas fa-users text-primary"></i>
+                                {{ match.team1 }}
+                            </div>
+                        </div>
+                        
+                        <div class="completed-score">
+                            <strong>{{ match.score1 }} : {{ match.score2 }}</strong>
+                        </div>
+                        
+                        <div class="team-section mt-3">
+                            <div class="team-name">
+                                <i class="fas fa-users text-danger"></i>
+                                {{ match.team2 }}
+                            </div>
+                        </div>
+                        
+                        <!-- Ergebnis löschen -->
+                        <div class="text-center mt-3">
+                            <form method="POST" 
+                                  action="{{ url_for('delete_result', game_name=game_name, match_id=match.id) }}"
+                                  style="display: inline;"
+                                  onsubmit="return confirm('Ergebnis wirklich löschen?')">
+                                <button type="submit" class="btn btn-delete">
+                                    <i class="fas fa-trash"></i> Ergebnis löschen
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>Keine Spiele gefunden</h3>
+                    <p>Generieren Sie zuerst einen Spielplan.</p>
+                    <a href="{{ url_for('game_overview', game_name=game_name) }}" 
+                       class="btn btn-primary">
+                        Zur Übersicht
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Back Button -->
+        {% if matches %}
+        <div class="text-center mt-4 mb-5">
+            <a href="{{ url_for('match_overview', game_name=game_name) }}" 
+               class="btn btn-secondary btn-lg">
+                <i class="fas fa-list"></i> Zur Spielübersicht
+            </a>
+            
+            <a href="{{ url_for('group_standings', game_name=game_name) }}" 
+               class="btn btn-info btn-lg">
+                <i class="fas fa-table"></i> Gruppentabellen
+            </a>
+        </div>
+        {% endif %}
+        
+    </div>
+    
+    <!-- jQuery & Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
+    <script>
+        // Score Validierung
+        function validateScore(form) {
+            let score1 = parseInt(form.score1.value);
+            let score2 = parseInt(form.score2.value);
+            
+            if (score1 < 0 || score1 > 42) {
+                alert('❌ Punktzahl muss zwischen 0 und 42 liegen!');
+                return false;
+            }
+            
+            if (score2 < 0 || score2 > 42) {
+                alert('❌ Punktzahl muss zwischen 0 und 42 liegen!');
+                return false;
+            }
+            
+            if (score1 === score2) {
+                alert('❌ Unentschieden ist nicht erlaubt!');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        // Quick-Score Buttons
+        function setScore(button, team, score) {
+            let card = $(button).closest('.match-card');
+            let input = card.find('input[name="score' + team + '"]');
+            input.val(score);
+            input.focus();
+        }
+        
+        // Filter-Funktionen
+        function applyFilters() {
+            let round = $('#filterRound').val();
+            let group = $('#filterGroup').val();
+            let status = $('#filterStatus').val();
+            
+            $('.match-card').each(function() {
+                let cardRound = $(this).data('round').toString();
+                let cardGroup = $(this).data('group').toString();
+                let cardStatus = $(this).data('status');
+                
+                let showRound = !round || cardRound === round;
+                let showGroup = !group || cardGroup === group;
+                let showStatus = !status || cardStatus === status;
+                
+                if (showRound && showGroup && showStatus) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+        
+        function clearFilters() {
+            $('#filterRound').val('');
+            $('#filterGroup').val('');
+            $('#filterStatus').val('');
+            applyFilters();
+        }
+        
+        // Filter Change Events
+        $('#filterRound, #filterGroup, #filterStatus').on('change', applyFilters);
+        
+        // Auto-Focus auf erstes ausstehende Spiel
+        $(document).ready(function() {
+            let firstPending = $('.match-card.pending').first();
+            if (firstPending.length) {
+                $('html, body').animate({
+                    scrollTop: firstPending.offset().top - 100
+                }, 500);
+            }
+        });
+        
+        // Keyboard Navigation (Pfeiltasten zwischen Feldern)
+        $('.score-input').on('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                let inputs = $('.score-input:visible');
+                let index = inputs.index(this);
+                
+                if (index < inputs.length - 1) {
+                    inputs.eq(index + 1).focus();
+                } else {
+                    $(this).closest('form').find('.btn-save').focus();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Platzierungsrunde (Plätze 37-60)</h1>
+
+    <div class="card shadow">
+        <div class="card-header bg-dark text-white">
+            Matches
+        </div>
+        <div class="card-body">
+            {% if matches %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Platzierung</th>
+                            <th>Team 1</th>
+                            <th>Ergebnis</th>
+                            <th>Team 2</th>
+                            <th>Feld</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for match in matches %}
+                        <tr>
+                            <td><span class="badge badge-secondary">#{{ match.match_number }}</span></td>
+                            <td>{{ match.placement }}</td>
+                            <td>{{ match.team1 }}</td>
+                            <td>
+                                <form
+                                    action="{{ url_for('save_placement_result', game_name=game_name, match_id=match.id) }}"
+                                    method="POST" class="form-inline">
+                                    <input type="number" name="score1"
+                                        class="form-control form-control-sm score-input mx-1"
+                                        value="{{ match.score1 if match.score1 is not none else '' }}"
+                                        style="width: 60px;">
+                                    :
+                                    <input type="number" name="score2"
+                                        class="form-control form-control-sm score-input mx-1"
+                                        value="{{ match.score2 if match.score2 is not none else '' }}"
+                                        style="width: 60px;">
+                                    <button type="submit" class="btn btn-sm btn-success ml-2">
+                                        <i class="fas fa-save"></i>
+                                    </button>
+                                </form>
+                            </td>
+                            <td>{{ match.team2 }}</td>
+                            <td>{{ match.court }}</td>
+                            <td>
+                                {% if match.winner %}
+                                <span class="badge badge-success">{{ match.winner }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted py-5">
+                Noch keine Platzierungsspiele generiert.<br>
+                Diese werden am Ende des Turniers aus den nicht qualifizierten Teams erstellt.
+            </p>
+            <div class="text-center">
+                <a href="{{ url_for('generate_placement_round', game_name=game_name) }}" class="btn btn-primary">
+                    Matches generieren
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

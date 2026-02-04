@@ -1,0 +1,59 @@
+{% extends "display/base.html" %}
+
+{% block content %}
+<h1 class="display-title text-warning">🏆 SUPER FINALS 🏆</h1>
+
+<div class="row justify-content-center mt-5">
+    <!-- Semi Finals -->
+    <div class="col-md-3 d-flex flex-column justify-content-around">
+        {% for match in matches if match.match_id == 'HF1' or match.match_id == 'HF2' %}
+        <div class="card super-finals-card mb-5 shadow-lg border-primary">
+            <div class="card-header bg-primary text-white text-center">
+                {{ match.match_id }}
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>{{ match.team1 or 'TBD' }}</span>
+                    <span class="font-weight-bold">{{ match.score1 if match.score1 is not none else '' }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>{{ match.team2 or 'TBD' }}</span>
+                    <span class="font-weight-bold">{{ match.score2 if match.score2 is not none else '' }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Connector -->
+    <div class="col-md-2 d-flex align-items-center justify-content-center">
+        <i class="fas fa-chevron-right fa-5x text-muted"></i>
+    </div>
+
+    <!-- Final -->
+    <div class="col-md-4 d-flex align-items-center">
+        {% for match in matches if match.match_id == 'FINAL' %}
+        <div class="card super-finals-card w-100 shadow-lg border-warning" style="transform: scale(1.2);">
+            <div class="card-header bg-warning text-dark text-center font-weight-bold">
+                FINALE
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3" style="font-size: 2rem;">
+                    <span>{{ match.team1 or 'TBD' }}</span>
+                    <span class="font-weight-bold">{{ match.score1 if match.score1 is not none else '-' }}</span>
+                </div>
+                <div class="d-flex justify-content-between" style="font-size: 2rem;">
+                    <span>{{ match.team2 or 'TBD' }}</span>
+                    <span class="font-weight-bold">{{ match.score2 if match.score2 is not none else '-' }}</span>
+                </div>
+                {% if match.winner %}
+                <div class="text-center mt-3 text-success font-weight-bold">
+                    <i class="fas fa-trophy"></i> SIEGER: {{ match.winner }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Turnier-Übersicht: <span class="text-primary">{{ game_name }}</span></h1>
+
+    <div class="row mb-4">
+        <!-- Teams Stats -->
+        <div class="col-md-3">
+            <div class="card text-white bg-info mb-3 shadow-sm" style="height: 100%;">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-users"></i> Teams</h5>
+                    <p class="card-text display-4">{{ team_count }} / 60</p>
+                    <small>Davon Ghost-Teams: {{ ghost_count }}</small>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('manage_teams', game_name=game_name) }}" class="text-white">Verwalten &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Matches Stats -->
+        <div class="col-md-3">
+            <div class="card text-white bg-warning mb-3 shadow-sm" style="height: 100%;">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-futbol"></i> Spiele</h5>
+                    <p class="card-text display-4">{{ match_count }}</p>
+                    <small>Generierte Matches (Round Robin)</small>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('match_overview', game_name=game_name) }}" class="text-white">Ansehen &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Stats -->
+        <div class="col-md-3">
+            <div class="card text-white bg-success mb-3 shadow-sm" style="height: 100%;">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-check-circle"></i> Ergebnisse</h5>
+                    <p class="card-text display-4">{{ results_count }}</p>
+                    <small>Eingetragene Ergebnisse</small>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('enter_results', game_name=game_name) }}" class="text-white">Eintragen
+                        &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Config Link -->
+        <div class="col-md-3">
+            <div class="card text-white bg-secondary mb-3 shadow-sm" style="height: 100%;">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-cogs"></i> Setup</h5>
+                    <p class="card-text">Konfiguration & Export</p>
+                    <div class="btn-group-vertical w-100">
+                        <a href="{{ url_for('export_complete', game_name=game_name) }}" class="btn btn-primary">
+                            <i class="fas fa-file-excel"></i> Export CSV
+                        </a>
+                        <form action="{{ url_for('cancel_game', game_name=game_name) }}" method="POST"
+                            onsubmit="return confirm('Wirklich ALLES löschen?');">
+                            <button type="submit" class="btn btn-danger btn-sm w-100">Reset Alles</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card shadow-sm">
+        <div class="card-header">Schnellzugriff</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <a href="{{ url_for('generate_matches', game_name=game_name) }}"
+                        class="btn btn-outline-primary btn-block p-3">
+                        <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>
+                        Spielplan Generieren
+                    </a>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <a href="{{ url_for('generate_double_elim', game_name=game_name) }}"
+                        class="btn btn-outline-success btn-block p-3">
+                        <i class="fas fa-sitemap fa-2x mb-2 d-block"></i>
+                        Brackets Generieren
+                    </a>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <a href="{{ url_for('display_home', game_name=game_name) }}" target="_blank"
+                        class="btn btn-outline-dark btn-block p-3">
+                        <i class="fas fa-tv fa-2x mb-2 d-block"></i>
+                        Zum Display-Modus
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

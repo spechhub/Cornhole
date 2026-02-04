@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ game_name }} - Turnierübersicht</title>
+    
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <style>
+        body {
+            background-color: #f4f6f9;
+            padding-top: 20px;
+            padding-bottom: 40px;
+        }
+        
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .page-header h1 {
+            margin: 0;
+            font-weight: bold;
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        
+        .stats-card .card-icon {
+            font-size: 3rem;
+            opacity: 0.2;
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+        
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stats-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .action-card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .action-card h5 {
+            margin-bottom: 20px;
+            color: #495057;
+        }
+        
+        .btn-action {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 12px;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+        
+        .progress-section {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .badge-phase {
+            font-size: 0.85rem;
+            padding: 5px 10px;
+            margin-right: 5px;
+        }
+        
+        .info-card {
+            background: white;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1><i class="fas fa-trophy"></i> {{ game_name }}</h1>
+                    <p class="mb-0">Turnierübersicht & Verwaltung</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('index') }}" class="btn btn-light">
+                        <i class="fas fa-home"></i> Startseite
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Statistik Cards -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <i class="fas fa-users card-icon"></i>
+                    <div class="stats-number">{{ team_count }}</div>
+                    <div class="stats-label">Teams</div>
+                    {% if ghost_count > 0 %}
+                        <small class="text-muted">
+                            ({{ ghost_count }} Ghost-Teams)
+                        </small>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <i class="fas fa-futbol card-icon"></i>
+                    <div class="stats-number">{{ match_count }}</div>
+                    <div class="stats-label">Spiele gesamt</div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <i class="fas fa-check-circle card-icon"></i>
+                    <div class="stats-number">{{ results_count }}</div>
+                    <div class="stats-label">Ergebnisse</div>
+                    {% if match_count > 0 %}
+                        <small class="text-muted">
+                            ({{ (results_count * 100 / match_count)|round|int }}% komplett)
+                        </small>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <i class="fas fa-hashtag card-icon"></i>
+                    <div class="stats-number">#{{ max_overall if max_overall else 0 }}</div>
+                    <div class="stats-label">Höchste Spielnummer</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Turnierphase & Fortschritt -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="info-card">
+                    <h5><i class="fas fa-chart-line"></i> Turnierfortschritt</h5>
+                    
+                    <div class="mb-3">
+                        {% if team_count == 0 %}
+                            <span class="badge badge-secondary badge-phase">
+                                <i class="fas fa-circle"></i> Vorbereitung
+                            </span>
+                            <p class="mb-0 mt-2">Fügen Sie Teams hinzu, um zu starten.</p>
+                        {% elif match_count == 0 %}
+                            <span class="badge badge-warning badge-phase">
+                                <i class="fas fa-users"></i> Team-Setup ({{ team_count }}/60)
+                            </span>
+                            <p class="mb-0 mt-2">Teams eingegeben. Generieren Sie den Spielplan.</p>
+                        {% elif results_count < match_count %}
+                            <span class="badge badge-primary badge-phase">
+                                <i class="fas fa-running"></i> Round Robin läuft
+                            </span>
+                            <p class="mb-0 mt-2">Tragen Sie die Ergebnisse ein.</p>
+                        {% else %}
+                            <span class="badge badge-success badge-phase">
+                                <i class="fas fa-check"></i> Round Robin abgeschlossen
+                            </span>
+                            <p class="mb-0 mt-2">Bereit für K.O.-Phase.</p>
+                        {% endif %}
+                    </div>
+                    
+                    {% if match_count > 0 %}
+                    <div class="progress-section">
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar bg-success" 
+                                 role="progressbar" 
+                                 style="width: {{ (results_count * 100 / match_count)|round }}%"
+                                 aria-valuenow="{{ results_count }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="{{ match_count }}">
+                                {{ results_count }} / {{ match_count }} Spiele
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Cards -->
+        <div class="row">
+            
+            <!-- Team-Management -->
+            <div class="col-md-6 col-lg-4">
+                <div class="action-card">
+                    <h5><i class="fas fa-users"></i> Team-Management</h5>
+                    
+                    <a href="{{ url_for('manage_teams', game_name=game_name) }}" 
+                       class="btn btn-primary btn-action">
+                        <i class="fas fa-edit"></i> Teams verwalten
+                    </a>
+                    
+                    {% if team_count < 60 %}
+                    <button class="btn btn-secondary btn-action" 
+                            onclick="generateGhostTeams()">
+                        <i class="fas fa-ghost"></i> Ghost-Teams generieren ({{ 60 - team_count }} fehlen)
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Round Robin -->
+            <div class="col-md-6 col-lg-4">
+                <div class="action-card">
+                    <h5><i class="fas fa-list-ol"></i> Round Robin</h5>
+                    
+                    {% if match_count == 0 %}
+                        <a href="{{ url_for('generate_matches', game_name=game_name) }}" 
+                           class="btn btn-success btn-action"
+                           onclick="return confirm('Spielplan generieren? Teams können danach nicht mehr geändert werden!')">
+                            <i class="fas fa-play-circle"></i> Spielplan generieren
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('match_overview', game_name=game_name) }}" 
+                           class="btn btn-info btn-action">
+                            <i class="fas fa-list"></i> Spielübersicht
+                        </a>
+                        
+                        <a href="{{ url_for('enter_results', game_name=game_name) }}" 
+                           class="btn btn-primary btn-action">
+                            <i class="fas fa-keyboard"></i> Ergebnisse eintragen
+                        </a>
+                        
+                        <a href="{{ url_for('group_standings', game_name=game_name) }}" 
+                           class="btn btn-secondary btn-action">
+                            <i class="fas fa-table"></i> Gruppentabellen
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Double Elimination -->
+            <div class="col-md-6 col-lg-4">
+                <div class="action-card">
+                    <h5><i class="fas fa-trophy"></i> K.O.-Phase</h5>
+                    
+                    {% if results_count >= match_count and match_count > 0 %}
+                        <a href="{{ url_for('generate_double_elim', game_name=game_name) }}" 
+                           class="btn btn-success btn-action">
+                            <i class="fas fa-sitemap"></i> Brackets generieren
+                        </a>
+                    {% else %}
+                        <button class="btn btn-secondary btn-action" disabled>
+                            <i class="fas fa-lock"></i> Round Robin zuerst abschließen
+                        </button>
+                    {% endif %}
+                    
+                    <a href="{{ url_for('double_elim_bracket', game_name=game_name) }}" 
+                       class="btn btn-info btn-action">
+                        <i class="fas fa-stream"></i> Bracket-Ansicht
+                    </a>
+                    
+                    <a href="{{ url_for('enter_double_elim_results', game_name=game_name) }}" 
+                       class="btn btn-primary btn-action">
+                        <i class="fas fa-keyboard"></i> K.O. Ergebnisse
+                    </a>
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Weitere Action Cards -->
+        <div class="row">
+            
+            <!-- Spielnummern-Status -->
+            <div class="col-md-6">
+                <div class="action-card">
+                    <h5><i class="fas fa-hashtag"></i> Spielnummern-Status</h5>
+                    
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <strong>Round Robin:</strong> 
+                            {{ numbered_rr if numbered_rr else 0 }} / {{ match_count }} Spiele
+                            {% if numbered_rr > 0 %}
+                                <span class="badge badge-success">bis #{{ max_rr }}</span>
+                            {% endif %}
+                        </li>
+                        <li class="mb-2">
+                            <strong>Bracket A:</strong> 
+                            {{ numbered_a if numbered_a else 0 }} Spiele
+                        </li>
+                        <li class="mb-2">
+                            <strong>Bracket B:</strong> 
+                            {{ numbered_b if numbered_b else 0 }} Spiele
+                        </li>
+                    </ul>
+                    
+                    {% if match_count > 0 and numbered_rr < match_count %}
+                    <button onclick="renumberMatches()" class="btn btn-warning btn-action">
+                        <i class="fas fa-sync"></i> Spielnummern neu vergeben
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Zeitplan-Status -->
+            <div class="col-md-6">
+                <div class="action-card">
+                    <h5><i class="far fa-clock"></i> Zeitplan-Status</h5>
+                    
+                    {% if config %}
+                        <ul class="list-unstyled">
+                            <li><strong>Spieldauer:</strong> {{ config.match_duration }} Min</li>
+                            <li><strong>Pause (Spiele):</strong> {{ config.break_between_games }} Min</li>
+                            <li><strong>Pause (Runden):</strong> {{ config.break_between_rounds }} Min</li>
+                            <li><strong>Startzeit:</strong> {{ config.start_time }} Uhr</li>
+                        </ul>
+                        
+                        {% if matches_with_time is defined and matches_with_time > 0 %}
+                        <p class="mb-2">
+                            <strong>Spielzeiten:</strong> 
+                            {{ matches_with_time }} / {{ match_count }} Matches
+                        </p>
+                        {% if time_start and time_end %}
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-calendar-alt"></i> 
+                                {{ time_start }} - {{ time_end }} Uhr
+                            </p>
+                        {% endif %}
+                        {% endif %}
+                        
+                        <a href="{{ url_for('tournament_config', game_name=game_name) }}" 
+                           class="btn btn-primary btn-action">
+                            <i class="fas fa-cog"></i> Zeitkonfiguration
+                        </a>
+                        
+                        <button onclick="recalculateTimes()" class="btn btn-warning btn-action">
+                            <i class="fas fa-sync"></i> Zeiten neu berechnen
+                        </button>
+                    {% else %}
+                        <p class="text-muted">Keine Zeitkonfiguration vorhanden</p>
+                        <a href="{{ url_for('tournament_config', game_name=game_name) }}" 
+                           class="btn btn-primary btn-action">
+                            <i class="fas fa-cog"></i> Jetzt konfigurieren
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Export & Danger Zone -->
+        <div class="row">
+            
+            <!-- Export -->
+            <div class="col-md-6">
+                <div class="action-card">
+                    <h5><i class="fas fa-file-export"></i> Export & Anzeige</h5>
+                    
+                    <a href="{{ url_for('export_rankings', game_name=game_name) }}" 
+                       class="btn btn-success btn-action">
+                        <i class="fas fa-download"></i> Rankings exportieren (CSV)
+                    </a>
+                    
+                    <a href="{{ url_for('export_complete', game_name=game_name) }}" 
+                       class="btn btn-success btn-action">
+                        <i class="fas fa-file-csv"></i> Komplett-Export (CSV)
+                    </a>
+                    
+                    <a href="{{ url_for('display_home', game_name=game_name) }}" 
+                       class="btn btn-info btn-action" 
+                       target="_blank">
+                        <i class="fas fa-tv"></i> Display-Ansicht (Beamer)
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Danger Zone -->
+            <div class="col-md-6">
+                <div class="action-card" style="border-left: 4px solid #dc3545;">
+                    <h5><i class="fas fa-exclamation-triangle"></i> Danger Zone</h5>
+                    
+                    <form method="POST" action="{{ url_for('cancel_game', game_name=game_name) }}" 
+                          onsubmit="return confirm('ACHTUNG: Alle Matches werden gelöscht! Teams bleiben erhalten. Fortfahren?')">
+                        <button type="submit" class="btn btn-warning btn-action">
+                            <i class="fas fa-undo"></i> Spielplan zurücksetzen
+                        </button>
+                    </form>
+                    
+                    <button class="btn btn-danger btn-action" 
+                            onclick="alert('Turnier löschen noch nicht implementiert')">
+                        <i class="fas fa-trash"></i> Turnier löschen
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+        
+    </div>
+    
+    <!-- jQuery & Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
+    <script>
+        function renumberMatches() {
+            if (!confirm('Alle Spielnummern neu vergeben?')) return;
+            
+            fetch('/renumber_all_matches/{{ game_name }}', {method: 'POST'})
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Spielnummern erfolgreich neu vergeben!');
+                        location.reload();
+                    } else {
+                        alert('❌ Fehler: ' + data.error);
+                    }
+                })
+                .catch(err => {
+                    alert('❌ Netzwerkfehler: ' + err);
+                });
+        }
+        
+        function recalculateTimes() {
+            if (!confirm('Alle Spielzeiten neu berechnen?')) return;
+            
+            fetch('/recalculate_times/{{ game_name }}', {method: 'POST'})
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Spielzeiten erfolgreich neu berechnet!');
+                        location.reload();
+                    } else {
+                        alert('❌ Fehler: ' + data.error);
+                    }
+                })
+                .catch(err => {
+                    alert('❌ Netzwerkfehler: ' + err);
+                });
+        }
+        
+        function generateGhostTeams() {
+            if (!confirm('{{ 60 - team_count }} Ghost-Teams generieren?')) return;
+            
+            fetch('/generate_ghost_teams/{{ game_name }}', {method: 'POST'})
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ ' + data.generated + ' Ghost-Teams erfolgreich generiert!');
+                        location.reload();
+                    } else {
+                        alert('❌ Fehler: ' + data.error);
+                    }
+                })
+                .catch(err => {
+                    alert('❌ Netzwerkfehler: ' + err);
+                });
+        }
+    </script>
+</body>
+</html>

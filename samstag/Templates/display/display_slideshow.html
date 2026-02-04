@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <title>{{ game_name }} - Slideshow</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: black;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <iframe id="slideFrame" src=""></iframe>
+
+    <script>
+        var gameName = "{{ game_name }}";
+        var slides = [
+            "{{ url_for('display_groups', game_name=game_name) }}",
+            "{{ url_for('display_brackets', game_name=game_name) }}",
+            "{{ url_for('display_super_finals', game_name=game_name) }}"
+        ];
+
+        var currentIndex = 0;
+        var intervalTime = 15000; // 15 Seconds per slide
+
+        function showNextSlide() {
+            var frame = document.getElementById('slideFrame');
+            frame.src = slides[currentIndex];
+            currentIndex = (currentIndex + 1) % slides.length;
+        }
+
+        // Start
+        showNextSlide();
+        setInterval(showNextSlide, intervalTime);
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,131 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Spielplan: Round Robin <small class="text-muted">{{ game_name }}</small></h1>
+        <a href="{{ url_for('enter_results', game_name=game_name) }}" class="btn btn-success">
+            <i class="fas fa-edit"></i> Ergebnisse eintragen
+        </a>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" id="matchTabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="bracket-a-tab" data-toggle="tab" href="#bracket-a" role="tab">Bracket A (Gr. 1-5)</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="bracket-b-tab" data-toggle="tab" href="#bracket-b" role="tab">Bracket B (Gr. 6-10)</a>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="matchTabContent">
+        <!-- Bracket A -->
+        <div class="tab-pane fade show active" id="bracket-a" role="tabpanel">
+            {% for group_num in range(1, 6) %}
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> Gruppe {{ group_num }}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-sm mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Runde</th>
+                                    <th>Uhrzeit</th>
+                                    <th>Team 1</th>
+                                    <th>Team 2</th>
+                                    <th>Feld</th>
+                                    <th>Ergebnis</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set group_matches = bracket_a|selectattr('group_number', 'equalto', group_num)|list %}
+                                {% for match in group_matches %}
+                                <tr>
+                                    <td><span class="badge badge-secondary">#{{ match.match_number if match.match_number else '-' }}</span></td>
+                                    <td>{{ match.round }}</td>
+                                    <td>
+                                        {% if match.time %}
+                                        <i class="fas fa-clock text-muted"></i> {{ match.time }}
+                                        {% else %}
+                                        <span class="text-muted">--:--</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ match.team1 }}</td>
+                                    <td>{{ match.team2 }}</td>
+                                    <td><span class="badge badge-info">{{ match.field }}</span></td>
+                                    <td>
+                                        {% if match.score1 is not none %}
+                                        <strong class="text-success">{{ match.score1 }} : {{ match.score2 }}</strong>
+                                        {% else %}
+                                        <span class="text-muted">- : -</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Bracket B -->
+        <div class="tab-pane fade" id="bracket-b" role="tabpanel">
+            {% for group_num in range(6, 11) %}
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> Gruppe {{ group_num }}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-sm mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Runde</th>
+                                    <th>Uhrzeit</th>
+                                    <th>Team 1</th>
+                                    <th>Team 2</th>
+                                    <th>Feld</th>
+                                    <th>Ergebnis</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set group_matches = bracket_b|selectattr('group_number', 'equalto', group_num)|list %}
+                                {% for match in group_matches %}
+                                <tr>
+                                    <td><span class="badge badge-secondary">#{{ match.match_number if match.match_number else '-' }}</span></td>
+                                    <td>{{ match.round }}</td>
+                                    <td>
+                                        {% if match.time %}
+                                        <i class="fas fa-clock text-muted"></i> {{ match.time }}
+                                        {% else %}
+                                        <span class="text-muted">--:--</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ match.team1 }}</td>
+                                    <td>{{ match.team2 }}</td>
+                                    <td><span class="badge badge-info">{{ match.field }}</span></td>
+                                    <td>
+                                        {% if match.score1 is not none %}
+                                        <strong class="text-success">{{ match.score1 }} : {{ match.score2 }}</strong>
+                                        {% else %}
+                                        <span class="text-muted">- : -</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
