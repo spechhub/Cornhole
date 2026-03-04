@@ -2850,8 +2850,9 @@ def generate_matches(game_name):
     for team in all_teams:
         groups[team['group_number']].append(team['name'])
     
-    field_counter = 1
     # WICHTIG: match_number wird NICHT hier vergeben, sondern später!
+    # Feldzuweisung: pro Runde rotierend, Bracket A (Gr.1-5) und B (Gr.6-10) je Felder 1-15
+    # Runde r, Gruppe g (0-basiert innerhalb Bracket): Startfeld = ((g*3) + (r-1)*3) % 15 + 1
     
     for group_num in sorted(groups.keys()):
         teams = groups[group_num]
@@ -2862,7 +2863,17 @@ def generate_matches(game_name):
         n = len(teams)
         rounds = n - 1 if n % 2 == 0 else n
         
+        # Gruppenindex innerhalb des Brackets (0-basiert)
+        # Bracket A: Gruppen 1-5 → Index 0-4
+        # Bracket B: Gruppen 6-10 → Index 0-4
+        group_idx = (group_num - 1) % 5  # 0-4
+        
         for round_num in range(1, rounds + 1):
+            # Startfeld für diese Gruppe in dieser Runde
+            # Rotation: pro Runde um 3 Felder verschoben
+            start_field = ((group_idx * 3) + (round_num - 1) * 3) % 15 + 1
+            match_field = start_field
+            
             for i in range(n // 2):
                 team1_idx = i
                 team2_idx = n - 1 - i
@@ -2875,9 +2886,9 @@ def generate_matches(game_name):
                     cursor.execute("""
                         INSERT INTO matches (round, team1, team2, group_number, field)
                         VALUES (?, ?, ?, ?, ?)
-                    """, (round_num, team1, team2, group_num, field_counter))
+                    """, (round_num, team1, team2, group_num, match_field))
                     
-                    field_counter = (field_counter % 15) + 1
+                    match_field = (match_field % 15) + 1
             
             if n > 2:
                 teams = [teams[0]] + [teams[-1]] + teams[1:-1]
