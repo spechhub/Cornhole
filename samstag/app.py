@@ -1967,7 +1967,7 @@ INTEGRATION IN app.py:
 
 
 def recalculate_rankings_internal(conn):
-    """Rankings neu berechnen - Sortierung: 1. goals_for, 2. goal_difference, 3. direkter Vergleich"""
+    """Rankings neu berechnen - Sortierung: 1. goals_for, 2. goal_difference, 3. direkter Vergleich. Keine Punkte."""
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1989,11 +1989,11 @@ def recalculate_rankings_internal(conn):
 
         # Team1
         if score1 > score2:
-            wins1, draws1, losses1, points1 = 1, 0, 0, 3
+            wins1, draws1, losses1 = 1, 0, 0
         elif score1 < score2:
-            wins1, draws1, losses1, points1 = 0, 0, 1, 0
+            wins1, draws1, losses1 = 0, 0, 1
         else:
-            wins1, draws1, losses1, points1 = 0, 1, 0, 1
+            wins1, draws1, losses1 = 0, 1, 0
 
         cursor.execute("""
             UPDATE rankings 
@@ -2003,18 +2003,17 @@ def recalculate_rankings_internal(conn):
                 losses = losses + ?,
                 goals_for = goals_for + ?,
                 goals_against = goals_against + ?,
-                goal_difference = goal_difference + (? - ?),
-                points = points + ?
+                goal_difference = goal_difference + (? - ?)
             WHERE team = ?
-        """, (wins1, draws1, losses1, score1, score2, score1, score2, points1, team1))
+        """, (wins1, draws1, losses1, score1, score2, score1, score2, team1))
 
         # Team2
         if score2 > score1:
-            wins2, draws2, losses2, points2 = 1, 0, 0, 3
+            wins2, draws2, losses2 = 1, 0, 0
         elif score2 < score1:
-            wins2, draws2, losses2, points2 = 0, 0, 1, 0
+            wins2, draws2, losses2 = 0, 0, 1
         else:
-            wins2, draws2, losses2, points2 = 0, 1, 0, 1
+            wins2, draws2, losses2 = 0, 1, 0
 
         cursor.execute("""
             UPDATE rankings 
@@ -2024,10 +2023,9 @@ def recalculate_rankings_internal(conn):
                 losses = losses + ?,
                 goals_for = goals_for + ?,
                 goals_against = goals_against + ?,
-                goal_difference = goal_difference + (? - ?),
-                points = points + ?
+                goal_difference = goal_difference + (? - ?)
             WHERE team = ?
-        """, (wins2, draws2, losses2, score2, score1, score2, score1, points2, team2))
+        """, (wins2, draws2, losses2, score2, score1, score2, score1, team2))
 
     conn.commit()
 
@@ -2911,9 +2909,38 @@ def group_standings(game_name):
             FROM rankings r
             LEFT JOIN teams t ON r.team = t.name
             WHERE r.group_number = ?
-            ORDER BY r.goals_for DESC, r.goal_difference DESC
         """, (group_num,))
-        groups[group_num] = cursor.fetchall()
+        rows = cursor.fetchall()
+        # Sortierung: 1. G+ (goals_for), 2. Differenz, 3. direkter Vergleich
+        team_names = [r['team'] for r in rows]
+        row_map = {r['team']: r for r in rows}
+        
+        import functools
+        def head_to_head(t_a, t_b):
+            cursor.execute("""
+                SELECT team1, team2, score1, score2 FROM matches
+                WHERE ((team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?))
+                AND score1 IS NOT NULL
+            """, (t_a, t_b, t_b, t_a))
+            m = cursor.fetchone()
+            if m:
+                score_a = m['score1'] if m['team1'] == t_a else m['score2']
+                score_b = m['score2'] if m['team1'] == t_a else m['score1']
+                if score_a > score_b: return -1
+                if score_b > score_a: return 1
+            return 0
+
+        def sort_key(t_a, t_b):
+            a = row_map[t_a]
+            b = row_map[t_b]
+            if a['goals_for'] != b['goals_for']:
+                return b['goals_for'] - a['goals_for']
+            if a['goal_difference'] != b['goal_difference']:
+                return b['goal_difference'] - a['goal_difference']
+            return head_to_head(t_a, t_b)
+
+        team_names.sort(key=functools.cmp_to_key(sort_key))
+        groups[group_num] = [row_map[t] for t in team_names]
     
     # Beste 4. Platzierte Bracket A - KORRIGIERT
     cursor.execute("""
