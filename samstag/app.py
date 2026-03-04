@@ -664,740 +664,1235 @@ def assign_super_finals_match_numbers(conn, start_number=213):
     return match_number
 
 
-def assign_follower_cup_match_numbers(conn, start_number=217):
-    """
-    Vergibt Spielnummern für Follower Cup.
-    Standard: #217-#245 (ca. 29 Spiele)
-    
-    Reihenfolge:
-    1. Qualifikationsspiele
-    2. 1/8-Finale (eighth)
-    3. 1/4-Finale (quarter)
-    4. Halbfinale (semi)
-    5. Spiel um Platz 3 (third)
-    6. Finale (final)
-    
-    Args:
-        conn: SQLite Connection
-        start_number: Startnummer (default: 217)
-    
-    Returns:
-        int: Nächste verfügbare Spielnummer
-    """
+# ============================================================================
+# FOLLOWER CUP
+# ============================================================================
+
+def ensure_follower_cup_tables_exist(db_path):
+    """Stellt sicher, dass die benötigten Tabellen für den Follower Cup existieren"""
+    conn = get_db_connection(db_path)
     cursor = conn.cursor()
     
-    match_number = start_number
-    
-    # Qualifikationsspiele
+    # Tabelle für die Follower Cup Matches
     cursor.execute("""
-        SELECT id FROM follower_quali_matches 
-        ORDER BY id ASC
+        CREATE TABLE IF NOT EXISTS follower_cup_matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            round TEXT NOT NULL,
+            match_number INTEGER NOT NULL,
+            team1 TEXT,
+            team2 TEXT,
+            court INTEGER,
+            time TEXT,
+            score1 INTEGER DEFAULT NULL,
+            score2 INTEGER DEFAULT NULL,
+            winner TEXT DEFAULT NULL
+        )
     """)
+    conn.commit()
+    conn.close()
+
+
+def sync_quali_winners_to_cup(conn):
+    """Synchronisiert alle Qualifikationsgewinner mit dem Cup-System"""
+    cursor = conn.cursor()
     
-    for match in cursor.fetchall():
-        conn.execute("""
-            UPDATE follower_quali_matches 
-            SET match_number = ?
-            WHERE id = ?
-        """, (match_number, match['id']))
-        match_number += 1
+    cursor.execute("""
+        SELECT COUNT(*) FROM sqlite_master
+        WHERE type='table' AND name='follower_matches'
+    """)
+    if cursor.fetchone()[0] == 0:
+        return  # Keine Qualifikationstabelle vorhanden
     
-    quali_count = match_number - start_number
+    # Alle Qualifikationsgewinner laden
+    cursor.execute("""
+        SELECT winner FROM follower_matches 
+        WHERE round = 'qualification' AND winner IS NOT NULL
+        ORDER BY id
+    """)
+    quali_winners = [row['winner'] for row in cursor.fetchall()]
     
-    # Cup-Runden in korrekter Reihenfolge
-    rounds = ['eighth', 'quarter', 'semi', 'third', 'final']
+    if not quali_winners:
+        return  # Keine Gewinner vorhanden
     
-    for round_name in rounds:
+    print(f"🔄 Synchronisiere {len(quali_winners)} Qualifikationsgewinner...")
+    
+    # Bereits im Cup vorhandene Teams laden
+    cursor.execute("""
+        SELECT team1, team2 FROM follower_cup_matches 
+        WHERE round = 'eighth'
+    """)
+    existing_teams = []
+    for row in cursor.fetchall():
+        if row['team1'] and row['team1'] != 'TBD': 
+            existing_teams.append(row['team1'])
+        if row['team2'] and row['team2'] != 'TBD': 
+            existing_teams.append(row['team2'])
+    
+    # Fehlende Gewinner identifizieren
+    missing_winners = [w for w in quali_winners if w not in existing_teams]
+    
+    if not missing_winners:
+        print("✅ Alle Gewinner sind bereits im Cup-System!")
+        return
+    
+    print(f"🔍 Fehlende Gewinner gefunden: {missing_winners}")
+    
+    # Für jeden fehlenden Gewinner ein freies Feld im Cup suchen
+    for winner in missing_winners:
         cursor.execute("""
-            SELECT id FROM follower_cup_matches 
-            WHERE round = ?
-            ORDER BY match_index ASC
-        """, (round_name,))
+            SELECT id, team1, team2 FROM follower_cup_matches
+            WHERE round = 'eighth' AND (team1 IS NULL OR team1 = 'TBD' OR team2 IS NULL OR team2 = 'TBD')
+            ORDER BY id
+            LIMIT 1
+        """)
+        match = cursor.fetchone()
         
-        for match in cursor.fetchall():
-            conn.execute("""
+        if match:
+            # Bestimmen, welches Feld aktualisiert werden soll
+            field = "team1" if not match['team1'] or match['team1'] == 'TBD' else "team2"
+            cursor.execute(f"""
                 UPDATE follower_cup_matches 
-                SET match_number = ?
+                SET {field} = ? 
                 WHERE id = ?
-            """, (match_number, match['id']))
-            match_number += 1
+            """, (winner, match['id']))
+            print(f"✅ {field} in Match {match['id']} mit {winner} aktualisiert")
+        else:
+            print(f"⚠️ Kein freies Match für Gewinner {winner} gefunden!")
     
     conn.commit()
-    print(f"✅ Follower Cup: {match_number - start_number} Spielnummern vergeben (#{start_number}-#{match_number - 1})")
-    print(f"   - Qualifikation: {quali_count} Spiele")
-    print(f"   - Cup-System: {match_number - start_number - quali_count} Spiele")
-    
-    return match_number
+    print("✅ Synchronisierung der Qualifikationsgewinner abgeschlossen")
 
 
-def assign_placement_match_numbers(conn, start_number=246):
-    """
-    Vergibt Spielnummern für Platzierungsrunde.
-    Standard: #246+ (ca. 14 Spiele)
-    
-    Args:
-        conn: SQLite Connection
-        start_number: Startnummer (default: 246)
-    
-    Returns:
-        int: Nächste verfügbare Spielnummer
-    """
+def create_cup_system_with_winners(conn, game_name, rounds):
+    """Erstellt das komplette Cup-System neu mit allen Qualifikationsgewinnern"""
     cursor = conn.cursor()
     
-    match_number = start_number
+    # Lösche alle bestehenden Spiele
+    cursor.execute("DELETE FROM follower_cup_matches")
+    
+    # 1. Direkt qualifizierte Teams laden
+    direct_qualifiers = []
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='follower_cup'")
+    if cursor.fetchone():
+        cursor.execute("SELECT team FROM follower_cup WHERE round = '8final' ORDER BY position")
+        direct_qualifiers = [row['team'] for row in cursor.fetchall()]
+        print(f"📋 Direkt qualifizierte Teams: {direct_qualifiers}")
+    
+    # 2. Qualifikationsgewinner laden
+    quali_winners = []
+    cursor.execute("SELECT winner FROM follower_matches WHERE round = 'qualification' AND winner IS NOT NULL ORDER BY id")
+    quali_winners = [row['winner'] for row in cursor.fetchall()]
+    print(f"🏆 Qualifikationsgewinner: {quali_winners}")
+    
+    # Teilnehmer zusammenstellen
+    participants = direct_qualifiers + quali_winners
+    
+    # Falls nicht genug Teams, mit Platzhaltern auffüllen
+    while len(participants) < 16:
+        participants.append(f"TBD_{len(participants)+1}")
+    
+    # Falls zu viele Teams, auf 16 kürzen
+    if len(participants) > 16:
+        print(f"⚠️ Zu viele Teams: {len(participants)}. Wird auf 16 gekürzt!")
+        participants = participants[:16]
+    
+    print(f"🏆 Teilnehmer für Follower Cup: {participants}")
+    
+    # 1/8-Finals generieren
+    for i in range(8):
+        # Teams nach Schema: 1 vs 16, 2 vs 15, usw.
+        team1 = participants[i]
+        team2 = participants[15-i]
+        court = rounds['eighth']['courts'][i % len(rounds['eighth']['courts'])]
+        time = rounds['eighth']['time']
+        
+        cursor.execute("""
+            INSERT INTO follower_cup_matches 
+            (round, match_number, team1, team2, court, time)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, ('eighth', i+1, team1, team2, court, time))
+    
+    # Weitere Runden generieren
+    for round_name, round_info in rounds.items():
+        if round_name == "eighth":
+            continue  # Bereits erstellt
+        
+        for i in range(round_info["count"]):
+            court = round_info['courts'][i % len(round_info['courts'])]
+            time = round_info['time']
+            
+            cursor.execute("""
+                INSERT INTO follower_cup_matches 
+                (round, match_number, team1, team2, court, time)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (round_name, i+1, None, None, court, time))
+    
+    conn.commit()
+    print(f"✅ Cup-System neu erstellt mit {len(participants)} Teams")
+
+
+@app.route('/follower_qualiround/<game_name>')
+def follower_qualiround(game_name):
+    """
+    Zeigt die Qualifikationsrunde für das Follower-Turnier
+    """
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+
+    if not os.path.exists(db_path):
+        return render_template("error.html", error_message="Spiel nicht gefunden!")
+
+    # Rankings laden mit Tordifferenz
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT id FROM placement_matches 
-        ORDER BY placement ASC, id ASC
+        SELECT 
+            r.team,
+            r.group_number,
+            r.points_scored,
+            COALESCE((SELECT SUM(score1) FROM matches WHERE team1 = r.team), 0) AS score1_total,
+            COALESCE((SELECT SUM(score2) FROM matches WHERE team2 = r.team), 0) AS score2_total
+        FROM rankings r
+        ORDER BY group_number, points_scored DESC
     """)
+    all_rankings = cursor.fetchall()
     
-    for match in cursor.fetchall():
-        conn.execute("""
-            UPDATE placement_matches 
-            SET match_number = ?
-            WHERE id = ?
-        """, (match_number, match['id']))
-        match_number += 1
+    # Teams nach Gruppen sortieren
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for row in all_rankings:
+        groups[row["group_number"]].append(dict(row))  # in dict umwandeln
     
-    conn.commit()
-    print(f"✅ Platzierungsrunde: {match_number - start_number} Spielnummern vergeben (#{start_number}-#{match_number - 1})")
+    # Teams für das Hauptbracket identifizieren
+    bracket_teams = []
+    fourth_place_teams = []
+    fifth_place_teams = []
+    sixth_place_teams = []
     
-    return match_number
+    for group_number, team_list in groups.items():
+        # Sortieren nach points_scored (absteigend), dann Tordifferenz
+        team_list.sort(key=lambda x: (-x["points_scored"], -(x["score1_total"] - x["score2_total"])))
+        
+        # Top 3 von jeder Gruppe ins Bracket
+        if len(team_list) >= 3:
+            bracket_teams.extend([team["team"] for team in team_list[:3]])
+        
+        # 4. Platzierte sammeln
+        if len(team_list) >= 4:
+            fourth_place_teams.append(team_list[3])
+        
+        # 5. Platzierte sammeln
+        if len(team_list) >= 5:
+            fifth_place_teams.append(team_list[4])
+        
+        # 6. Platzierte sammeln
+        if len(team_list) >= 6:
+            sixth_place_teams.append(team_list[5])
+    
+    # 4. Platzierte nach Punkten sortieren
+    fourth_place_sorted = sorted(fourth_place_teams, 
+                               key=lambda x: (-x["points_scored"], -(x["score1_total"] - x["score2_total"])))
+    
+    # Top 2 der 4. Platzierten kommen ins Hauptbracket
+    best_two_fourths = fourth_place_sorted[:2]
+    bracket_teams.extend([team["team"] for team in best_two_fourths])
+    
+    # Die nächsten 4 der 4. Platzierten (Platz 3-6) kommen direkt ins 8-Final
+    direct_qualifiers = fourth_place_sorted[2:6]
+    
+    # Die restlichen 4. Platzierten kommen in die Quali-Runde
+    remaining_fourths = fourth_place_sorted[6:]
+    
+    # Alle Teams für die Quali-Runde zusammenfassen 
+    # (restliche 4. + alle 5. & 6. Platzierten)
+    quali_candidates = remaining_fourths + fifth_place_teams + sixth_place_teams
+    
+    # Nach Punkten sortieren (absteigend), dann Tordifferenz
+    quali_candidates.sort(key=lambda x: (-x["points_scored"], -(x["score1_total"] - x["score2_total"])))
+    
+    # Anzahl der Teams für die Quali-Runde prüfen
+    if len(quali_candidates) % 2 != 0:
+        # Falls ungerade, Freilos hinzufügen
+        quali_candidates.append({
+            "team": "Freilos",
+            "group_number": "-",
+            "points_scored": 0,
+            "score1_total": 0,
+            "score2_total": 0
+        })
+    
+    # Paarungen für die Quali-Runde bilden
+    quali_matches = []
+    # Courts 1-12 wie gewünscht
+    courts = list(range(1, 13))
+    court_index = 0
+    
+    # Matches bilden: Bestes gegen Schwächstes, Zweitbestes gegen Zweitschwächstes, usw.
+    quali_teams = quali_candidates.copy()  # Kopie erstellen
+    while len(quali_teams) >= 2:
+        team1 = quali_teams.pop(0)      # Bestes Team
+        team2 = quali_teams.pop(-1)     # Schwächstes Team
+        court = courts[court_index % len(courts)]
+        quali_matches.append((team1, team2, court))
+        court_index += 1
+    
+    conn.close()
+    
+    return render_template("follower_quali_round.html",
+                          game_name=game_name,
+                          direct_qualifiers=direct_qualifiers,
+                          quali_matches=quali_matches)
 
 
-# ============================================================================
-# HAUPTFUNKTION: ALLE SPIELNUMMERN VERGEBEN
-# ============================================================================
-
-def assign_all_match_numbers(conn):
+@app.route('/follower_results/<game_name>', methods=['GET', 'POST'])
+def follower_results(game_name):
     """
-    Vergibt Spielnummern für ALLE Turnierphasen in korrekter Reihenfolge.
-    
-    Diese Funktion sollte aufgerufen werden:
-    1. Nach Round Robin Generierung
-    2. Nach Double Elimination Generierung
-    3. Nach Super Finals Generierung
-    4. Nach Follower Cup Generierung
-    5. Nach Platzierungsrunden-Generierung
-    
-    ODER einmal am Ende, wenn alle Matches generiert wurden.
-    
-    Args:
-        conn: SQLite Connection
-    
-    Returns:
-        dict: Statistik über vergebene Nummern
+    Zeigt die Qualifikationsspiele mit Möglichkeit, Ergebnisse einzutragen
+    und überträgt die Sieger in ein Cup-System
     """
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+
+    if not os.path.exists(db_path):
+        return render_template("error.html", error_message="Spiel nicht gefunden!")
+
+    conn = get_db_connection(db_path)
     cursor = conn.cursor()
     
-    print("\n" + "=" * 70)
-    print("🔢 SPIELNUMMERN-VERGABE STARTET")
-    print("=" * 70)
-    
-    stats = {}
-    
-    # 1. Round Robin (#1-#150)
-    cursor.execute("SELECT COUNT(*) as count FROM matches")
-    if cursor.fetchone()['count'] > 0:
-        next_num = assign_round_robin_match_numbers(conn)
-        stats['round_robin'] = {'start': 1, 'end': next_num - 1, 'count': next_num - 1}
-    else:
-        next_num = 1
-        stats['round_robin'] = {'start': 0, 'end': 0, 'count': 0}
-    
-    # 2. Bracket A Double Elim (#151-#181)
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches")
-    if cursor.fetchone()['count'] > 0:
-        start = next_num
-        next_num = assign_double_elim_match_numbers(conn, next_num)
-        stats['bracket_a'] = {'start': start, 'end': next_num - 1, 'count': next_num - start}
-    else:
-        stats['bracket_a'] = {'start': 0, 'end': 0, 'count': 0}
-    
-    # 3. Bracket B Double Elim (#182-#212)
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches")
-    if cursor.fetchone()['count'] > 0:
-        start = next_num
-        next_num = assign_double_elim_match_numbers(conn, next_num)
-        stats['bracket_b'] = {'start': start, 'end': next_num - 1, 'count': next_num - start}
-    else:
-        stats['bracket_b'] = {'start': 0, 'end': 0, 'count': 0}
-    
-    # 4. Super Finals (#213-#216)
-    cursor.execute("SELECT COUNT(*) as count FROM super_finals_matches")
-    if cursor.fetchone()['count'] > 0:
-        start = next_num
-        next_num = assign_super_finals_match_numbers(conn, next_num)
-        stats['super_finals'] = {'start': start, 'end': next_num - 1, 'count': next_num - start}
-    else:
-        stats['super_finals'] = {'start': 0, 'end': 0, 'count': 0}
-    
-    # 5. Follower Cup (#217-#245)
-    cursor.execute("SELECT COUNT(*) as count FROM follower_quali_matches")
-    quali_count = cursor.fetchone()['count']
-    cursor.execute("SELECT COUNT(*) as count FROM follower_cup_matches")
-    cup_count = cursor.fetchone()['count']
-    
-    if quali_count > 0 or cup_count > 0:
-        start = next_num
-        next_num = assign_follower_cup_match_numbers(conn, next_num)
-        stats['follower_cup'] = {'start': start, 'end': next_num - 1, 'count': next_num - start}
-    else:
-        stats['follower_cup'] = {'start': 0, 'end': 0, 'count': 0}
-    
-    # 6. Platzierungsrunde (#246+)
-    cursor.execute("SELECT COUNT(*) as count FROM placement_matches")
-    if cursor.fetchone()['count'] > 0:
-        start = next_num
-        next_num = assign_placement_match_numbers(conn, next_num)
-        stats['placement'] = {'start': start, 'end': next_num - 1, 'count': next_num - start}
-    else:
-        stats['placement'] = {'start': 0, 'end': 0, 'count': 0}
-    
-    # Zusammenfassung
-    total_matches = sum(phase['count'] for phase in stats.values())
-    
-    print("\n" + "=" * 70)
-    print("📊 ZUSAMMENFASSUNG")
-    print("=" * 70)
-    
-    for phase_name, data in stats.items():
-        if data['count'] > 0:
-            print(f"   {phase_name.upper()}: #{data['start']}-#{data['end']} ({data['count']} Spiele)")
-    
-    print(f"\n   GESAMT: {total_matches} Spiele nummeriert")
-    print("=" * 70 + "\n")
-    
-    return stats
-
-
-# ============================================================================
-# RESET-FUNKTION (für Tests)
-# ============================================================================
-
-def reset_all_match_numbers(conn):
-    """
-    Setzt alle Spielnummern zurück (NULL).
-    Nützlich für Tests oder Neugenerierung.
-    
-    Args:
-        conn: SQLite Connection
-    """
-    cursor = conn.cursor()
-    
-    cursor.execute("UPDATE matches SET match_number = NULL")
-    cursor.execute("UPDATE double_elim_matches SET match_number = NULL")
-    cursor.execute("UPDATE super_finals_matches SET match_number = NULL")
-    cursor.execute("UPDATE follower_quali_matches SET match_number = NULL")
-    cursor.execute("UPDATE follower_cup_matches SET match_number = NULL")
-    cursor.execute("UPDATE placement_matches SET match_number = NULL")
-    
-    conn.commit()
-    print("✅ Alle Spielnummern zurückgesetzt")
-
-
-# ============================================================================
-# INTEGRATION IN BESTEHENDEN CODE
-# ============================================================================
-
-"""
-INTEGRATION IN app.py:
-======================
-
-1. Import am Anfang von app.py hinzufügen:
-   
-   from match_numbering import assign_all_match_numbers, assign_round_robin_match_numbers
-
-2. In generate_matches() nach conn.commit() einfügen:
-   
-   assign_round_robin_match_numbers(conn)
-
-3. In generate_double_elim() nach allen Inserts einfügen:
-   
-   # Nach Bracket A Generierung
-   assign_double_elim_match_numbers(conn, 151)
-   
-   # Nach Bracket B Generierung
-   
-
-4. ODER: Einmal am Ende aller Generierungen aufrufen:
-   
-   assign_all_match_numbers(conn)
-
-5. Für manuelle Neunummerierung eine Route erstellen:
-   
-   @app.route('/renumber_matches/<game_name>', methods=['POST'])
-   def renumber_matches(game_name):
-       db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-       conn = get_db_connection(db_path)
-       stats = assign_all_match_numbers(conn)
-       conn.close()
-       return jsonify({"success": True, "stats": stats})
-"""
-
-
-# ============================================================================
-# BEISPIEL-VERWENDUNG
-# ============================================================================
-
-if __name__ == '__main__':
-    print("🔢 SPIELNUMMERN-SYSTEM TEST")
-    print("=" * 70)
-    print()
-    print("Dieses Modul ist für die Integration in app.py gedacht.")
-    print("Kopiere die Funktionen in app.py oder importiere sie.")
-    print()
-    print("Hauptfunktionen:")
-    print("  - assign_all_match_numbers(conn)")
-    print("  - assign_round_robin_match_numbers(conn)")
-    print("  - assign_double_elim_match_numbers(conn, start)")
-    print("  - ")
-    print()
-    print("Siehe Integrations-Anleitung am Ende der Datei.")
-    print("=" * 70)
-
-
-
-"""
-AUTOMATISCHE ZEITBERECHNUNG FÜR TURNIER-MANAGEMENT
-===================================================
-
-Dieses Modul implementiert die automatische Berechnung von Spielzeiten
-basierend auf konfigurierbaren Parametern.
-
-ZEITKONFIGURATION (pro Turnier):
-- Spieldauer: 8, 10, 12, 15, 20 Minuten (default: 12)
-- Pause zwischen Spielen: 2, 3, 4, 5, 10 Minuten (default: 3)
-- Pause zwischen Runden: 5, 10, 15, 20 Minuten (default: 5)
-- Turnier-Startzeit: z.B. 09:00 Uhr
-
-ZEITBERECHNUNG:
-- Parallele Spiele (Round Robin): 3 Spiele pro Gruppe gleichzeitig
-- Double Elimination: Variable Anzahl paralleler Felder
-- Automatische Pausen zwischen Spielen und Runden
-
-WICHTIG: Diese Funktionen werden in generate_matches() und anderen
-Generierungs-Funktionen integriert.
-"""
-
-import sqlite3
-from datetime import datetime, timedelta
-
-
-# ============================================================================
-# HILFSFUNKTIONEN FÜR ZEITBERECHNUNG
-# ============================================================================
-
-def get_tournament_config(conn):
-    """
-    Holt die Zeitkonfiguration für das Turnier aus der Datenbank.
-
-    Returns:
-        dict: Konfiguration mit match_duration, break_between_games, etc.
-              Falls nicht vorhanden, werden Defaults verwendet.
-    """
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM tournament_config LIMIT 1")
-    config = cursor.fetchone()
-
-    if config:
-        return {
-            'match_duration': config['match_duration'],
-            'break_between_games': config['break_between_games'],
-            'break_between_rounds': config['break_between_rounds'],
-            'start_time': config['start_time']
-        }
-    else:
-        # Defaults falls keine Config vorhanden
-        return {
-            'match_duration': 12,
-            'break_between_games': 3,
-            'break_between_rounds': 5,
-            'start_time': '09:00'
-        }
-
-
-def parse_time(time_str):
-    """
-    Konvertiert Zeit-String in datetime.time Objekt.
-
-    Args:
-        time_str: Zeit als String (z.B. "09:00", "13:45")
-
-    Returns:
-        datetime.time: Zeit-Objekt
-    """
-    try:
-        return datetime.strptime(time_str, "%H:%M").time()
-    except ValueError:
-        # Fallback auf 09:00 wenn ungültiges Format
-        return datetime.strptime("09:00", "%H:%M").time()
-
-
-def format_time(dt):
-    """
-    Formatiert datetime zu Zeit-String.
-
-    Args:
-        dt: datetime Objekt
-
-    Returns:
-        str: Zeit als "HH:MM"
-    """
-    return dt.strftime("%H:%M")
-
-
-def add_minutes_to_time(time_str, minutes):
-    """
-    Addiert Minuten zu einer Zeit.
-
-    Args:
-        time_str: Startzeit als String (z.B. "09:00")
-        minutes: Minuten zum Addieren
-
-    Returns:
-        str: Neue Zeit als "HH:MM"
-    """
-    base = datetime.strptime(time_str, "%H:%M")
-    new_time = base + timedelta(minutes=minutes)
-    return format_time(new_time)
-
-
-# ============================================================================
-# ROUND ROBIN ZEITBERECHNUNG
-# ============================================================================
-
-
-def check_and_insert_lunch_break(current_time, match_duration, lunch_start, lunch_end):
-    """
-    Prüft ob ein Match in die Mittagspause fallen würde und verschiebt es danach.
-    """
-    from datetime import datetime, timedelta
-
-    current_dt = datetime.strptime(current_time, "%H:%M")
-    lunch_start_dt = datetime.strptime(lunch_start, "%H:%M")
-    lunch_end_dt = datetime.strptime(lunch_end, "%H:%M")
-
-    match_end_dt = current_dt + timedelta(minutes=match_duration)
-
-    # Prüfe ob Match in Mittagspause fällt
-    if current_dt < lunch_start_dt and match_end_dt > lunch_start_dt:
-        print(f"       ⚠️  Mittagspause! Verschiebe von {current_time} auf {lunch_end}")
-        return lunch_end
-
-    if lunch_start_dt <= current_dt < lunch_end_dt:
-        print(f"       ⚠️  In Mittagspause! Verschiebe von {current_time} auf {lunch_end}")
-        return lunch_end
-
-    return current_time
-
-
-def calculate_round_robin_times(conn):
-    """
-    Berechnet Spielzeiten für Round Robin mit PARALLELEN SPIELEN.
-
-    LOGIK:
-    - Alle Spiele einer Runde/Bracket spielen PARALLEL
-    - 10 Gruppen → 2 Brackets (A: 1-5, B: 6-10)
-    - Pro Runde: Erst alle A Gruppen parallel, Pause, dann alle B Gruppen parallel
-    """
-    cursor = conn.cursor()
-
-    # Config aus DB holen
-    cursor.execute("SELECT * FROM tournament_config LIMIT 1")
-    config = cursor.fetchone()
-
-    if not config:
-        print("❌ Keine Turnier-Konfiguration gefunden!")
-        return 0
-
-    match_duration = config['match_duration']
-    pause = config['break_between_games']  # NUR EINE Pause!
-    start_time = config['start_time']
-
-
-    # Mittagspause
-    try:
-        lunch_enabled = config['lunch_break_enabled'] == 1
-        lunch_start = config['lunch_break_start']
-        lunch_end = config['lunch_break_end']
-    except (KeyError, TypeError):
-    # Falls Spalten nicht existieren (alte DB)
-        lunch_enabled = False
-        lunch_start = '12:00'
-        lunch_end = '13:00'
-
-    print("\n" + "=" * 70)
-    print("⏰ ZEITBERECHNUNG ROUND ROBIN (PARALLELE SPIELE)")
-    print("=" * 70)
-    print(f"   Spieldauer: {match_duration} Min")
-    print(f"   Pause: {pause} Min (gilt für alles)")
-    print(f"   Startzeit: {start_time}")
-    if lunch_enabled:
-        print(f"   Mittagspause: {lunch_start} - {lunch_end}")
-    print("=" * 70)
-
-    current_time = start_time
-    updated_count = 0
-
-    # 5 Runden durchgehen
-    for round_num in range(1, 6):
-        print(f"\n📍 RUNDE {round_num}")
-    
-        # BRACKET A (Gruppen 1-5) - ALLE PARALLEL
-        print(f"   Bracket A (Gruppen 1-5):")
-    
-        # Mittagspause prüfen
-        if lunch_enabled:
-            current_time = check_and_insert_lunch_break(
-                current_time, match_duration, lunch_start, lunch_end
+    # Prüfen, ob die Tabelle für Follower-Spiele existiert
+    cursor.execute("""
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='follower_matches'
+    """)
+    if not cursor.fetchone():
+        # Tabelle erstellen, wenn sie nicht existiert
+        cursor.execute("""
+            CREATE TABLE follower_matches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                round TEXT NOT NULL,
+                team1 TEXT NOT NULL,
+                team2 TEXT NOT NULL,
+                court INTEGER,
+                score1 INTEGER DEFAULT NULL,
+                score2 INTEGER DEFAULT NULL,
+                winner TEXT DEFAULT NULL
             )
-    
-        print(f"      Startzeit: {current_time}")
-    
-        # Alle Matches von Runde X, Gruppen 1-5 bekommen die GLEICHE Zeit
+        """)
+        
+        # Tabelle für den Cup-Baum
         cursor.execute("""
-            SELECT id FROM matches 
-            WHERE round = ? AND group_number BETWEEN 1 AND 5
-            ORDER BY group_number
-        """, (round_num,))
-    
-        bracket_a_matches = cursor.fetchall()
-    
-        for match in bracket_a_matches:
-            cursor.execute("UPDATE matches SET time = ? WHERE id = ?", 
-                         (current_time, match['id']))
-            updated_count += 1
-    
-        print(f"      → {len(bracket_a_matches)} Matches parallel")
-    
-        # Zeit vorrücken: Spieldauer + Pause
-        current_time = add_minutes_to_time(current_time, match_duration + pause)
-    
-        # BRACKET B (Gruppen 6-10) - ALLE PARALLEL
-        print(f"   Bracket B (Gruppen 6-10):")
-    
-        # Mittagspause prüfen
-        if lunch_enabled:
-            current_time = check_and_insert_lunch_break(
-                current_time, match_duration, lunch_start, lunch_end
+            CREATE TABLE IF NOT EXISTS follower_cup (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                round TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                team TEXT,
+                score INTEGER DEFAULT NULL
             )
+        """)
+        conn.commit()
     
-        print(f"      Startzeit: {current_time}")
+    # Wenn POST-Anfrage, Ergebnis eintragen
+    if request.method == 'POST':
+        match_id = request.form.get('match_id')
+        score1 = request.form.get('score1', type=int)
+        score2 = request.form.get('score2', type=int)
+        
+        if match_id and score1 is not None and score2 is not None:
+            # Match-Daten laden
+            cursor.execute("SELECT * FROM follower_matches WHERE id = ?", (match_id,))
+            match = cursor.fetchone()
+            
+            if match:
+                # Gewinner bestimmen
+                team1 = match['team1']
+                team2 = match['team2']
+                winner = team1 if score1 > score2 else team2
+                
+                # Ergebnis aktualisieren
+                cursor.execute("""
+                    UPDATE follower_matches
+                    SET score1 = ?, score2 = ?, winner = ?
+                    WHERE id = ?
+                """, (score1, score2, winner, match_id))
+                
+                # Wenn es ein Qualifikationsspiel ist, den Gewinner ins Cup-System übernehmen
+                if match['round'] == 'qualification':
+                    # Position im 8-Final bestimmen
+                    cursor.execute("SELECT COUNT(*) FROM follower_cup WHERE round = '8final'")
+                    position = cursor.fetchone()[0]
+                    
+                    # In Cup-System einfügen
+                    cursor.execute("""
+                        INSERT INTO follower_cup (round, position, team)
+                        VALUES ('8final', ?, ?)
+                    """, (position, winner))
+                
+                conn.commit()
+                
+                return redirect(url_for('follower_results', game_name=game_name))
     
-        # Alle Matches von Runde X, Gruppen 6-10 bekommen die GLEICHE Zeit
+    # Bestehende Qualifikationsspiele laden
+    cursor.execute("SELECT * FROM follower_matches WHERE round = 'qualification' ORDER BY id")
+    quali_matches = cursor.fetchall()
+    
+    # Wenn keine Qualifikationsspiele vorhanden sind, diese generieren
+    if not quali_matches:
+        # Rankings mit Tordifferenz laden
         cursor.execute("""
-            SELECT id FROM matches 
-            WHERE round = ? AND group_number BETWEEN 6 AND 10
-            ORDER BY group_number
-        """, (round_num,))
-    
-        bracket_b_matches = cursor.fetchall()
-    
-        for match in bracket_b_matches:
-            cursor.execute("UPDATE matches SET time = ? WHERE id = ?", 
-                         (current_time, match['id']))
-            updated_count += 1
-    
-        print(f"      → {len(bracket_b_matches)} Matches parallel")
-    
-        # Zeit vorrücken: Spieldauer + Pause
-        current_time = add_minutes_to_time(current_time, match_duration + pause)
-
-    conn.commit()
-
-    print("\n" + "=" * 70)
-    print(f"✅ {updated_count} Matches mit Zeiten versehen")
-    print(f"📅 Letzter Timeslot: {current_time}")
-    print("=" * 70 + "\n")
-
-    return updated_count
-
-
-def calculate_round_robin_times_alternative(conn):
-    """
-    Alternative Zeitberechnung: Matches innerhalb jeder Gruppe nacheinander.
-
-    Logik:
-    - Gruppe 1 spielt Match 1, dann Pause, dann Match 2, etc.
-    - Alle Gruppen starten gleichzeitig
-    - Pro Gruppe: 5 Runden × 3 Matches = 15 Spiele nacheinander
-
-    Diese Methode ist realistischer für kleinere Turniere.
-
-    Args:
-        conn: SQLite Connection
-
-    Returns:
-        int: Anzahl der Matches mit Zeiten
-    """
-    cursor = conn.cursor()
-    config = get_tournament_config(conn)
-
-    match_duration = config['match_duration']
-    break_between_games = config['break_between_games']
-    break_between_rounds = config['break_between_rounds']
-    start_time = config['start_time']
-
-    print(f"\n⏰ ZEITBERECHNUNG ROUND ROBIN (Alternative Methode)")
-    print(f"   Spieldauer: {match_duration} Min")
-    print(f"   Pause zwischen Spielen: {break_between_games} Min")
-    print(f"   Pause zwischen Runden: {break_between_rounds} Min")
-    print(f"   Startzeit: {start_time}")
-    print()
-
-    updated_count = 0
-
-    # Pro Gruppe einzeln durchgehen
-    for group_num in range(1, 11):
-        current_time = start_time
-        current_round = None
-    
-        cursor.execute("""
-            SELECT * FROM matches 
-            WHERE group_number = ?
-            ORDER BY round, id
-        """, (group_num,))
-    
-        matches = cursor.fetchall()
-    
-        print(f"   Gruppe {group_num}: {len(matches)} Matches")
-    
-        for match in matches:
-            match_id = match['id']
-            round_num = match['round']
+            SELECT 
+                r.team,
+                r.group_number,
+                r.points_scored,
+                COALESCE((SELECT SUM(score1) FROM matches WHERE team1 = r.team), 0) AS score1_total,
+                COALESCE((SELECT SUM(score2) FROM matches WHERE team2 = r.team), 0) AS score2_total
+            FROM rankings r
+            ORDER BY group_number, points_scored DESC
+        """)
+        all_rankings = cursor.fetchall()
         
-            # Neue Runde beginnt → Rundenpause
-            if current_round is not None and current_round != round_num:
-                current_time = add_minutes_to_time(current_time, break_between_rounds)
+        # Teams nach Gruppen sortieren
+        from collections import defaultdict
+        groups = defaultdict(list)
+        for row in all_rankings:
+            groups[row["group_number"]].append(dict(row))
         
-            current_round = round_num
+        # Teams für das Hauptbracket identifizieren
+        bracket_teams = []
+        fourth_place_teams = []
+        fifth_place_teams = []
+        sixth_place_teams = []
         
-            # Zeit setzen
+        for group_number, team_list in groups.items():
+            # Sortieren nach points_scored, dann Tordifferenz
+            team_list.sort(key=lambda x: (-x["points_scored"], -(x["score1_total"] - x["score2_total"])))
+            
+            # Top 3 von jeder Gruppe ins Bracket
+            if len(team_list) >= 3:
+                bracket_teams.extend([team["team"] for team in team_list[:3]])
+            
+            # 4. Platzierte sammeln
+            if len(team_list) >= 4:
+                fourth_place_teams.append(team_list[3])
+            
+            # 5. Platzierte sammeln
+            if len(team_list) >= 5:
+                fifth_place_teams.append(team_list[4])
+            
+            # 6. Platzierte sammeln
+            if len(team_list) >= 6:
+                sixth_place_teams.append(team_list[5])
+        
+        # 4. Platzierte nach Punkten sortieren
+        fourth_place_sorted = sorted(fourth_place_teams, 
+                                   key=lambda x: (-x["points_scored"], -(x["score1_total"] - x["score2_total"])))
+        
+        # Top 2 der 4. Platzierten kommen ins Hauptbracket
+        best_two_fourths = fourth_place_sorted[:2]
+        bracket_teams.extend([team["team"] for team in best_two_fourths])
+        
+        # Die nächsten 4 der 4. Platzierten (Platz 3-6) kommen direkt ins 8-Final
+        direct_qualifiers = fourth_place_sorted[2:6]
+        
+        # Direkt qualifizierte ins Cup-System übernehmen
+        for i, team in enumerate(direct_qualifiers):
             cursor.execute("""
-                UPDATE matches 
-                SET time = ?
-                WHERE id = ?
-            """, (current_time, match_id))
+                INSERT INTO follower_cup (round, position, team)
+                VALUES ('8final', ?, ?)
+            """, (i, team["team"]))
         
-            updated_count += 1
+        # Die restlichen 4. Platzierten kommen in die Quali-Runde
+        remaining_fourths = fourth_place_sorted[6:]
         
-            # Nächster Zeitslot: Spieldauer + Pause
-            current_time = add_minutes_to_time(
-                current_time,
-                match_duration + break_between_games
-            )
+        # Alle Teams für die Quali-Runde zusammenfassen
+        quali_candidates = remaining_fourths + fifth_place_teams + sixth_place_teams
+        
+        # Nach Punkten sortieren
+        quali_candidates.sort(key=lambda x: (-x["points_scored"], -(x["score1_total"] - x["score2_total"])))
+        
+        # Ungerade Anzahl? Freilos hinzufügen
+        if len(quali_candidates) % 2 != 0:
+            quali_candidates.append({
+                "team": "Freilos",
+                "group_number": "-",
+                "points_scored": 0,
+                "score1_total": 0,
+                "score2_total": 0
+            })
+        
+        # Paarungen für die Quali-Runde bilden
+        courts = list(range(1, 13))
+        court_index = 0
+        
+        quali_teams = quali_candidates.copy()
+        while len(quali_teams) >= 2:
+            team1 = quali_teams.pop(0)      # Bestes Team
+            team2 = quali_teams.pop(-1)     # Schwächstes Team
+            court = courts[court_index % len(courts)]
+            
+            # Spiel in die Datenbank einfügen
+            cursor.execute("""
+                INSERT INTO follower_matches (round, team1, team2, court)
+                VALUES ('qualification', ?, ?, ?)
+            """, (team1["team"], team2["team"], court))
+            
+            # Wenn team2 ein Freilos ist, automatisch team1 als Gewinner eintragen
+            if team2["team"] == "Freilos":
+                match_id = cursor.lastrowid
+                cursor.execute("""
+                    UPDATE follower_matches
+                    SET score1 = 1, score2 = 0, winner = ?
+                    WHERE id = ?
+                """, (team1["team"], match_id))
+                
+                # Position im 8-Final bestimmen und Gewinner eintragen
+                cursor.execute("SELECT COUNT(*) FROM follower_cup WHERE round = '8final'")
+                position = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    INSERT INTO follower_cup (round, position, team)
+                    VALUES ('8final', ?, ?)
+                """, (position, team1["team"]))
+            
+            court_index += 1
+        
+        conn.commit()
+        
+        # Aktualisierte Qualifikationsspiele laden
+        cursor.execute("SELECT * FROM follower_matches WHERE round = 'qualification' ORDER BY id")
+        quali_matches = cursor.fetchall()
+    
+    # Cup-Baum laden
+    cursor.execute("SELECT * FROM follower_cup ORDER BY round, position")
+    cup_teams = cursor.fetchall()
+    
+    # Direkt qualifizierte Teams für die Anzeige
+    cursor.execute("""
+        SELECT team FROM follower_cup 
+        WHERE round = '8final' AND position < 4
+        ORDER BY position
+    """)
+    direct_qualifiers = [{"team": row["team"]} for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return render_template("follower_results.html",
+                          game_name=game_name,
+                          quali_matches=quali_matches,
+                          cup_teams=cup_teams,
+                          direct_qualifiers=direct_qualifiers)
 
-    conn.commit()
 
-    print(f"\n✅ {updated_count} Matches mit Zeiten versehen")
+@app.route('/follower_cup_system/<game_name>', methods=['GET', 'POST'])
+def follower_cup_system(game_name):
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
 
-    return updated_count
+    if not os.path.exists(db_path):
+        return render_template("error.html", error_message="Spiel nicht gefunden!")
 
-
-# ============================================================================
-# DOUBLE ELIMINATION ZEITBERECHNUNG
-# ============================================================================
-
-def calculate_double_elim_times(conn, table_name, start_time_str=None):
-    """
-    Berechnet Spielzeiten für Double Elimination Bracket.
-
-    Logik:
-    - Winner Bracket Runde 1: Alle 8 Spiele parallel (verschiedene Felder)
-    - Nach Winner R1: Pause, dann Winner R2 (4 Spiele parallel)
-    - Loser Bracket: Direkt nach entsprechenden Winner-Spielen
-
-    Args:
-        conn: SQLite Connection
-        table_name: 'double_elim_matches' oder 'double_elim_matches'
-        start_time_str: Startzeit (optional, sonst nach Round Robin)
-
-    Returns:
-        str: Zeit nach letztem Spiel (für nächste Phase)
-    """
+    conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    config = get_tournament_config(conn)
-
-    match_duration = config['match_duration']
-    break_between_games = config['break_between_games']
-
-    # Startzeit bestimmen
-    if start_time_str is None:
-        # Nach Round Robin: Letzte Zeit + 30 Min Pause
-        cursor.execute("SELECT MAX(time) as last_time FROM matches WHERE time IS NOT NULL")
-        last_rr_time = cursor.fetchone()['last_time']
     
-        if last_rr_time:
-            start_time_str = add_minutes_to_time(last_rr_time, 30)
+    # Debug-Ausgabe
+    print(f"🔍 Follower Cup System für {game_name} wurde aufgerufen")
+    
+    # Tabellen erstellen, falls sie nicht existieren
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS follower_cup_matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            round TEXT NOT NULL,
+            match_number INTEGER NOT NULL,
+            team1 TEXT,
+            team2 TEXT,
+            court INTEGER,
+            time TEXT,
+            score1 INTEGER DEFAULT NULL,
+            score2 INTEGER DEFAULT NULL,
+            winner TEXT DEFAULT NULL
+        )
+    """)
+    conn.commit()
+    
+    # Struktur der Runden
+    rounds = {
+        "eighth": {"name": "1/8-Final", "count": 8, "time": "13:55", "courts": list(range(9, 17))},
+        "quarter": {"name": "1/4-Final", "count": 4, "time": "14:15", "courts": list(range(11, 15))},
+        "semi": {"name": "1/2-Final", "count": 2, "time": "14:35", "courts": [12, 13]},
+        "final": {"name": "Finale", "count": 1, "time": "14:55", "courts": [12]},
+        "third": {"name": "Spiel um Platz 3", "count": 1, "time": "14:55", "courts": [13]}
+    }
+    
+    # Wenn POST-Anfrage, Ergebnis eintragen
+    if request.method == 'POST':
+        match_id = request.form.get('match_id')
+        score1 = request.form.get('score1', type=int)
+        score2 = request.form.get('score2', type=int)
+        
+        if match_id and score1 is not None and score2 is not None:
+            # Match-Daten laden
+            cursor.execute("SELECT * FROM follower_cup_matches WHERE id = ?", (match_id,))
+            match = cursor.fetchone()
+            
+            if match:
+                # Gewinner bestimmen
+                team1 = match['team1']
+                team2 = match['team2']
+                winner = team1 if score1 > score2 else team2
+                loser = team2 if winner == team1 else team1
+                
+                # Ergebnis aktualisieren
+                cursor.execute("""
+                    UPDATE follower_cup_matches
+                    SET score1 = ?, score2 = ?, winner = ?
+                    WHERE id = ?
+                """, (score1, score2, winner, match_id))
+                
+                # Überprüfen, ob nächstes Match existiert, wenn ja, Gewinner eintragen
+                current_round = match['round']
+                match_number = match['match_number']
+                
+                # Verarbeitung je nach Runde
+                if current_round == 'eighth':
+                    # 1/8-Final -> 1/4-Final
+                    next_match_number = (match_number - 1) // 2 + 1
+                    next_team_field = 'team1' if match_number % 2 == 1 else 'team2'
+                    
+                    cursor.execute("""
+                        SELECT id FROM follower_cup_matches 
+                        WHERE round = 'quarter' AND match_number = ?
+                    """, (next_match_number,))
+                    next_match = cursor.fetchone()
+                    
+                    if next_match:
+                        cursor.execute(f"""
+                            UPDATE follower_cup_matches
+                            SET {next_team_field} = ?
+                            WHERE id = ?
+                        """, (winner, next_match['id']))
+                
+                elif current_round == 'quarter':
+                    # 1/4-Final -> 1/2-Final
+                    next_match_number = (match_number - 1) // 2 + 1
+                    next_team_field = 'team1' if match_number % 2 == 1 else 'team2'
+                    
+                    cursor.execute("""
+                        SELECT id FROM follower_cup_matches 
+                        WHERE round = 'semi' AND match_number = ?
+                    """, (next_match_number,))
+                    next_match = cursor.fetchone()
+                    
+                    if next_match:
+                        cursor.execute(f"""
+                            UPDATE follower_cup_matches
+                            SET {next_team_field} = ?
+                            WHERE id = ?
+                        """, (winner, next_match['id']))
+                
+                elif current_round == 'semi':
+                    # 1/2-Final -> Finale und Spiel um Platz 3
+                    cursor.execute("""
+                        SELECT id FROM follower_cup_matches 
+                        WHERE round = 'final'
+                        LIMIT 1
+                    """)
+                    final_match = cursor.fetchone()
+                    
+                    cursor.execute("""
+                        SELECT id FROM follower_cup_matches 
+                        WHERE round = 'third'
+                        LIMIT 1
+                    """)
+                    third_place_match = cursor.fetchone()
+                    
+                    if final_match:
+                        next_team_field = 'team1' if match_number == 1 else 'team2'
+                        cursor.execute(f"""
+                            UPDATE follower_cup_matches
+                            SET {next_team_field} = ?
+                            WHERE id = ?
+                        """, (winner, final_match['id']))
+                    
+                    if third_place_match:
+                        next_team_field = 'team1' if match_number == 1 else 'team2'
+                        cursor.execute(f"""
+                            UPDATE follower_cup_matches
+                            SET {next_team_field} = ?
+                            WHERE id = ?
+                        """, (loser, third_place_match['id']))
+                
+                conn.commit()
+                print(f"✅ Ergebnis erfolgreich eingetragen: {match_id} - {score1}:{score2}")
+                
+                # Nach dem Aktualisieren der Matches, sicherstellen dass alle Gewinner synchronisiert sind
+                sync_quali_winners_to_cup(conn)
+                
+                return redirect(url_for('follower_cup_system', game_name=game_name))
+    
+    # WICHTIG: Prüfe zuerst, ob wir Qualifikationsgewinner haben, die noch nicht eingetragen sind
+    cursor.execute("""
+        SELECT COUNT(*) FROM sqlite_master
+        WHERE type='table' AND name='follower_matches'
+    """)
+    has_quali_table = cursor.fetchone()[0] > 0
+    
+    if has_quali_table:
+        cursor.execute("""
+            SELECT COUNT(*) FROM follower_matches 
+            WHERE round = 'qualification' AND winner IS NOT NULL
+        """)
+        quali_winners_count = cursor.fetchone()[0]
+        
+        print(f"📊 Gefundene Qualifikationsgewinner: {quali_winners_count}")
+        
+        # Prüfe, ob wir schon Spiele im Cup System haben
+        cursor.execute("SELECT COUNT(*) FROM follower_cup_matches")
+        existing_cup_matches = cursor.fetchone()[0]
+        
+        # Wenn wir Qualifikationsgewinner haben, aber noch keine Cup-Spiele ODER
+        # wenn wir Qualifikationsgewinner haben, deren Ergebnisse noch nicht berücksichtigt wurden
+        if quali_winners_count > 0 and existing_cup_matches == 0:
+            print("🔄 Erstelle neues Cup-System mit Qualifikationsgewinnern...")
+            
+            # Cup-System von Grund auf erstellen
+            create_cup_system_with_winners(conn, game_name, rounds)
         else:
-            start_time_str = "13:00"  # Fallback
-
-    current_time = start_time_str
-
-    print(f"\n⏰ ZEITBERECHNUNG DOUBLE ELIMINATION ({table_name})")
-    print(f"   Startzeit: {current_time}")
-    print()
-
-    # Winner Bracket
-    for round_num in range(1, 5):
-        num_matches = 8 // (2 ** (round_num - 1))
+            # Falls bereits Cup-Matches existieren, aktualisieren wir sicher alle Gewinner
+            sync_quali_winners_to_cup(conn)
     
-        print(f"   Winner Runde {round_num}: {num_matches} Matches um {current_time}")
+    # Alle Cup-Matches laden
+    cup_matches = {}
+    for round_key in rounds.keys():
+        cursor.execute("""
+            SELECT * FROM follower_cup_matches 
+            WHERE round = ?
+            ORDER BY match_number
+        """, (round_key,))
+        matches = cursor.fetchall()
+        
+        if matches:
+            cup_matches[round_key] = matches
+            print(f"📊 {round_key}: {len(matches)} Matches geladen")
+        else:
+            print(f"⚠️ Keine Matches für Runde {round_key} gefunden!")
+            cup_matches[round_key] = []
     
+    conn.close()
+    
+    return render_template("follower_cup_system.html",
+                          game_name=game_name,
+                          rounds=rounds,
+                          cup_matches=cup_matches)
+
+
+@app.route('/debug_follower_cup/<game_name>')
+def debug_follower_cup(game_name):
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    output = []
+    
+    if not os.path.exists(db_path):
+        return "Datenbank nicht gefunden!"
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    # Tabelle prüfen
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='follower_cup_matches'")
+    if not cursor.fetchone():
+        return "Tabelle 'follower_cup_matches' existiert nicht!"
+    
+    # Anzahl der Einträge
+    cursor.execute("SELECT COUNT(*) FROM follower_cup_matches")
+    count = cursor.fetchone()[0]
+    output.append(f"Anzahl Einträge: {count}")
+    
+    # Daten anzeigen
+    cursor.execute("SELECT * FROM follower_cup_matches LIMIT 10")
+    matches = cursor.fetchall()
+    
+    for match in matches:
+        match_dict = dict(match)
+        output.append(f"Match: {match_dict}")
+    
+    # Tabelle follower_matches prüfen
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='follower_matches'")
+    if cursor.fetchone():
+        cursor.execute("SELECT COUNT(*) FROM follower_matches WHERE winner IS NOT NULL")
+        quali_winners = cursor.fetchone()[0]
+        output.append(f"Qualifikationsgewinner: {quali_winners}")
+    
+    conn.close()
+    
+    return "<br>".join(output)
+
+@app.route('/fix_follower_cup/<game_name>')
+def fix_follower_cup(game_name):
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    # Alle Teilnehmer zusammenstellen
+    participants = []
+    
+    # 1. Direkt qualifizierte Teams laden
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='follower_cup'")
+    if cursor.fetchone():
+        cursor.execute("SELECT team FROM follower_cup WHERE round = '8final' ORDER BY position")
+        direct_qualifiers = [row['team'] for row in cursor.fetchall()]
+        participants.extend(direct_qualifiers)
+        print(f"Direkt qualifizierte Teams geladen: {direct_qualifiers}")
+    
+    # 2. Qualifikationsgewinner laden
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='follower_matches'")
+    if cursor.fetchone():
+        cursor.execute("SELECT winner FROM follower_matches WHERE round = 'qualification' AND winner IS NOT NULL")
+        quali_winners = [row['winner'] for row in cursor.fetchall()]
+        participants.extend(quali_winners)
+        print(f"Qualifikationsgewinner geladen: {quali_winners}")
+    
+    # 3. Alle Spiele löschen und neu erstellen
+    cursor.execute("DELETE FROM follower_cup_matches")
+    
+    # Struktur der Runden
+    rounds = {
+        "eighth": {"name": "1/8-Final", "count": 8, "time": "13:55", "courts": list(range(9, 17))},
+        "quarter": {"name": "1/4-Final", "count": 4, "time": "14:15", "courts": list(range(11, 15))},
+        "semi": {"name": "1/2-Final", "count": 2, "time": "14:35", "courts": [12, 13]},
+        "final": {"name": "Finale", "count": 1, "time": "14:55", "courts": [12]},
+        "third": {"name": "Spiel um Platz 3", "count": 1, "time": "14:55", "courts": [13]}
+    }
+    
+    # Paarungen für 1/8-Finals erstellen
+    match_pairs = []
+    if len(participants) == 16:  # Genau 16 Teams, perfekt!
+        for i in range(8):
+            match_pairs.append((participants[i], participants[15-i]))
+    else:
+        # Weniger oder mehr als 16 Teams - mit TBD auffüllen oder abschneiden
+        participants_copy = participants.copy()
+        while len(participants_copy) < 16:
+            participants_copy.append(f"TBD_{len(participants_copy)+1}")
+        
+        # Paarungen nach dem Schema 1-16, 2-15, usw.
+        for i in range(8):
+            match_pairs.append((participants_copy[i], participants_copy[15-i]))
+    
+    print(f"Erstellte Paarungen: {match_pairs}")
+    
+    # 1/8-Finals in die Datenbank eintragen
+    for i, (team1, team2) in enumerate(match_pairs):
+        court = rounds['eighth']['courts'][i % len(rounds['eighth']['courts'])]
+        time = rounds['eighth']['time']
+        
+        cursor.execute("""
+            INSERT INTO follower_cup_matches 
+            (round, match_number, team1, team2, court, time)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, ('eighth', i+1, team1, team2, court, time))
+    
+    # Weitere Runden erstellen
+    for round_name, round_info in rounds.items():
+        if round_name == "eighth":
+            continue  # Bereits erstellt
+        
+        for i in range(round_info["count"]):
+            court = round_info['courts'][i % len(round_info['courts'])]
+            time = round_info['time']
+            
+            cursor.execute("""
+                INSERT INTO follower_cup_matches 
+                (round, match_number, team1, team2, court, time)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (round_name, i+1, None, None, court, time))
+    
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('follower_cup_system', game_name=game_name))
+
+@app.route('/reset_follower_cup/<game_name>')
+def reset_follower_cup(game_name):
+    """
+    Setzt das Follower Cup System komplett zurück und baut es neu auf
+    mit allen qualifizierten Teams.
+    """
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    if not os.path.exists(db_path):
+        return render_template("error.html", error_message="Spiel nicht gefunden!")
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    # Struktur der Runden für die Neuinitialisierung
+    rounds = {
+        "eighth": {"name": "1/8-Final", "count": 8, "time": "13:55", "courts": list(range(9, 17))},
+        "quarter": {"name": "1/4-Final", "count": 4, "time": "14:15", "courts": list(range(11, 15))},
+        "semi": {"name": "1/2-Final", "count": 2, "time": "14:35", "courts": [12, 13]},
+        "final": {"name": "Finale", "count": 1, "time": "14:55", "courts": [12]},
+        "third": {"name": "Spiel um Platz 3", "count": 1, "time": "14:55", "courts": [13]}
+    }
+    
+    # Alle Cup-Spiele löschen
+    cursor.execute("DELETE FROM follower_cup_matches")
+    print("🗑️ Alle bestehenden Follower Cup Matches gelöscht")
+    
+    # Teilnehmer zusammenstellen aus verschiedenen Quellen
+    participants = []
+    
+    # 1. Direkt qualifizierte Teams (falls vorhanden)
+    direct_quali = []
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='follower_cup'")
+    if cursor.fetchone():
+        cursor.execute("SELECT team FROM follower_cup WHERE round = '8final' ORDER BY position")
+        direct_quali = [row['team'] for row in cursor.fetchall()]
+        participants.extend(direct_quali)
+        print(f"📋 Direkt qualifizierte Teams geladen: {len(direct_quali)}")
+    
+    # 2. Qualifikationsgewinner
+    quali_winners = []
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='follower_matches'")
+    if cursor.fetchone():
+        cursor.execute("SELECT winner FROM follower_matches WHERE round = 'qualification' AND winner IS NOT NULL")
+        quali_winners = [row['winner'] for row in cursor.fetchall()]
+        participants.extend(quali_winners)
+        print(f"🏆 Qualifikationsgewinner geladen: {len(quali_winners)}")
+    
+    # TBD-Platzhalter hinzufügen, falls nicht genug Teams
+    while len(participants) < 16:
+        participants.append(f"TBD_{len(participants)+1}")
+    
+    # Falls zu viele Teams, auf 16 beschränken
+    if len(participants) > 16:
+        print(f"⚠️ Zu viele Teams ({len(participants)}), wird auf 16 beschränkt")
+        participants = participants[:16]
+    
+    print(f"👥 Insgesamt {len(participants)} Teams für das Cup-System")
+    
+    # 1/8-Finals generieren
+    for i in range(8):
+        # Teams nach Schema: 1 vs 16, 2 vs 15, usw.
+        team1 = participants[i]
+        team2 = participants[15-i]
+        court = rounds['eighth']['courts'][i % len(rounds['eighth']['courts'])]
+        time = rounds['eighth']['time']
+        
+        cursor.execute("""
+            INSERT INTO follower_cup_matches 
+            (round, match_number, team1, team2, court, time)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, ('eighth', i+1, team1, team2, court, time))
+    
+    # Weitere Runden generieren
+    for round_name, round_info in rounds.items():
+        if round_name == "eighth":
+            continue  # Bereits erstellt
+        
+        for i in range(round_info["count"]):
+            court = round_info['courts'][i % len(round_info['courts'])]
+            time = round_info['time']
+            
+            cursor.execute("""
+                INSERT INTO follower_cup_matches 
+                (round, match_number, team1, team2, court, time)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (round_name, i+1, None, None, court, time))
+    
+    conn.commit()
+    conn.close()
+    
+    print("✅ Follower Cup System erfolgreich zurückgesetzt und neu aufgebaut")
+    return redirect(url_for('follower_cup_system', game_name=game_name))
+
+@app.route('/edit_follower_pairings/<game_name>', methods=['GET', 'POST'])
+def edit_follower_pairings(game_name):
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+
+    if not os.path.exists(db_path):
+        return render_template("error.html", error_message="Spiel nicht gefunden!")
+
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    # 1. Alle Teams aus der Datenbank laden
+    team_list = []
+    
+    # Teams aus der teams-Tabelle holen
+    cursor.execute("SELECT name FROM teams ORDER BY name")
+    teams_from_db = [row['name'] for row in cursor.fetchall()]
+    team_list.extend(teams_from_db)
+    
+    # Zusätzlich die Teams aus follower_matches holen (für den Fall, dass sie nicht in teams sind)
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='follower_matches'")
+    if cursor.fetchone():
+        cursor.execute("SELECT DISTINCT team1 AS team FROM follower_matches UNION SELECT DISTINCT team2 AS team FROM follower_matches")
+        teams_from_quali = [row['team'] for row in cursor.fetchall() if row['team'] and row['team'] != 'Freilos' and row['team'] != 'TBD']
+        for team in teams_from_quali:
+            if team not in team_list:
+                team_list.append(team)
+    
+    # Teams aus den bestehenden Follower-Cup-Matches holen
+    cursor.execute("SELECT DISTINCT team1 AS team FROM follower_cup_matches WHERE team1 IS NOT NULL AND team1 != 'TBD' UNION SELECT DISTINCT team2 AS team FROM follower_cup_matches WHERE team2 IS NOT NULL AND team2 != 'TBD'")
+    teams_from_cup = [row['team'] for row in cursor.fetchall() if row['team']]
+    for team in teams_from_cup:
+        if team not in team_list:
+            team_list.append(team)
+    
+    # Alphabetisch sortieren
+    team_list.sort()
+    
+    # 2. Aktuelle Paarungen laden
+    cursor.execute("""
+        SELECT * FROM follower_cup_matches 
+        WHERE round = 'eighth'
+        ORDER BY match_number
+    """)
+    eighth_matches = cursor.fetchall()
+    
+    # 3. POST-Anfrage verarbeiten
+    if request.method == 'POST':
+        for key, value in request.form.items():
+            if key.startswith('team1_') or key.startswith('team2_'):
+                parts = key.split('_')
+                field = parts[0]  # team1 oder team2
+                match_id = int(parts[1])  # Match-ID
+                
+                cursor.execute(f"""
+                    UPDATE follower_cup_matches 
+                    SET {field} = ? 
+                    WHERE id = ?
+                """, (value, match_id))
+        
+        conn.commit()
+        conn.close()
+        return redirect(url_for('follower_cup_system', game_name=game_name))
+    
+    conn.close()
+    
+    # HTML direkt generieren mit Dropdown-Menüs
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Paarungen bearbeiten - {game_name}</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <style>
+            .container {{ max-width: 900px; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Paarungen für Follower Cup bearbeiten</h1>
+            <h2>{game_name}</h2>
+            
+            <form method="post">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Match</th>
+                                <th>Team 1</th>
+                                <th>Team 2</th>
+                                <th>Spielfeld</th>
+                                <th>Zeit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    """
+    
+    for match in eighth_matches:
+        # Dropdown für Team 1
+        team1_dropdown = f"""
+            <select name="team1_{match['id']}" class="form-control">
+                <option value="">-- Team auswählen --</option>
+        """
+        for team in team_list:
+            selected = "selected" if team == match['team1'] else ""
+            team1_dropdown += f'<option value="{team}" {selected}>{team}</option>'
+        team1_dropdown += '</select>'
+        
+        # Dropdown für Team 2
+        team2_dropdown = f"""
+            <select name="team2_{match['id']}" class="form-control">
+                <option value="">-- Team auswählen --</option>
+        """
+        for team in team_list:
+            selected = "selected" if team == match['team2'] else ""
+            team2_dropdown += f'<option value="{team}" {selected}>{team}</option>'
+        team2_dropdown += '</select>'
+        
+        html += f"""
+                            <tr>
+                                <td>{match['match_number']}</td>
+                                <td>{team1_dropdown}</td>
+                                <td>{team2_dropdown}</td>
+                                <td>{match['court']}</td>
+                                <td>{match['time']}</td>
+                            </tr>
+        """
+    
+    html += """
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">Änderungen speichern</button>
+                    <a href="javascript:history.back()" class="btn btn-secondary">Abbrechen</a>
+                </div>
+            </form>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html
+
+
+
+@app.route('/follower_cup_view/<game_name>')
+def follower_cup_view(game_name):
+    """
+    Zeigt das Cup-System der Follower-Runde an (nur Anzeige, keine Bearbeitung)
+    """
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+
+    if not os.path.exists(db_path):
+        return render_template("error.html", error_message="Spiel nicht gefunden!")
+
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    # Runden-Strukturen
+    round_types = {
+        "eighth": {"query": "SELECT * FROM follower_cup_matches WHERE round = 'eighth' ORDER BY match_number"},
+        "quarter": {"query": "SELECT * FROM follower_cup_matches WHERE round = 'quarter' ORDER BY match_number"},
+        "semi": {"query": "SELECT * FROM follower_cup_matches WHERE round = 'semi' ORDER BY match_number"},
+        "finals": {"query": "SELECT * FROM follower_cup_matches WHERE round = 'final' ORDER BY match_number"},
+        "third_place": {"query": "SELECT * FROM follower_cup_matches WHERE round = 'third' ORDER BY match_number"}
+    }
+    
+    # Daten für jede Runde abrufen
+    matches = {}
+    for key, data in round_types.items():
+        cursor.execute(data["query"])
+        matches[key] = cursor.fetchall()
+    
+    conn.close()
+    
+    return render_template("follower_cup_view.html",
+                          game_name=game_name,
+                          eighth_finals=matches.get("eighth", []),
+                          quarter_finals=matches.get("quarter", []),
+                          semi_finals=matches.get("semi", []),
+                          finals=matches.get("finals", []),
+                          third_place=matches.get("third_place", []))
+
+def generate_source_links(game_name):
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+
+    table_name = "double_elim_matches"
+
+    try:
+        cursor.execute(f"SELECT * FROM {table_name}")
+        matches = cursor.fetchall()
+    except sqlite3.OperationalError:
+        print(f"❌ Tabelle '{table_name}' existiert nicht.")
+        conn.close()
+        return
+
+    match_keys = {}  # {(bracket, round, match): key}
+
+    # Schritt 1: Quellen für alle Matches ermitteln
+    for match in matches:
+        bracket = match["bracket"]
+        round_num = match["round"]
+        match_num = match["match"]
+        key = f"{bracket[0]}{round_num}-{match_num}"  # Generiere Schlüssel basierend auf Bracket, Round und Match
+        match_keys[(bracket, round_num, match_num)] = key
+
+    # Setze Quellen für jedes Match
+    for match in matches:
+        bracket = match["bracket"]
+        round_num = match["round"]
+        match_num = match["match"]
+        key = match_keys[(bracket, round_num, match_num)]
+
+        # Quelle aus den vorherigen Runden ermitteln
+        source1 = None
+        source2 = None
+
+        # Beispiel: Hier könnten wir nach vorherigen Runden im Bracket suchen
+        if round_num > 1:  # Falls es sich um eine spätere Runde handelt, holen wir uns Quellen
+            prev_round_match_1 = f"{bracket[0]}{round_num-1}-{match_num*2-1}"
+            prev_round_match_2 = f"{bracket[0]}{round_num-1}-{match_num*2}"
+
+            source1 = match_keys.get((bracket, round_num-1, match_num*2-1))  # Source 1
+            source2 = match_keys.get((bracket, round_num-1, match_num*2))    # Source 2
+
+        # Quellen setzen
         cursor.execute(f"""
-            SELECT id FROM {table_name}
-            WHERE round = ? AND bracket = 'Winners'
-            ORDER BY match_index
-        """, (round_num,))
-    
-        for match_row in cursor.fetchall():
-            cursor.execute(f"""
-                UPDATE {table_name}
-                SET time = ?
-                WHERE id = ?
-            """, (current_time, match_row['id']))
-    
-        # Nächste Runde: Spieldauer + Pause
-        current_time = add_minutes_to_time(
-            current_time,
-            match_duration + break_between_games
-        )
-
-    # Loser Bracket (startet während Winner Bracket läuft)
-    # Vereinfachung: Loser Bracket 15 Min nach Winner Start
-    loser_start = add_minutes_to_time(start_time_str, 15)
-    current_time = loser_start
-
-    for round_num in range(1, 7):
-        num_matches = max(1, 8 // (2 ** (round_num - 1)))
-    
-        print(f"   Loser Runde {round_num}: {num_matches} Matches um {current_time}")
-    
-        cursor.execute(f"""
-            SELECT id FROM {table_name}
-            WHERE round = ? AND bracket = 'Losers'
-            ORDER BY match_index
-        """, (round_num,))
-    
-        for match_row in cursor.fetchall():
-            cursor.execute(f"""
-                UPDATE {table_name}
-                SET time = ?
-                WHERE id = ?
-            """, (current_time, match_row['id']))
-    
-        current_time = add_minutes_to_time(
-            current_time,
-            match_duration + break_between_games
-        )
+            UPDATE {table_name}
+            SET source1 = ?, source2 = ?
+            WHERE bracket = ? AND round = ? AND match = ?
+        """, (source1, source2, bracket, round_num, match_num))
 
     conn.commit()
+    conn.close()
+    print(f"✅ Quellen für GoJS generiert und gespeichert für Turnier '{game_name}'")
 
-    print(f"   → Bracket endet ca. um: {current_time}")
 
-    return current_time
+def migrate_double_elim_table_allow_nulls(db_path):
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+
+    print("⚙️ Starte Migration der Tabelle `double_elim_matches`…")
+
+    # Prüfen ob Spalte team1 bereits NULL erlaubt – sonst migrieren
+    try:
+        cursor.execute("PRAGMA table_info(double_elim_matches)")
+        columns = cursor.fetchall()
+        nullable_check = [col["notnull"] for col in columns if col["name"] in ("team1", "team2")]
+
+        if any(nullable_check):  # Falls team1 oder team2 NOT NULL sind
+            print("🔧 Migriere Tabelle, um NULL-Werte für `team1`/`team2` zu erlauben…")
+
+            cursor.executescript("""
+                CREATE TABLE IF NOT EXISTS double_elim_matches_temp (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    round INTEGER,
+                    bracket TEXT,
+                    match INTEGER,
+                    team1 TEXT,
+                    team2 TEXT,
+                    winner TEXT,
+                    loser TEXT,
+                    next_match TEXT,
+                    score1 INTEGER,
+                    score2 INTEGER,
+                    source1 TEXT,
+                    source2 TEXT
+                );
+
+                INSERT INTO double_elim_matches_temp
+                (id, round, bracket, match, team1, team2, winner, loser, next_match, score1, score2, source1, source2)
+                SELECT id, round, bracket, match, team1, team2, winner, loser, next_match, score1, score2, source1, source2
+                FROM double_elim_matches;
+
+                DROP TABLE double_elim_matches;
+                ALTER TABLE double_elim_matches_temp RENAME TO double_elim_matches;
+            """)
+            conn.commit()
+            print("✅ Migration erfolgreich abgeschlossen.")
+        else:
+            print("✔️ Tabelle `double_elim_matches` erlaubt bereits NULL für `team1` und `team2`.")
+    except Exception as e:
+        print(f"❌ Fehler bei Migration: {e}")
+    finally:
+        conn.close()
+
 
 
 # ============================================================================
@@ -3654,24 +4149,6 @@ def save_follower_cup_result(game_name, match_id):
     return redirect(url_for('enter_follower_cup_results', game_name=game_name))
 
 
-@app.route('/reset_follower_cup/<game_name>', methods=['POST'])
-def reset_follower_cup(game_name):
-    """Follower Cup zurücksetzen"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM follower_quali_matches")
-    cursor.execute("DELETE FROM follower_cup_matches")
-    conn.commit()
-    conn.close()
-    
-    return redirect(url_for('game_overview', game_name=game_name))
-
-
-# ============================================================================
-# PLATZIERUNGSRUNDE
-# ============================================================================
 
 @app.route('/generate_placement_round/<game_name>')
 def generate_placement_round(game_name):
@@ -4235,91 +4712,6 @@ def debug_bracket(game_name, bracket_id):
     return output
 
 
-@app.route('/debug_super_finals/<game_name>')
-def debug_super_finals(game_name):
-    """Debug-Informationen für Super Finals"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM super_finals_matches ORDER BY id")
-    matches = cursor.fetchall()
-    
-    conn.close()
-    
-    output = "<h1>Debug Super Finals</h1>"
-    output += "<table border='1'><tr><th>ID</th><th>Match#</th><th>MatchID</th><th>Team1</th><th>Score1</th><th>Score2</th><th>Team2</th><th>Winner</th></tr>"
-    
-    for match in matches:
-        output += f"<tr>"
-        output += f"<td>{match['id']}</td>"
-        output += f"<td>{match['match_number'] or 'N/A'}</td>"
-        output += f"<td>{match['match_id']}</td>"
-        output += f"<td>{match['team1'] or 'TBD'}</td>"
-        output += f"<td>{match['score1'] or '-'}</td>"
-        output += f"<td>{match['score2'] or '-'}</td>"
-        output += f"<td>{match['team2'] or 'TBD'}</td>"
-        output += f"<td>{match['winner'] or '-'}</td>"
-        output += f"</tr>"
-    
-    output += "</table>"
-    
-    return output
-
-
-@app.route('/debug_follower_cup/<game_name>')
-def debug_follower_cup(game_name):
-    """Debug-Informationen für Follower Cup"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    
-    output = "<h1>Debug Follower Cup</h1>"
-    
-    output += "<h2>Qualifikation</h2>"
-    cursor.execute("SELECT * FROM follower_quali_matches ORDER BY match_number")
-    quali = cursor.fetchall()
-    
-    output += "<table border='1'><tr><th>Match#</th><th>Team1</th><th>Score1</th><th>Score2</th><th>Team2</th><th>Winner</th></tr>"
-    for match in quali:
-        output += f"<tr>"
-        output += f"<td>{match['match_number'] or 'N/A'}</td>"
-        output += f"<td>{match['team1']}</td>"
-        output += f"<td>{match['score1'] or '-'}</td>"
-        output += f"<td>{match['score2'] or '-'}</td>"
-        output += f"<td>{match['team2']}</td>"
-        output += f"<td>{match['winner'] or '-'}</td>"
-        output += f"</tr>"
-    output += "</table>"
-    
-    output += "<h2>Cup System</h2>"
-    cursor.execute("SELECT * FROM follower_cup_matches ORDER BY match_number")
-    cup = cursor.fetchall()
-    
-    output += "<table border='1'><tr><th>Match#</th><th>Round</th><th>Index</th><th>Team1</th><th>Score1</th><th>Score2</th><th>Team2</th><th>Winner</th></tr>"
-    for match in cup:
-        output += f"<tr>"
-        output += f"<td>{match['match_number'] or 'N/A'}</td>"
-        output += f"<td>{match['round']}</td>"
-        output += f"<td>{match['match_index']}</td>"
-        output += f"<td>{match['team1'] or 'TBD'}</td>"
-        output += f"<td>{match['score1'] or '-'}</td>"
-        output += f"<td>{match['score2'] or '-'}</td>"
-        output += f"<td>{match['team2'] or 'TBD'}</td>"
-        output += f"<td>{match['winner'] or '-'}</td>"
-        output += f"</tr>"
-    output += "</table>"
-    
-    conn.close()
-    
-    return output
-
-
-# ============================================================================
-# STATISTIKEN
-# ============================================================================
 
 @app.route('/final_rankings/<game_name>')
 def final_rankings(game_name):
