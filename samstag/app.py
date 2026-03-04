@@ -591,7 +591,7 @@ def assign_round_robin_match_numbers(conn):
     return match_number  # Nächste verfügbare Nummer
 
 
-def assign_double_elim_match_numbers(conn, start_number=151):
+def assign_double_elim_match_numbers(conn, start_number=200):
     """
     Vergibt Spielnummern für die gemeinsame Double Elimination (32 Teams).
     WB Runden 1-5, LB Runden 1-8
@@ -633,7 +633,7 @@ def assign_double_elim_match_numbers(conn, start_number=151):
 
 
 
-def assign_super_finals_match_numbers(conn, start_number=213):
+def assign_super_finals_match_numbers(conn, start_number=262):
     """
     Vergibt Spielnummern für Super Finals.
     Standard: #213-#216 (4 Spiele)
@@ -661,6 +661,83 @@ def assign_super_finals_match_numbers(conn, start_number=213):
     conn.commit()
     print(f"✅ Super Finals: {match_number - start_number} Spielnummern vergeben (#{start_number}-#{match_number - 1})")
     
+    return match_number
+
+
+
+def assign_follower_cup_match_numbers(conn, start_number=300):
+    """
+    Vergibt Spielnummern für den Follower Cup.
+    Standard: ab #300
+    Reihenfolge: Qualifikation → 1/8 → 1/4 → 1/2 → Finale → Platz 3
+    """
+    cursor = conn.cursor()
+    match_number = start_number
+
+    # Qualifikationsspiele (follower_matches)
+    cursor.execute("""
+        SELECT name FROM sqlite_master WHERE type='table' AND name='follower_matches'
+    """)
+    if cursor.fetchone():
+        cursor.execute("SELECT id FROM follower_matches WHERE round = 'qualification' ORDER BY id")
+        for match in cursor.fetchall():
+            conn.execute("UPDATE follower_matches SET match_number = ? WHERE id = ?",
+                        (match_number, match['id']))
+            match_number += 1
+
+    # KO-Runden in Reihenfolge
+    for round_name in ['eighth', 'quarter', 'semi', 'final', 'third']:
+        cursor.execute("""
+            SELECT id FROM follower_cup_matches WHERE round = ? ORDER BY match_number ASC
+        """, (round_name,))
+        for match in cursor.fetchall():
+            conn.execute("UPDATE follower_cup_matches SET match_number = ? WHERE id = ?",
+                        (match_number, match['id']))
+            match_number += 1
+
+    conn.commit()
+    print(f"✅ Follower Cup: {match_number - start_number} Spielnummern vergeben (#{start_number}-#{match_number-1})")
+    return match_number
+
+def assign_follower_cup_match_numbers(conn, start_number=300):
+    """
+    Vergibt Spielnummern für den Follower Cup.
+    Reihenfolge: Quali → 1/8-Final → 1/4-Final → 1/2-Final → Finale → Platz 3
+    Startet bei #300
+    """
+    cursor = conn.cursor()
+    match_number = start_number
+
+    # Qualifikationsspiele (follower_matches)
+    cursor.execute("""
+        SELECT name FROM sqlite_master WHERE type='table' AND name='follower_matches'
+    """)
+    if cursor.fetchone():
+        cursor.execute("""
+            SELECT id FROM follower_matches 
+            WHERE round = 'qualification'
+            ORDER BY id ASC
+        """)
+        for match in cursor.fetchall():
+            # follower_matches hat keine match_number Spalte - überspringen
+            pass
+
+    # Cup Spiele (follower_cup_matches): eighth → quarter → semi → final → third
+    for round_name in ['eighth', 'quarter', 'semi', 'final', 'third']:
+        cursor.execute("""
+            SELECT id FROM follower_cup_matches
+            WHERE round = ?
+            ORDER BY match_number ASC
+        """, (round_name,))
+        for match in cursor.fetchall():
+            conn.execute("""
+                UPDATE follower_cup_matches
+                SET match_number = ? WHERE id = ?
+            """, (match_number, match['id']))
+            match_number += 1
+
+    conn.commit()
+    print(f"✅ Follower Cup: {match_number - start_number} Spielnummern vergeben (#{start_number}-#{match_number-1})")
     return match_number
 
 
@@ -828,6 +905,7 @@ def create_cup_system_with_winners(conn, game_name, rounds):
             """, (round_name, i+1, None, None, court, time))
     
     conn.commit()
+    assign_follower_cup_match_numbers(conn)
     print(f"✅ Cup-System neu erstellt mit {len(participants)} Teams")
 
 
@@ -1323,6 +1401,7 @@ def follower_cup_system(game_name):
                 
                 # Nach dem Aktualisieren der Matches, sicherstellen dass alle Gewinner synchronisiert sind
                 sync_quali_winners_to_cup(conn)
+                assign_follower_cup_match_numbers(conn)
                 
                 return redirect(url_for('follower_cup_system', game_name=game_name))
     
@@ -1503,6 +1582,7 @@ def fix_follower_cup(game_name):
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (round_name, i+1, None, None, court, time))
     
+    assign_follower_cup_match_numbers(conn)
     conn.commit()
     conn.close()
     
@@ -1596,6 +1676,7 @@ def reset_follower_cup(game_name):
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (round_name, i+1, None, None, court, time))
     
+    assign_follower_cup_match_numbers(conn)
     conn.commit()
     conn.close()
     
@@ -2262,7 +2343,7 @@ INTEGRATION IN app.py:
 4. In generate_double_elim() nach Bracket-Generierung:
    
    conn.commit()
-   assign_double_elim_match_numbers(conn, 151)
+   assign_double_elim_match_numbers(conn, 200)
    
    calculate_double_elim_times(conn, 'double_elim_matches')  # NEU
    calculate_double_elim_times(conn, 'double_elim_matches')  # NEU
@@ -2921,7 +3002,7 @@ def generate_double_elim(game_name):
     # Spielnummern vergeben
     cursor.execute("SELECT MAX(match_number) as max_num FROM matches")
     row = cursor.fetchone()
-    next_number = (row['max_num'] or 0) + 1 if row else 151
+    next_number = 200  # Double Elim startet immer bei #200
     assign_double_elim_match_numbers(conn, next_number)
 
     conn.close()
@@ -3588,7 +3669,10 @@ def generate_super_finals(game_name):
         return render_template("admin/error.html",
                              error_message=f"Finalisten stehen noch nicht fest! WB: {wb_winner}, LB: {lb_winner}")
 
-    match_number = 213
+    # Spielnummer dynamisch: nach letzter DE-Nummer
+    cursor.execute("SELECT MAX(match_number) FROM double_elim_matches")
+    row = cursor.fetchone()
+    match_number = (row[0] or 260) + 1
 
     # Grand Final: WB Sieger vs LB Sieger
     cursor.execute("""
@@ -4181,7 +4265,7 @@ def generate_placement_round(game_name):
     
     placement_teams = [row['team'] for row in cursor.fetchall()]
     
-    match_number = 246
+    match_number = 400  # Platzierungsrunden starten bei #400
     court = 1
     
     num_teams = len(placement_teams)
