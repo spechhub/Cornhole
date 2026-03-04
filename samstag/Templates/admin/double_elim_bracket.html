@@ -1,148 +1,106 @@
 {% extends "admin/base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Double Elimination Bracket <small class="text-muted">{{ game_name }}</small></h1>
-        <div>
-            <a href="{{ url_for('enter_double_elim_results', game_name=game_name) }}" class="btn btn-success">
-                <i class="fas fa-edit"></i> Ergebnisse eintragen
-            </a>
-            <a href="{{ url_for('generate_super_finals', game_name=game_name) }}" class="btn btn-warning ml-2">
-                <i class="fas fa-trophy"></i> Super Finals generieren
-            </a>
-        </div>
-    </div>
+<div class="container">
+    <h1 class="mb-4">Ergebnisse eintragen <small class="text-muted">Double Elimination</small></h1>
 
-    <ul class="nav nav-tabs mb-3" id="bracketTabs" role="tablist">
+    <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
         <li class="nav-item">
-            <a class="nav-link active" id="bracket-a-tab" data-toggle="tab" href="#bracket-a" role="tab">Bracket A (Gr.
-                1-5)</a>
+            <a class="nav-link active" id="pills-winners-tab" data-toggle="pill" href="#pills-winners" role="tab">Winner Bracket</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" id="bracket-b-tab" data-toggle="tab" href="#bracket-b" role="tab">Bracket B (Gr.
-                6-10)</a>
+            <a class="nav-link" id="pills-losers-tab" data-toggle="pill" href="#pills-losers" role="tab">Loser Bracket</a>
         </li>
     </ul>
 
-    <div class="tab-content" id="bracketTabContent">
-        <!-- Bracket A -->
-        <div class="tab-pane fade show active" id="bracket-a" role="tabpanel">
-            <h3 class="mt-3">Winner Bracket</h3>
-            <div class="bracket-container d-flex overflow-auto pb-4 winner-bracket">
-                {% for round in range(1, 5) %}
-                <div class="round-column mx-2" style="min-width: 200px;">
-                    <div class="round-header text-center font-weight-bold mb-3">Runde {{ round }}</div>
-                    {% for match in matches_a if match.bracket == 'Winners' and match.round == round %}
-                    <div class="card mb-3 shadow-sm border-success">
-                        <div class="card-header py-1 text-center small bg-light">
-                            #{{ match.match_number }}
-                        </div>
-                        <div class="card-body p-2">
-                            <div
-                                class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
-                                <span>{{ match.team1 or 'TBD' }}</span>
-                                <span>{{ match.score1 if match.score1 is not none else '' }}</span>
-                            </div>
-                            <div
-                                class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
-                                <span>{{ match.team2 or 'TBD' }}</span>
-                                <span>{{ match.score2 if match.score2 is not none else '' }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-            </div>
+    <div class="tab-content" id="pills-tabContent">
 
-            <h3 class="mt-5">Loser Bracket</h3>
-            <div class="bracket-container d-flex overflow-auto pb-4 loser-bracket">
-                {% for round in range(1, 7) %}
-                <div class="round-column mx-2" style="min-width: 200px;">
-                    <div class="round-header text-center font-weight-bold mb-3">Runde {{ round }}</div>
-                    {% for match in matches_a if match.bracket == 'Losers' and match.round == round %}
-                    <div class="card mb-3 shadow-sm border-danger">
-                        <div class="card-header py-1 text-center small bg-light">
-                            #{{ match.match_number }}
-                        </div>
-                        <div class="card-body p-2">
-                            <div
-                                class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
-                                <span>{{ match.team1 or 'TBD' }}</span>
-                                <span>{{ match.score1 if match.score1 is not none else '' }}</span>
-                            </div>
-                            <div
-                                class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
-                                <span>{{ match.team2 or 'TBD' }}</span>
-                                <span>{{ match.score2 if match.score2 is not none else '' }}</span>
-                            </div>
-                        </div>
+        <!-- Winner Bracket -->
+        <div class="tab-pane fade show active" id="pills-winners" role="tabpanel">
+            {% for round in range(1, 6) %}
+            <h5 class="mt-3 text-success">
+                {% if round == 5 %}WB Finale{% else %}Runde {{ round }}{% endif %}
+            </h5>
+            {% for match in matches if match.bracket == 'Winners' and match.round == round %}
+            <div class="card match-card mb-2 border-success">
+                <div class="row align-items-center">
+                    <div class="col-md-2 text-center text-muted">
+                        <small>#{{ match.match_number }}</small><br>
+                        <span class="badge badge-success">WB R{{ match.round }}</span>
                     </div>
-                    {% endfor %}
+                    <div class="col-md-8">
+                        <form action="{{ url_for('update_double_elim_result', game_name=game_name, match_id=match.id) }}"
+                            method="POST" class="d-flex justify-content-center align-items-center">
+                            <div class="text-right mr-2" style="width: 150px;">
+                                <strong>{{ match.team1 or 'TBD' }}</strong>
+                            </div>
+                            <input type="number" name="score1" class="form-control score-input mx-1"
+                                value="{{ match.score1 if match.score1 is not none else '' }}" min="0" max="42" required>
+                            :
+                            <input type="number" name="score2" class="form-control score-input mx-1"
+                                value="{{ match.score2 if match.score2 is not none else '' }}" min="0" max="42" required>
+                            <div class="text-left ml-2" style="width: 150px;">
+                                <strong>{{ match.team2 or 'TBD' }}</strong>
+                            </div>
+                            <div class="ml-3">
+                                <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-save"></i></button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        {% if match.winner %}
+                        <span class="badge badge-success">Sieger: {{ match.winner }}</span>
+                        {% endif %}
+                    </div>
                 </div>
-                {% endfor %}
             </div>
+            {% endfor %}
+            {% endfor %}
         </div>
 
-        <!-- Bracket B -->
-        <div class="tab-pane fade" id="bracket-b" role="tabpanel">
-            <h3 class="mt-3">Winner Bracket</h3>
-            <div class="bracket-container d-flex overflow-auto pb-4 winner-bracket">
-                {% for round in range(1, 5) %}
-                <div class="round-column mx-2" style="min-width: 200px;">
-                    <div class="round-header text-center font-weight-bold mb-3">Runde {{ round }}</div>
-                    {% for match in matches_b if match.bracket == 'Winners' and match.round == round %}
-                    <div class="card mb-3 shadow-sm border-success">
-                        <div class="card-header py-1 text-center small bg-light">
-                            #{{ match.match_number }}
-                        </div>
-                        <div class="card-body p-2">
-                            <div
-                                class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
-                                <span>{{ match.team1 or 'TBD' }}</span>
-                                <span>{{ match.score1 if match.score1 is not none else '' }}</span>
-                            </div>
-                            <div
-                                class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
-                                <span>{{ match.team2 or 'TBD' }}</span>
-                                <span>{{ match.score2 if match.score2 is not none else '' }}</span>
-                            </div>
-                        </div>
+        <!-- Loser Bracket -->
+        <div class="tab-pane fade" id="pills-losers" role="tabpanel">
+            {% for round in range(1, 9) %}
+            <h5 class="mt-3 text-danger">
+                {% if round == 8 %}LB Finale{% else %}Runde {{ round }}{% endif %}
+            </h5>
+            {% for match in matches if match.bracket == 'Losers' and match.round == round %}
+            <div class="card match-card mb-2 border-danger">
+                <div class="row align-items-center">
+                    <div class="col-md-2 text-center text-muted">
+                        <small>#{{ match.match_number }}</small><br>
+                        <span class="badge badge-danger">LB R{{ match.round }}</span>
                     </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-            </div>
-
-            <h3 class="mt-5">Loser Bracket</h3>
-            <div class="bracket-container d-flex overflow-auto pb-4 loser-bracket">
-                {% for round in range(1, 7) %}
-                <div class="round-column mx-2" style="min-width: 200px;">
-                    <div class="round-header text-center font-weight-bold mb-3">Runde {{ round }}</div>
-                    {% for match in matches_b if match.bracket == 'Losers' and match.round == round %}
-                    <div class="card mb-3 shadow-sm border-danger">
-                        <div class="card-header py-1 text-center small bg-light">
-                            #{{ match.match_number }}
-                        </div>
-                        <div class="card-body p-2">
-                            <div
-                                class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
-                                <span>{{ match.team1 or 'TBD' }}</span>
-                                <span>{{ match.score1 if match.score1 is not none else '' }}</span>
+                    <div class="col-md-8">
+                        <form action="{{ url_for('update_double_elim_result', game_name=game_name, match_id=match.id) }}"
+                            method="POST" class="d-flex justify-content-center align-items-center">
+                            <div class="text-right mr-2" style="width: 150px;">
+                                <strong>{{ match.team1 or 'TBD' }}</strong>
                             </div>
-                            <div
-                                class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
-                                <span>{{ match.team2 or 'TBD' }}</span>
-                                <span>{{ match.score2 if match.score2 is not none else '' }}</span>
+                            <input type="number" name="score1" class="form-control score-input mx-1"
+                                value="{{ match.score1 if match.score1 is not none else '' }}" min="0" max="42" required>
+                            :
+                            <input type="number" name="score2" class="form-control score-input mx-1"
+                                value="{{ match.score2 if match.score2 is not none else '' }}" min="0" max="42" required>
+                            <div class="text-left ml-2" style="width: 150px;">
+                                <strong>{{ match.team2 or 'TBD' }}</strong>
                             </div>
-                        </div>
+                            <div class="ml-3">
+                                <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-save"></i></button>
+                            </div>
+                        </form>
                     </div>
-                    {% endfor %}
+                    <div class="col-md-2 text-center">
+                        {% if match.winner %}
+                        <span class="badge badge-success">Sieger: {{ match.winner }}</span>
+                        {% endif %}
+                    </div>
                 </div>
-                {% endfor %}
             </div>
+            {% endfor %}
+            {% endfor %}
         </div>
+
     </div>
 </div>
 {% endblock %}
