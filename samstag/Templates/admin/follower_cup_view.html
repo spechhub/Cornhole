@@ -1,0 +1,106 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Follower Cup <small class="text-muted">Übersicht</small></h1>
+
+    <div class="row flex-nowrap overflow-auto pb-4">
+        <!-- 1/8 Finale -->
+        <div class="col-md-3" style="min-width: 250px;">
+            <h4 class="text-center mb-3">Achtelfinale</h4>
+            {% for match in eighth_finals %}
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header py-1 text-center small bg-light">#{{ match.match_number }}</div>
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team1 or 'TBD' }}</span>
+                        <span>{{ match.score1 if match.score1 is not none else '' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team2 or 'TBD' }}</span>
+                        <span>{{ match.score2 if match.score2 is not none else '' }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 1/4 Finale -->
+        <div class="col-md-3" style="min-width: 250px;">
+            <h4 class="text-center mb-3">Viertelfinale</h4>
+            {% for match in quarter_finals %}
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header py-1 text-center small bg-light">#{{ match.match_number }}</div>
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team1 or 'TBD' }}</span>
+                        <span>{{ match.score1 if match.score1 is not none else '' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team2 or 'TBD' }}</span>
+                        <span>{{ match.score2 if match.score2 is not none else '' }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 1/2 Finale -->
+        <div class="col-md-3" style="min-width: 250px;">
+            <h4 class="text-center mb-3">Halbfinale</h4>
+            {% for match in semi_finals %}
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header py-1 text-center small bg-light">#{{ match.match_number }}</div>
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team1 or 'TBD' }}</span>
+                        <span>{{ match.score1 if match.score1 is not none else '' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team2 or 'TBD' }}</span>
+                        <span>{{ match.score2 if match.score2 is not none else '' }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Finale & Platz 3 -->
+        <div class="col-md-3" style="min-width: 250px;">
+            <h4 class="text-center mb-3">Finale</h4>
+            {% for match in finals %}
+            <div class="card mb-3 shadow-sm border-warning">
+                <div class="card-header py-1 text-center small bg-warning">#{{ match.match_number }}</div>
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team1 or 'TBD' }}</span>
+                        <span>{{ match.score1 if match.score1 is not none else '' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team2 or 'TBD' }}</span>
+                        <span>{{ match.score2 if match.score2 is not none else '' }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <h4 class="text-center mt-5 mb-3">Platz 3</h4>
+            {% for match in third_place %}
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header py-1 text-center small bg-light">#{{ match.match_number }}</div>
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team1 or 'TBD' }}</span>
+                        <span>{{ match.score1 if match.score1 is not none else '' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
+                        <span>{{ match.team2 or 'TBD' }}</span>
+                        <span>{{ match.score2 if match.score2 is not none else '' }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
