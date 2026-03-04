@@ -473,7 +473,7 @@ def get_qualified_teams_for_bracket(conn, group_start, group_end):
             FROM rankings r
             WHERE r.group_number = ?
             AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+            ORDER BY r.goals_for DESC, r.goal_difference DESC
         """, (group_num,))
         rows = cursor.fetchall()
         top3 = [r['team'] for r in rows[:3]]
@@ -1967,34 +1967,34 @@ INTEGRATION IN app.py:
 
 
 def recalculate_rankings_internal(conn):
-    """Rankings neu berechnen - KORRIGIERTE VERSION"""
+    """Rankings neu berechnen - Sortierung: 1. goals_for, 2. goal_difference, 3. direkter Vergleich"""
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         UPDATE rankings 
         SET matches_played = 0, wins = 0, draws = 0, losses = 0,
             goals_for = 0, goals_against = 0, goal_difference = 0, points = 0
     """)
-    
+
     cursor.execute("""
         SELECT * FROM matches 
         WHERE score1 IS NOT NULL AND score2 IS NOT NULL
     """)
-    
+
     for match in cursor.fetchall():
         team1 = match['team1']
         team2 = match['team2']
         score1 = match['score1']
         score2 = match['score2']
-        
-        # Team1 Update
+
+        # Team1
         if score1 > score2:
             wins1, draws1, losses1, points1 = 1, 0, 0, 3
         elif score1 < score2:
             wins1, draws1, losses1, points1 = 0, 0, 1, 0
         else:
             wins1, draws1, losses1, points1 = 0, 1, 0, 1
-        
+
         cursor.execute("""
             UPDATE rankings 
             SET matches_played = matches_played + 1,
@@ -2007,15 +2007,15 @@ def recalculate_rankings_internal(conn):
                 points = points + ?
             WHERE team = ?
         """, (wins1, draws1, losses1, score1, score2, score1, score2, points1, team1))
-        
-        # Team2 Update
+
+        # Team2
         if score2 > score1:
             wins2, draws2, losses2, points2 = 1, 0, 0, 3
         elif score2 < score1:
             wins2, draws2, losses2, points2 = 0, 0, 1, 0
         else:
             wins2, draws2, losses2, points2 = 0, 1, 0, 1
-        
+
         cursor.execute("""
             UPDATE rankings 
             SET matches_played = matches_played + 1,
@@ -2028,8 +2028,73 @@ def recalculate_rankings_internal(conn):
                 points = points + ?
             WHERE team = ?
         """, (wins2, draws2, losses2, score2, score1, score2, score1, points2, team2))
-    
+
     conn.commit()
+
+
+def sort_group_standings(conn, teams_in_group, group_number):
+    """
+    Sortiert Teams einer Gruppe nach:
+    1. goals_for (geworfene Punkte, absteigend)
+    2. goal_difference (Differenz, absteigend)
+    3. Direkter Vergleich (Ergebnis im direkten Spiel)
+    Gibt sortierte Liste von Team-Dicts zurück.
+    """
+    cursor = conn.cursor()
+
+    # Alle Rankings der Gruppe laden
+    placeholders = ','.join('?' * len(teams_in_group))
+    cursor.execute(f"""
+        SELECT * FROM rankings 
+        WHERE group_number = ? AND team IN ({placeholders})
+    """, [group_number] + list(teams_in_group))
+    rows = {r['team']: dict(r) for r in cursor.fetchall()}
+
+    # Sortierschlüssel mit direktem Vergleich als Tiebreaker
+    def sort_key(team_a, team_b):
+        a = rows.get(team_a, {})
+        b = rows.get(team_b, {})
+
+        # 1. goals_for
+        if a.get('goals_for', 0) != b.get('goals_for', 0):
+            return b.get('goals_for', 0) - a.get('goals_for', 0)
+
+        # 2. goal_difference
+        if a.get('goal_difference', 0) != b.get('goal_difference', 0):
+            return b.get('goal_difference', 0) - a.get('goal_difference', 0)
+
+        # 3. Direkter Vergleich
+        cursor.execute("""
+            SELECT score1, score2 FROM matches
+            WHERE (team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?)
+            AND score1 IS NOT NULL AND score2 IS NOT NULL
+        """, (team_a, team_b, team_b, team_a))
+        direct = cursor.fetchone()
+        if direct:
+            if direct['score1'] is not None:
+                # Finde wer team_a und wer team_b war
+                cursor.execute("""
+                    SELECT team1, team2, score1, score2 FROM matches
+                    WHERE ((team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?))
+                    AND score1 IS NOT NULL
+                """, (team_a, team_b, team_b, team_a))
+                m = cursor.fetchone()
+                if m:
+                    if m['team1'] == team_a:
+                        score_a, score_b = m['score1'], m['score2']
+                    else:
+                        score_a, score_b = m['score2'], m['score1']
+                    if score_a > score_b:
+                        return -1  # team_a besser
+                    elif score_b > score_a:
+                        return 1   # team_b besser
+        return 0
+
+    import functools
+    team_list = list(teams_in_group)
+    team_list.sort(key=functools.cmp_to_key(sort_key))
+    return [rows[t] for t in team_list if t in rows]
+
 
 
 # ============================================================================
@@ -2846,7 +2911,7 @@ def group_standings(game_name):
             FROM rankings r
             LEFT JOIN teams t ON r.team = t.name
             WHERE r.group_number = ?
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+            ORDER BY r.goals_for DESC, r.goal_difference DESC
         """, (group_num,))
         groups[group_num] = cursor.fetchall()
     
@@ -2854,7 +2919,7 @@ def group_standings(game_name):
     cursor.execute("""
         WITH ranked_teams AS (
             SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number,
-                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC) as position
+                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.goals_for DESC, r.goal_difference DESC) as position
             FROM rankings r
             WHERE r.group_number BETWEEN 1 AND 5
             AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
@@ -2862,7 +2927,7 @@ def group_standings(game_name):
         SELECT team, points, goal_difference, goals_for, group_number, position
         FROM ranked_teams
         WHERE position = 4
-        ORDER BY points DESC, goal_difference DESC, goals_for DESC
+        ORDER BY goals_for DESC, goal_difference DESC
         LIMIT 1
     """)
     best_4th_a = cursor.fetchone()
@@ -2871,7 +2936,7 @@ def group_standings(game_name):
     cursor.execute("""
         WITH ranked_teams AS (
             SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number,
-                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC) as position
+                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.goals_for DESC, r.goal_difference DESC) as position
             FROM rankings r
             WHERE r.group_number BETWEEN 6 AND 10
             AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
@@ -2879,7 +2944,7 @@ def group_standings(game_name):
         SELECT team, points, goal_difference, goals_for, group_number, position
         FROM ranked_teams
         WHERE position = 4
-        ORDER BY points DESC, goal_difference DESC, goals_for DESC
+        ORDER BY goals_for DESC, goal_difference DESC
         LIMIT 1
     """)
     best_4th_b = cursor.fetchone()
@@ -3356,12 +3421,10 @@ def generate_follower_quali(game_name):
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.points > r.points 
-                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
-                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
-                        AND r2.goals_for > r.goals_for))) = 3
+               AND (r2.goals_for > r.goals_for 
+                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 3
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        ORDER BY r.goals_for DESC, r.goal_difference DESC
     """)
     all_4th = cursor.fetchall()
     
@@ -3374,12 +3437,10 @@ def generate_follower_quali(game_name):
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.points > r.points 
-                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
-                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
-                        AND r2.goals_for > r.goals_for))) = 4
+               AND (r2.goals_for > r.goals_for 
+                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 4
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.points DESC, r.goal_difference DESC
+        ORDER BY r.goals_for DESC, r.goal_difference DESC
     """)
     follower_teams.extend([(t['team'], t['points'], t['goal_difference']) for t in cursor.fetchall()])
     
@@ -3389,12 +3450,10 @@ def generate_follower_quali(game_name):
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.points > r.points 
-                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
-                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
-                        AND r2.goals_for > r.goals_for))) = 5
+               AND (r2.goals_for > r.goals_for 
+                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 5
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.points DESC, r.goal_difference DESC
+        ORDER BY r.goals_for DESC, r.goal_difference DESC
     """)
     follower_teams.extend([(t['team'], t['points'], t['goal_difference']) for t in cursor.fetchall()])
     
@@ -3532,12 +3591,10 @@ def generate_follower_cup(game_name):
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.points > r.points 
-                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
-                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
-                        AND r2.goals_for > r.goals_for))) = 3
+               AND (r2.goals_for > r.goals_for 
+                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 3
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        ORDER BY r.goals_for DESC, r.goal_difference DESC
         LIMIT 4
     """)
     direct_teams = [row['team'] for row in cursor.fetchall()]
@@ -3802,7 +3859,7 @@ def generate_placement_round(game_name):
             SELECT team2 FROM follower_quali_matches WHERE team2 != 'BYE'
         )
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        ORDER BY r.goals_for DESC, r.goal_difference DESC
     """)
     
     placement_teams = [row['team'] for row in cursor.fetchall()]
@@ -4003,7 +4060,7 @@ def display_groups(game_name):
             FROM rankings r
             LEFT JOIN teams t ON r.team = t.name
             WHERE r.group_number = ?
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+            ORDER BY r.goals_for DESC, r.goal_difference DESC
         """, (group_num,))
         groups[group_num] = cursor.fetchall()
     
@@ -4028,7 +4085,7 @@ def display_qualification_tree(game_name):
             SELECT team FROM rankings 
             WHERE group_number = ?
             AND team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-            ORDER BY points DESC, goal_difference DESC, goals_for DESC
+            ORDER BY goals_for DESC, goal_difference DESC
             LIMIT 3
         """, (group_num,))
         groups_a[group_num] = [row['team'] for row in cursor.fetchall()]
@@ -4039,7 +4096,7 @@ def display_qualification_tree(game_name):
             SELECT team FROM rankings 
             WHERE group_number = ?
             AND team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-            ORDER BY points DESC, goal_difference DESC, goals_for DESC
+            ORDER BY goals_for DESC, goal_difference DESC
             LIMIT 3
         """, (group_num,))
         groups_b[group_num] = [row['team'] for row in cursor.fetchall()]
@@ -4049,12 +4106,10 @@ def display_qualification_tree(game_name):
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.points > r.points 
-                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
-                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
-                        AND r2.goals_for > r.goals_for))) = 3
+               AND (r2.goals_for > r.goals_for 
+                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 3
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        ORDER BY r.goals_for DESC, r.goal_difference DESC
         LIMIT 2
     """)
     best_4th = cursor.fetchall()
@@ -4230,7 +4285,7 @@ def export_complete(game_name):
             FROM rankings r
             LEFT JOIN teams t ON r.team = t.name
             WHERE r.group_number = ?
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+            ORDER BY r.goals_for DESC, r.goal_difference DESC
         """, (group_num,))
         
         position = 1
