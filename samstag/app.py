@@ -2194,6 +2194,58 @@ def calculate_follower_cup_times(conn, start_time_str=None):
 # HAUPTFUNKTION: ALLE ZEITEN BERECHNEN
 # ============================================================================
 
+def calculate_round_robin_times(conn):
+    """
+    Berechnet Spielzeiten für alle Round Robin Matches.
+    Liest Startzeit, Spieldauer, Pause und Mittagspause aus tournament_config.
+    Alle Spiele einer Runde starten zur gleichen Zeit.
+    """
+    cursor = conn.cursor()
+
+    # Config laden
+    cursor.execute("SELECT * FROM tournament_config LIMIT 1")
+    config = cursor.fetchone()
+    if not config:
+        print("⚠️ Keine tournament_config gefunden!")
+        return
+
+    from datetime import datetime, timedelta
+
+    start_time_str = config['start_time'] or '09:00'
+    match_duration = config['match_duration'] or 20
+    break_duration = config['break_between_games'] or 5
+    lunch_enabled = config['lunch_break_enabled'] or 0
+    lunch_start_str = config['lunch_break_start'] or '12:00'
+    lunch_end_str = config['lunch_break_end'] or '13:00'
+
+    fmt = '%H:%M'
+    current_time = datetime.strptime(start_time_str, fmt)
+    lunch_start = datetime.strptime(lunch_start_str, fmt)
+    lunch_end = datetime.strptime(lunch_end_str, fmt)
+    slot_duration = timedelta(minutes=match_duration + break_duration)
+
+    # Alle Runden ermitteln
+    cursor.execute("SELECT DISTINCT round FROM matches ORDER BY round ASC")
+    rounds = [r[0] for r in cursor.fetchall()]
+
+    for round_num in rounds:
+        # Mittagspause prüfen
+        if lunch_enabled and current_time >= lunch_start and current_time < lunch_end:
+            current_time = lunch_end
+
+        time_str = current_time.strftime(fmt)
+
+        # Alle Spiele dieser Runde auf diese Zeit setzen
+        conn.execute("""
+            UPDATE matches SET time = ? WHERE round = ?
+        """, (time_str, round_num))
+
+        current_time += slot_duration
+
+    conn.commit()
+    print(f"✅ Round Robin Zeiten berechnet: {len(rounds)} Runden")
+
+
 def calculate_all_match_times(conn):
     """
     Berechnet Spielzeiten für ALLE Turnierphasen.
