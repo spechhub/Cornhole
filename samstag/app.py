@@ -432,11 +432,15 @@ def get_qualified_teams_for_double_elim(conn):
     Holt alle 32 qualifizierten Teams für das Double Elimination Turnier.
     Logik: Top 3 aus jeder der 10 Gruppen (30 Teams) + 2 beste Viertplatzierte = 32 Teams.
     Ghost-Teams werden ausgeschlossen.
+
+    Rückgabe: dict mit 'teams' (Liste von 32 Teamnamen) und
+              'team_groups' (dict team → group_number) für das Seeding.
     """
     cursor = conn.cursor()
 
-    groups = {}
+    groups = {}       # group_num → [team_name, ...]  (nach Ranking sortiert)
     fourths = []
+    team_groups = {}  # team_name → group_number
 
     for group_num in range(1, 11):
         cursor.execute("""
@@ -449,6 +453,8 @@ def get_qualified_teams_for_double_elim(conn):
         rows = cursor.fetchall()
         top3 = [r['team'] for r in rows[:3]]
         groups[group_num] = top3
+        for t in top3:
+            team_groups[t] = group_num
 
         if len(rows) >= 4:
             fourth = rows[3]
@@ -456,7 +462,8 @@ def get_qualified_teams_for_double_elim(conn):
                 'team': fourth['team'],
                 'points': fourth['points'],
                 'goal_difference': fourth['goal_difference'],
-                'goals_for': fourth['goals_for']
+                'goals_for': fourth['goals_for'],
+                'group': group_num
             })
 
     qualified = []
@@ -468,9 +475,109 @@ def get_qualified_teams_for_double_elim(conn):
         fourths,
         key=lambda x: (-x['points'], -x['goal_difference'], -x['goals_for'])
     )[:2]
+    for t in best_fourths:
+        team_groups[t['team']] = t['group']
     qualified.extend([t['team'] for t in best_fourths])
 
-    return qualified[:32]
+    return {'teams': qualified[:32], 'team_groups': team_groups}
+
+
+def seed_teams_by_group(qualified_result):
+    """
+    Verteilt 32 Teams auf Bracket-Slots so dass Teams aus derselben
+    Round-Robin-Gruppe in verschiedene Bracket-Quadranten landen und sich
+    dadurch frühestens im Halbfinale (oder je nach Quadrant im Grand Final)
+    treffen können.
+
+    32er-Bracket: 4 Quadranten à 8 Slots
+    ┌─────────────────────────────────────────────┐
+    │ Q0: Slots  0- 7  │ Q1: Slots  8-15          │
+    │     Halbfinale-Hälfte A                      │
+    ├─────────────────────────────────────────────┤
+    │ Q2: Slots 16-23  │ Q3: Slots 24-31          │
+    │     Halbfinale-Hälfte B                      │
+    └─────────────────────────────────────────────┘
+    Q0 vs Q1 → erst ab R3 (Viertelfinale)
+    Q0/Q1 vs Q2/Q3 → erst ab R4/R5 (Halbfinale/Grand Final)
+
+    Gruppen-Zuweisung zu Quadranten (je ~2-3 Gruppen pro Quadrant):
+      Q0: Gruppen 1, 5        (8 Slots)
+      Q1: Gruppen 2, 6        (8 Slots)
+      Q2: Gruppen 3, 7, 9     (8 Slots)
+      Q3: Gruppen 4, 8, 10    (8 Slots)
+
+    Innerhalb jedes Quadranten: Teams nach Gruppen-Ranking abwechselnd
+    platziert (stärkste Teams möglichst weit auseinander).
+    """
+    teams = qualified_result['teams']
+    team_groups = qualified_result['team_groups']
+
+    # Gruppen den 4 Quadranten zuordnen
+    QUADRANT_GROUPS = {
+        0: [1, 5],
+        1: [2, 6],
+        2: [3, 7, 9],
+        3: [4, 8, 10],
+    }
+
+    # Teams nach Quadrant sortieren
+    quadrants = {0: [], 1: [], 2: [], 3: []}
+    unassigned = []
+
+    for team in teams:
+        g = team_groups.get(team, 0)
+        placed = False
+        for q_idx, groups in QUADRANT_GROUPS.items():
+            if g in groups:
+                quadrants[q_idx].append(team)
+                placed = True
+                break
+        if not placed:
+            unassigned.append(team)
+
+    # Nicht zugeordnete Teams (z.B. beste Viertplatzierte aus Randgruppen)
+    # in den Quadranten mit wenigsten Teams einfügen
+    for team in unassigned:
+        min_q = min(quadrants, key=lambda q: len(quadrants[q]))
+        quadrants[min_q].append(team)
+
+    # Auffüllen/Reduzieren auf exakt 8 Teams pro Quadrant
+    target = 8
+    # Zuerst: überfüllte Quadranten kürzen → überschüssige in Pool
+    overflow = []
+    for q_idx in range(4):
+        while len(quadrants[q_idx]) > target:
+            overflow.append(quadrants[q_idx].pop())
+
+    # Dann: unterfüllte Quadranten mit überschüssigen Teams füllen
+    for q_idx in range(4):
+        while len(quadrants[q_idx]) < target and overflow:
+            quadrants[q_idx].append(overflow.pop(0))
+
+    # Falls noch Teams fehlen (sollte nicht passieren), aus teams-Liste ergänzen
+    remaining = [t for t in teams if all(t not in quadrants[q] for q in range(4))]
+    for q_idx in range(4):
+        while len(quadrants[q_idx]) < target and remaining:
+            quadrants[q_idx].append(remaining.pop(0))
+
+    # Innerhalb jedes Quadranten: Interleaved Seeding
+    # Gerade Slots (0,2,4,6) → Teams 0,1,2,3 (stärker)
+    # Ungerade Slots (1,3,5,7) → Teams 4,5,6,7 (schwächer)
+    # So liegen die beiden stärksten Teams eines Quadranten nicht nebeneinander
+    seeded = []
+    for q_idx in range(4):
+        q_teams = quadrants[q_idx][:target]
+        slot_order = [None] * target
+        stronger = q_teams[:target//2]   # Teams 0-3
+        weaker   = q_teams[target//2:]   # Teams 4-7
+        for pos, team in enumerate(stronger):
+            slot_order[pos * 2] = team       # Slots 0,2,4,6
+        for pos, team in enumerate(weaker):
+            slot_order[pos * 2 + 1] = team   # Slots 1,3,5,7
+        seeded.extend(slot_order)
+
+    # Keine None-Einträge → direkt zurückgeben
+    return [t for t in seeded if t is not None][:32]
 
 
 def process_double_elim_forwarding(conn, match_row):
@@ -3271,18 +3378,27 @@ def generate_double_elim(game_name):
         return render_template("admin/error.html", 
                              error_message="Brackets wurden bereits generiert!")
     
-    # Alle 32 qualifizierten Teams holen:
+    # Alle 32 qualifizierten Teams holen und nach Gruppen-Seeding verteilen:
     # Top 3 aus Gruppen 1-10 (30 Teams) + 2 beste Viertplatzierte = 32 Teams
-    all_teams = get_qualified_teams_for_double_elim(conn)
-    
-    if len(all_teams) < 32:
+    # Gruppen-Seeding: Teams aus gleicher Round-Robin-Gruppe kommen in
+    # verschiedene Bracket-Quadranten → frühestens Halbfinale aufeinander
+    qualified_result = get_qualified_teams_for_double_elim(conn)
+    all_teams_raw = qualified_result['teams']
+
+    if len(all_teams_raw) < 32:
         conn.close()
-        return render_template("admin/error.html", 
-                             error_message=f"Nicht genug qualifizierte Teams! Gefunden: {len(all_teams)}, benötigt: 32")
-    
+        return render_template("admin/error.html",
+                             error_message=f"Nicht genug qualifizierte Teams! Gefunden: {len(all_teams_raw)}, benötigt: 32")
+
+    # Seeding anwenden: gibt Liste von 32 Teams in Bracket-Slot-Reihenfolge zurück
+    all_teams = seed_teams_by_group(qualified_result)
+
     # ----------------------------------------------------------------
     # WINNER BRACKET erstellen
-    # R1: 16 Spiele (Index 0-15) mit 32 Teams
+    # R1: 16 Spiele (Index 0-15) mit 32 Teams (Slot i vs Slot 31-i)
+    # Teams aus gleicher Gruppe → verschiedene Quadranten (je 8 Slots)
+    # Q0 (Slots 0-7) vs Q1 (Slots 8-15): frühestens R3 (Viertelfinale)
+    # Q0/Q1 vs Q2/Q3 (Slots 16-31): frühestens R4/R5 (Halbfinale/Grand Final)
     # R2:  8 Spiele (Index 0-7)  - leer, werden per Forwarding befüllt
     # R3:  4 Spiele (Index 0-3)
     # R4:  2 Spiele (Index 0-1)
@@ -3290,7 +3406,7 @@ def generate_double_elim(game_name):
     # ----------------------------------------------------------------
     for i in range(16):
         cursor.execute("""
-            INSERT INTO double_elim_matches 
+            INSERT INTO double_elim_matches
             (round, bracket, match_index, team1, team2)
             VALUES (1, 'Winners', ?, ?, ?)
         """, (i, all_teams[i], all_teams[31-i]))
