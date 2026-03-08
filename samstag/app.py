@@ -2937,6 +2937,326 @@ def generate_matches(game_name):
     recalculate_rankings_internal(conn)
     conn.close()
 
+@app.route('/renumber_all_matches/<game_name>', methods=['POST'])
+def renumber_all_matches(game_name):
+    """
+    Manuelle Neunummerierung aller Spiele.
+    Nützlich nach manuellen Änderungen oder Fehlern.
+    """
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    if not os.path.exists(db_path):
+        return jsonify({"success": False, "error": "Turnier nicht gefunden!"})
+    
+    try:
+        conn = get_db_connection(db_path)
+        
+        # Zuerst alle Nummern zurücksetzen
+        cursor = conn.cursor()
+        cursor.execute("UPDATE matches SET match_number = NULL")
+        cursor.execute("UPDATE double_elim_matches SET match_number = NULL")
+        cursor.execute("UPDATE double_elim_matches SET match_number = NULL")
+        cursor.execute("UPDATE super_finals_matches SET match_number = NULL")
+        cursor.execute("UPDATE follower_quali_matches SET match_number = NULL")
+        cursor.execute("UPDATE follower_cup_matches SET match_number = NULL")
+        cursor.execute("UPDATE placement_matches SET match_number = NULL")
+        conn.commit()
+        
+        # Neu vergeben
+        stats = assign_all_match_numbers(conn)
+        
+        conn.close()
+        
+        return jsonify({
+            "success": True, 
+            "message": "Alle Spielnummern erfolgreich neu vergeben!",
+            "stats": stats
+        })
+    
+    except Exception as e:
+        return jsonify({
+            "success": False, 
+            "error": f"Fehler bei Neunummerierung: {str(e)}"
+        })
+
+
+@app.route('/game_overview/<game_name>')
+def game_overview(game_name):
+    """Turnierübersicht - MIT SPIELNUMMERN-STATISTIK"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT COUNT(*) as count FROM teams")
+    team_count = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) as count FROM teams WHERE is_ghost = 1")
+    ghost_count = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) as count FROM matches")
+    match_count = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) as count FROM matches WHERE score1 IS NOT NULL")
+    results_count = cursor.fetchone()['count']
+    
+    # NEU: Spielnummern-Status
+    cursor.execute("SELECT COUNT(*) as count FROM matches WHERE match_number IS NOT NULL")
+    numbered_rr = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches WHERE match_number IS NOT NULL")
+    numbered_a = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches WHERE match_number IS NOT NULL")
+    numbered_b = cursor.fetchone()['count']
+    
+    cursor.execute("SELECT MAX(match_number) as max_num FROM matches")
+    max_rr = cursor.fetchone()['max_num'] or 0
+    
+    cursor.execute("""
+        SELECT MAX(match_number) as max_num 
+        FROM (
+            SELECT match_number FROM matches
+            UNION ALL SELECT match_number FROM double_elim_matches
+        )
+    """)
+    max_overall = cursor.fetchone()['max_num'] or 0
+    
+    conn.close()
+    
+    return render_template("admin/game_overview.html", 
+                         game_name=game_name,
+                         team_count=team_count,
+                         ghost_count=ghost_count,
+                         match_count=match_count,
+                         results_count=results_count,
+                         numbered_rr=numbered_rr,
+                         numbered_a=numbered_a,
+                         numbered_b=numbered_b,
+                         max_rr=max_rr,
+                         max_overall=max_overall)
+
+
+
+@app.route('/match_overview/<game_name>')
+def match_overview(game_name):
+    """Übersicht aller Gruppenspiele"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT * FROM matches 
+        ORDER BY group_number, round, field
+    """)
+    matches = cursor.fetchall()
+    
+    bracket_a = [m for m in matches if m['group_number'] <= 5]
+    bracket_b = [m for m in matches if m['group_number'] > 5]
+    
+    conn.close()
+    
+    return render_template("admin/match_overview.html",
+                         game_name=game_name,
+                         bracket_a=bracket_a,
+                         bracket_b=bracket_b)
+
+
+@app.route('/enter_results/<game_name>')
+def enter_results(game_name):
+    """Ergebnisse eintragen"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT * FROM matches 
+        ORDER BY round, group_number, field
+    """)
+    matches = cursor.fetchall()
+    
+    conn.close()
+    
+    return render_template("admin/enter_results.html",
+                         game_name=game_name,
+                         matches=matches)
+
+
+@app.route('/save_result/<game_name>/<int:match_id>', methods=['POST'])
+def save_result(game_name, match_id):
+    """Einzelnes Ergebnis speichern"""
+    score1 = request.form.get('score1')
+    score2 = request.form.get('score2')
+    
+    if not score1 or not score2:
+        return redirect(url_for('enter_results', game_name=game_name))
+    
+    try:
+        score1 = int(score1)
+        score2 = int(score2)
+        
+        if score1 > 42 or score2 > 42 or score1 < 0 or score2 < 0:
+            return render_template("admin/error.html", 
+                                 error_message="Punktzahl muss zwischen 0 und 42 liegen!")
+    except ValueError:
+        return redirect(url_for('enter_results', game_name=game_name))
+    
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE matches 
+        SET score1 = ?, score2 = ?
+        WHERE id = ?
+    """, (score1, score2, match_id))
+    
+    conn.commit()
+    recalculate_rankings_internal(conn)
+    conn.close()
+    
+    return redirect(url_for('enter_results', game_name=game_name))
+
+
+@app.route('/delete_result/<game_name>/<int:match_id>', methods=['POST'])
+def delete_result(game_name, match_id):
+    """Ergebnis löschen"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE matches 
+        SET score1 = NULL, score2 = NULL
+        WHERE id = ?
+    """, (match_id,))
+    
+    conn.commit()
+    recalculate_rankings_internal(conn)
+    conn.close()
+    
+    return redirect(url_for('enter_results', game_name=game_name))
+
+
+@app.route('/recalculate_rankings/<game_name>', methods=['POST'])
+def recalculate_rankings(game_name):
+    """Rankings manuell neu berechnen"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    conn = get_db_connection(db_path)
+    recalculate_rankings_internal(conn)
+    conn.close()
+    
+    return redirect(url_for('group_standings', game_name=game_name))
+
+
+@app.route('/group_standings/<game_name>')
+def group_standings(game_name):
+    """Gruppentabellen anzeigen"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+    
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    
+    groups = {}
+    for group_num in range(1, 11):
+        cursor.execute("""
+            SELECT r.*, t.is_ghost
+            FROM rankings r
+            LEFT JOIN teams t ON r.team = t.name
+            WHERE r.group_number = ?
+        """, (group_num,))
+        rows = cursor.fetchall()
+        # Sortierung: 1. G+ (goals_for), 2. Differenz, 3. direkter Vergleich
+        team_names = [r['team'] for r in rows]
+        row_map = {r['team']: r for r in rows}
+        
+        import functools
+        def head_to_head(t_a, t_b):
+            cursor.execute("""
+                SELECT team1, team2, score1, score2 FROM matches
+                WHERE ((team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?))
+                AND score1 IS NOT NULL
+            """, (t_a, t_b, t_b, t_a))
+            m = cursor.fetchone()
+            if m:
+                score_a = m['score1'] if m['team1'] == t_a else m['score2']
+                score_b = m['score2'] if m['team1'] == t_a else m['score1']
+                if score_a > score_b: return -1
+                if score_b > score_a: return 1
+            return 0
+
+        def sort_key(t_a, t_b):
+            a = row_map[t_a]
+            b = row_map[t_b]
+            if a['goals_for'] != b['goals_for']:
+                return b['goals_for'] - a['goals_for']
+            if a['goal_difference'] != b['goal_difference']:
+                return b['goal_difference'] - a['goal_difference']
+            return head_to_head(t_a, t_b)
+
+        team_names.sort(key=functools.cmp_to_key(sort_key))
+        groups[group_num] = [row_map[t] for t in team_names]
+    
+    # Beste 4. Platzierte Bracket A - KORRIGIERT
+    cursor.execute("""
+        WITH ranked_teams AS (
+            SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number,
+                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.goals_for DESC, r.goal_difference DESC) as position
+            FROM rankings r
+            WHERE r.group_number BETWEEN 1 AND 5
+            AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
+        )
+        SELECT team, points, goal_difference, goals_for, group_number, position
+        FROM ranked_teams
+        WHERE position = 4
+        ORDER BY goals_for DESC, goal_difference DESC
+        LIMIT 1
+    """)
+    best_4th_a = cursor.fetchone()
+    
+    # Beste 4. Platzierte Bracket B - KORRIGIERT
+    cursor.execute("""
+        WITH ranked_teams AS (
+            SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number,
+                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.goals_for DESC, r.goal_difference DESC) as position
+            FROM rankings r
+            WHERE r.group_number BETWEEN 6 AND 10
+            AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
+        )
+        SELECT team, points, goal_difference, goals_for, group_number, position
+        FROM ranked_teams
+        WHERE position = 4
+        ORDER BY goals_for DESC, goal_difference DESC
+        LIMIT 1
+    """)
+    best_4th_b = cursor.fetchone()
+    
+    conn.close()
+    
+    return render_template("admin/group_standings.html",
+                         game_name=game_name,
+                         groups=groups,
+                         best_4th_a=best_4th_a,
+                         best_4th_b=best_4th_b)
+
+
 @app.route('/generate_double_elim/<game_name>')
 def generate_double_elim(game_name):
     """Double Elimination Bracket generieren (32 Teams, ein Turnier)"""
