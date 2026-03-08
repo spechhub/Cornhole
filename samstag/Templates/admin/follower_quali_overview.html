@@ -6,8 +6,12 @@
 
     <div class="alert alert-info">
         <i class="fas fa-info-circle"></i>
-        Hier spielen die 4. Platzierten (außer den 2 Besten), alle 5. und alle 6. Platzierten gegeneinander.
-        Die Gewinner qualifizieren sich für das 1/8-Finale des Follower Cups.
+        <strong>Wer spielt hier?</strong><br>
+        Von den 10 Viertplatzierten gehen die <strong>2 besten ins Double Elimination</strong>
+        und die <strong>nächsten 4 direkt in den Follower Cup</strong>.<br>
+        Die übrigen <strong>4 Viertplatzierten</strong> + alle <strong>5. und 6. Platzierten</strong>
+        spielen hier um die restlichen Plätze im Follower Cup.
+        Die Gewinner qualifizieren sich für das 1/8-Finale.
     </div>
 
     <div class="card shadow-sm">
@@ -51,7 +55,7 @@
                             </form>
                             {% if match.winner %}
                             <div class="mt-2 text-center text-success font-weight-bold">
-                                Sieger: {{ match.winner }}
+                                ✅ Sieger: {{ match.winner }}
                             </div>
                             {% endif %}
                         </div>
@@ -60,10 +64,10 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-center text-muted py-4">Noch keine Spiele generiert.</p>
+            <p class="text-center text-muted py-4">Noch keine Quali-Spiele generiert.</p>
             <div class="text-center">
-                <a href="{{ url_for('generate_follower_cup', game_name=game_name) }}" class="btn btn-warning">
-                    <i class="fas fa-magic"></i> Paarungen generieren
+                <a href="{{ url_for('generate_follower_quali', game_name=game_name) }}" class="btn btn-warning">
+                    <i class="fas fa-magic"></i> Quali-Paarungen generieren
                 </a>
             </div>
             {% endif %}
@@ -72,7 +76,7 @@
 
     <div class="mt-4 text-center">
         <a href="{{ url_for('follower_cup_overview', game_name=game_name) }}" class="btn btn-outline-primary btn-lg">
-            Zum Cup-System (K.O.) &rarr;
+            Zum Follower Cup (K.O.) &rarr;
         </a>
     </div>
 </div>
