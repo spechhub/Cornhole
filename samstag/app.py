@@ -427,6 +427,52 @@ def get_qualified_teams_for_bracket(conn, group_start, group_end):
     return qualified[:16]
 
 
+def get_qualified_teams_for_double_elim(conn):
+    """
+    Holt alle 32 qualifizierten Teams für das Double Elimination Turnier.
+    Logik: Top 3 aus jeder der 10 Gruppen (30 Teams) + 2 beste Viertplatzierte = 32 Teams.
+    Ghost-Teams werden ausgeschlossen.
+    """
+    cursor = conn.cursor()
+
+    groups = {}
+    fourths = []
+
+    for group_num in range(1, 11):
+        cursor.execute("""
+            SELECT r.team, r.points, r.goal_difference, r.goals_for
+            FROM rankings r
+            WHERE r.group_number = ?
+            AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
+            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        """, (group_num,))
+        rows = cursor.fetchall()
+        top3 = [r['team'] for r in rows[:3]]
+        groups[group_num] = top3
+
+        if len(rows) >= 4:
+            fourth = rows[3]
+            fourths.append({
+                'team': fourth['team'],
+                'points': fourth['points'],
+                'goal_difference': fourth['goal_difference'],
+                'goals_for': fourth['goals_for']
+            })
+
+    qualified = []
+    for group_num in range(1, 11):
+        qualified.extend(groups.get(group_num, []))
+
+    # 2 beste Viertplatzierte aus allen 10 Gruppen
+    best_fourths = sorted(
+        fourths,
+        key=lambda x: (-x['points'], -x['goal_difference'], -x['goals_for'])
+    )[:2]
+    qualified.extend([t['team'] for t in best_fourths])
+
+    return qualified[:32]
+
+
 def process_double_elim_forwarding(conn, match_row):
     """Automatische Weiterleitung nach Spielende - eine gemeinsame Tabelle"""
     cursor = conn.cursor()
@@ -3529,7 +3575,7 @@ def group_standings(game_name):
 
 @app.route('/generate_double_elim/<game_name>')
 def generate_double_elim(game_name):
-    """Beide Double Elimination Brackets generieren"""
+    """Double Elimination Bracket generieren (32 Teams, ein Turnier)"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     
     conn = get_db_connection(db_path)
@@ -3541,35 +3587,32 @@ def generate_double_elim(game_name):
         return render_template("admin/error.html", 
                              error_message="Brackets wurden bereits generiert!")
     
-    bracket_a_teams = get_qualified_teams_for_bracket(conn, 1, 5)
-    bracket_b_teams = get_qualified_teams_for_bracket(conn, 6, 10)
+    # Alle 32 qualifizierten Teams holen:
+    # Top 3 aus Gruppen 1-10 (30 Teams) + 2 beste Viertplatzierte = 32 Teams
+    all_teams = get_qualified_teams_for_double_elim(conn)
     
-    if len(bracket_a_teams) < 16 or len(bracket_b_teams) < 16:
+    if len(all_teams) < 32:
         conn.close()
         return render_template("admin/error.html", 
-                             error_message=f"Nicht genug qualifizierte Teams! A: {len(bracket_a_teams)}, B: {len(bracket_b_teams)}")
+                             error_message=f"Nicht genug qualifizierte Teams! Gefunden: {len(all_teams)}, benötigt: 32")
     
-    match_number = 151
-    
-    # Bracket A Winner Runde 1
-    for i in range(8):
+    # ----------------------------------------------------------------
+    # WINNER BRACKET erstellen
+    # R1: 16 Spiele (Index 0-15) mit 32 Teams
+    # R2:  8 Spiele (Index 0-7)  - leer, werden per Forwarding befüllt
+    # R3:  4 Spiele (Index 0-3)
+    # R4:  2 Spiele (Index 0-1)
+    # R5:  1 Spiel  (Index 0)    - WB Finale
+    # ----------------------------------------------------------------
+    for i in range(16):
         cursor.execute("""
             INSERT INTO double_elim_matches 
             (round, bracket, match_index, team1, team2)
             VALUES (1, 'Winners', ?, ?, ?)
-        """, (i, bracket_a_teams[i], bracket_a_teams[15-i]))
+        """, (i, all_teams[i], all_teams[31-i]))
     
-    # Bracket A Loser Runde 1
-    for i in range(4):
-        cursor.execute("""
-            INSERT INTO double_elim_matches 
-            (round, bracket, match_index, team1, team2)
-            VALUES (1, 'Losers', ?, NULL, NULL)
-        """, (i,))
-    
-    # Weitere Runden Bracket A
-    for round_num in range(2, 5):
-        num_matches = 8 // (2 ** (round_num - 1))
+    for round_num in range(2, 6):
+        num_matches = 16 // (2 ** (round_num - 1))
         for i in range(num_matches):
             cursor.execute("""
                 INSERT INTO double_elim_matches 
@@ -3577,41 +3620,19 @@ def generate_double_elim(game_name):
                 VALUES (?, 'Winners', ?, NULL, NULL)
             """, (round_num, i))
     
-    for round_num in range(2, 7):
-        num_matches = max(1, 8 // (2 ** (round_num - 1)))
-        for i in range(num_matches):
-            cursor.execute("""
-                INSERT INTO double_elim_matches 
-                (round, bracket, match_index, team1, team2)
-                VALUES (?, 'Losers', ?, NULL, NULL)
-            """, (round_num, i))
-    
-    # Bracket B (identisch)
-    for i in range(8):
-        cursor.execute("""
-            INSERT INTO double_elim_matches 
-            (round, bracket, match_index, team1, team2)
-            VALUES (1, 'Winners', ?, ?, ?)
-        """, (i, bracket_b_teams[i], bracket_b_teams[15-i]))
-    
-    for i in range(4):
-        cursor.execute("""
-            INSERT INTO double_elim_matches 
-            (round, bracket, match_index, team1, team2)
-            VALUES (1, 'Losers', ?, NULL, NULL)
-        """, (i,))
-    
-    for round_num in range(2, 5):
-        num_matches = 8 // (2 ** (round_num - 1))
-        for i in range(num_matches):
-            cursor.execute("""
-                INSERT INTO double_elim_matches 
-                (round, bracket, match_index, team1, team2)
-                VALUES (?, 'Winners', ?, NULL, NULL)
-            """, (round_num, i))
-    
-    for round_num in range(2, 7):
-        num_matches = max(1, 8 // (2 ** (round_num - 1)))
+    # ----------------------------------------------------------------
+    # LOSER BRACKET erstellen
+    # L-R1:  8 Spiele (Index 0-7)  - WB R1 Verlierer spielen untereinander
+    # L-R2:  8 Spiele (Index 0-7)  - L-R1 Gewinner vs. WB R2 Verlierer
+    # L-R3:  4 Spiele (Index 0-3)
+    # L-R4:  4 Spiele (Index 0-3)  - L-R3 Gewinner vs. WB R3 Verlierer
+    # L-R5:  2 Spiele (Index 0-1)
+    # L-R6:  2 Spiele (Index 0-1)  - L-R5 Gewinner vs. WB R4 Verlierer
+    # L-R7:  1 Spiel  (Index 0)    - LB Finale
+    # L-R8:  1 Spiel  (Index 0)    - Grand Final (LB Sieger vs. WB Sieger)
+    # ----------------------------------------------------------------
+    loser_rounds = {1: 8, 2: 8, 3: 4, 4: 4, 5: 2, 6: 2, 7: 1, 8: 1}
+    for round_num, num_matches in loser_rounds.items():
         for i in range(num_matches):
             cursor.execute("""
                 INSERT INTO double_elim_matches 
@@ -3626,7 +3647,6 @@ def generate_double_elim(game_name):
     print("\n🔢 Vergebe Spielnummern...")
     next_number = assign_double_elim_match_numbers(conn, next_number)
     
-
     # NEU: Spielzeiten
     print("\n⏰ Berechne Spielzeiten...")
     calculate_double_elim_times(conn, 'double_elim_matches')
@@ -3715,7 +3735,11 @@ def update_double_elim_result(game_name, match_id):
     """, (score1, score2, winner, loser, match_id))
 
     conn.commit()
-    process_double_elim_forwarding(conn, match)
+
+    # match neu laden, damit winner/loser befüllt sind
+    cursor.execute("SELECT * FROM double_elim_matches WHERE id = ?", (match_id,))
+    match_updated = cursor.fetchone()
+    process_double_elim_forwarding(conn, match_updated)
     conn.close()
 
     return redirect(url_for('enter_double_elim_results', game_name=game_name))
