@@ -6,7 +6,7 @@
 
     <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
         <li class="nav-item">
-            <a class="nav-link active" id="pills-winners-tab" data-toggle="pill" href="#pills-winners" role="tab">Winner Bracket</a>
+            <a class="nav-link" id="pills-winners-tab" data-toggle="pill" href="#pills-winners" role="tab">Winner Bracket</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" id="pills-losers-tab" data-toggle="pill" href="#pills-losers" role="tab">Loser Bracket</a>
@@ -16,7 +16,7 @@
     <div class="tab-content" id="pills-tabContent">
 
         <!-- Winner Bracket -->
-        <div class="tab-pane fade show active" id="pills-winners" role="tabpanel">
+        <div class="tab-pane fade" id="pills-winners" role="tabpanel">
             {% for round in range(1, 6) %}
             <h5 class="mt-3 text-success">
                 {% if round == 5 %}WB Finale{% else %}Runde {{ round }}{% endif %}
@@ -31,6 +31,7 @@
                     <div class="col-md-8">
                         <form action="{{ url_for('update_double_elim_result', game_name=game_name, match_id=match.id) }}"
                             method="POST" class="d-flex justify-content-center align-items-center">
+                            <input type="hidden" name="tab" value="pills-winners">
                             <div class="text-right mr-2" style="width: 150px;">
                                 <strong>{{ match.team1 or 'TBD' }}</strong>
                             </div>
@@ -49,7 +50,7 @@
                     </div>
                     <div class="col-md-2 text-center">
                         {% if match.winner %}
-                        <span class="badge badge-success">Sieger: {{ match.winner }}</span>
+                        <span class="badge badge-success">✓ {{ match.winner }}</span>
                         {% endif %}
                     </div>
                 </div>
@@ -62,7 +63,7 @@
         <div class="tab-pane fade" id="pills-losers" role="tabpanel">
             {% for round in range(1, 9) %}
             <h5 class="mt-3 text-danger">
-                {% if round == 8 %}LB Finale{% else %}Runde {{ round }}{% endif %}
+                {% if round == 8 %}Grand Final{% elif round == 7 %}LB Finale{% else %}Runde {{ round }}{% endif %}
             </h5>
             {% for match in matches if match.bracket == 'Losers' and match.round == round %}
             <div class="card match-card mb-2 border-danger">
@@ -74,6 +75,7 @@
                     <div class="col-md-8">
                         <form action="{{ url_for('update_double_elim_result', game_name=game_name, match_id=match.id) }}"
                             method="POST" class="d-flex justify-content-center align-items-center">
+                            <input type="hidden" name="tab" value="pills-losers">
                             <div class="text-right mr-2" style="width: 150px;">
                                 <strong>{{ match.team1 or 'TBD' }}</strong>
                             </div>
@@ -92,7 +94,7 @@
                     </div>
                     <div class="col-md-2 text-center">
                         {% if match.winner %}
-                        <span class="badge badge-success">Sieger: {{ match.winner }}</span>
+                        <span class="badge badge-success">✓ {{ match.winner }}</span>
                         {% endif %}
                     </div>
                 </div>
@@ -103,4 +105,22 @@
 
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var hash = window.location.hash;
+        var tabId = hash ? hash.replace('#', '') : 'pills-winners';
+        var tab = document.getElementById(tabId + '-tab');
+        if (tab) {
+            document.querySelectorAll('.nav-link').forEach(function(el) { el.classList.remove('active'); });
+            document.querySelectorAll('.tab-pane').forEach(function(el) { el.classList.remove('show', 'active'); });
+            tab.classList.add('active');
+            var pane = document.getElementById(tabId);
+            if (pane) pane.classList.add('show', 'active');
+        } else {
+            document.getElementById('pills-winners-tab').classList.add('active');
+            document.getElementById('pills-winners').classList.add('show', 'active');
+        }
+    });
+</script>
 {% endblock %}

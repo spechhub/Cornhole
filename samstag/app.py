@@ -494,6 +494,7 @@ def process_double_elim_forwarding(conn, match_row):
                 UPDATE double_elim_matches
                 SET {slot} = ?
                 WHERE round = ? AND bracket = 'Winners' AND match_index = ?
+                AND score1 IS NULL
             """, (winner, next_round, next_index))
 
         if key in LOSER_MAPPING:
@@ -502,6 +503,7 @@ def process_double_elim_forwarding(conn, match_row):
                 UPDATE double_elim_matches
                 SET {loser_slot} = ?
                 WHERE round = ? AND bracket = 'Losers' AND match_index = ?
+                AND score1 IS NULL
             """, (loser, loser_round, loser_index))
 
     elif bracket_type == 'Losers':
@@ -512,6 +514,7 @@ def process_double_elim_forwarding(conn, match_row):
                 UPDATE double_elim_matches
                 SET {slot} = ?
                 WHERE round = ? AND bracket = 'Losers' AND match_index = ?
+                AND score1 IS NULL
             """, (winner, next_round, next_index))
 
     conn.commit()
@@ -3742,7 +3745,8 @@ def update_double_elim_result(game_name, match_id):
     process_double_elim_forwarding(conn, match_updated)
     conn.close()
 
-    return redirect(url_for('enter_double_elim_results', game_name=game_name))
+    tab = request.form.get('tab', 'pills-winners')
+    return redirect(url_for('enter_double_elim_results', game_name=game_name) + '#' + tab)
 
 
 # ============================================================================
