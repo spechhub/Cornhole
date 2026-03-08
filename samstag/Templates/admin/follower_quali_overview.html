@@ -8,10 +8,10 @@
         <i class="fas fa-info-circle"></i>
         <strong>Wer spielt hier?</strong><br>
         Von den 10 Viertplatzierten gehen die <strong>2 besten ins Double Elimination</strong>
-        und die <strong>nächsten 4 direkt in den Follower Cup</strong>.<br>
-        Die übrigen <strong>4 Viertplatzierten</strong> + alle <strong>5. und 6. Platzierten</strong>
-        spielen hier um die restlichen Plätze im Follower Cup.
-        Die Gewinner qualifizieren sich für das 1/8-Finale.
+        und die <strong>nächsten 4 (Plätze 3–6) direkt in den Follower Cup</strong>.<br>
+        Die übrigen <strong>4 Viertplatzierten (Plätze 7–10)</strong> + alle <strong>5. Platzierten</strong> + alle <strong>6. Platzierten</strong>
+        spielen hier um die verbleibenden 12 Plätze im Follower Cup 1/8-Finale.<br>
+        <strong>Verlierer</strong> spielen anschliessend die Platzierungsrunde (Plätze 49–60).
     </div>
 
     <div class="card shadow-sm">
@@ -74,7 +74,10 @@
         </div>
     </div>
 
-    <div class="mt-4 text-center">
+    <div class="mt-4 d-flex justify-content-between">
+        <a href="{{ url_for('placement_round_overview', game_name=game_name) }}" class="btn btn-outline-secondary btn-lg">
+            &larr; Platzierungsrunde (Quali-Verlierer)
+        </a>
         <a href="{{ url_for('follower_cup_overview', game_name=game_name) }}" class="btn btn-outline-primary btn-lg">
             Zum Follower Cup (K.O.) &rarr;
         </a>
