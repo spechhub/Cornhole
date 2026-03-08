@@ -3767,7 +3767,10 @@ def generate_follower_quali(game_name):
     """)
     all_4th = cursor.fetchall()
     
-    for team in all_4th[2:]:
+    # all_4th[0], all_4th[1] → bereits im Double Elimination
+    # all_4th[2]–all_4th[5] → direkt in Follower Cup (4 Teams, kein Quali nötig)
+    # all_4th[6+]            → müssen Follower Quali spielen
+    for team in all_4th[6:]:
         follower_teams.append((team['team'], team['points'], team['goal_difference']))
     
     # 5. Platzierte
@@ -3918,14 +3921,17 @@ def save_follower_quali_result(game_name, match_id):
 def generate_follower_cup(game_name):
     """Follower Cup Hauptturnier generieren.
 
-    Zusammensetzung der 16 Teams:
-      - 4 direkt qualifizierte: die 2 besten Viertplatzierten aus den 10 Gruppen
-        (same Logik wie generate_follower_quali, aber die TOP-2 statt 3+)
-        PLUS die 4 Erstplatzierten aus den Quali-Matches (direkteinzug)
+    Turnier-Logik:
+      - Double Elimination: Top 3 jeder Gruppe (30) + 2 beste Viertplatzierte = 32 Teams
+      - Follower Cup: die ÜBRIGEN 8 Viertplatzierten + alle 5. + alle 6. Platzierten
+
+    Zusammensetzung der 16 Follower-Cup-Teams:
+      - 4 direkt qualifiziert: die 4 besten der verbleibenden Viertplatzierten
+        (Plätze 3-10 der Viertplatzierten-Rangliste, da Platz 1+2 im Double Elim)
       - 12 Quali-Gewinner aus follower_quali_matches
 
-    Fallback: Falls nicht genug Quali-Gewinner, werden weitere
-    Viertplatzierte aufgefüllt bis 16 Teams erreicht sind.
+    Fallback: Falls Quali noch nicht gespielt → mit weiteren Viertplatzierten/
+    Fünftplatzierten auffüllen.
     """
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     
@@ -3939,7 +3945,6 @@ def generate_follower_cup(game_name):
                              error_message="Follower Cup wurde bereits generiert!")
     
     # ── Schritt 1: Alle Viertplatzierten holen (nach Ranking sortiert) ──
-    # Gleiche Query wie in generate_follower_quali
     cursor.execute("""
         SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number
         FROM rankings r
@@ -3954,8 +3959,10 @@ def generate_follower_cup(game_name):
     """)
     all_4th = [row['team'] for row in cursor.fetchall()]
 
-    # Die 2 besten Viertplatzierten sind direkt qualifiziert (kommen nicht in Quali)
-    direct_teams = all_4th[:2]
+    # Platz 1+2 der Viertplatzierten sind bereits im Double Elimination!
+    # Follower Cup bekommt die Plätze 3-6 als direkte Qualifikation (4 Teams)
+    follower_4th = all_4th[2:]   # Viertplatzierte Plätze 3-10
+    direct_teams = follower_4th[:4]   # Die 4 besten davon direkt qualifiziert
 
     # ── Schritt 2: Quali-Gewinner holen ──
     cursor.execute("""
@@ -3965,13 +3972,12 @@ def generate_follower_cup(game_name):
     """)
     quali_winners = [row['winner'] for row in cursor.fetchall()]
 
-    # ── Schritt 3: Zusammensetzen ──
-    # Direkt (2) + Quali-Gewinner
+    # ── Schritt 3: Zusammensetzen: 4 Direkte + 12 Quali-Gewinner = 16 ──
     all_teams = direct_teams + quali_winners
 
-    # Falls noch nicht 16 Teams: weitere Viertplatzierte auffüllen
+    # Falls Quali noch nicht gespielt: weitere Viertplatzierte auffüllen
     if len(all_teams) < 16:
-        for team in all_4th[2:]:
+        for team in follower_4th[4:]:
             if team not in all_teams:
                 all_teams.append(team)
             if len(all_teams) >= 16:
@@ -4001,7 +4007,7 @@ def generate_follower_cup(game_name):
         conn.close()
         return render_template("admin/error.html", 
                              error_message=f"Nicht genug Teams! Nur {len(all_teams)} statt 16. "
-                             f"Bitte zuerst die Quali-Runde spielen oder mehr Teams hinzufügen.")
+                             f"Bitte zuerst die Follower-Quali-Runde spielen.")
     
     all_teams = all_teams[:16]
     
