@@ -3752,16 +3752,18 @@ def generate_follower_quali(game_name):
     
     follower_teams = []
     
-    # 4. Platzierte
+    # 4. Platzierte (Ranking nach: Punkte → Tordifferenz → Tore)
     cursor.execute("""
         SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.goals_for > r.goals_for 
-                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 3
+               AND (r2.points > r.points
+                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
+                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
+                        AND r2.goals_for > r.goals_for))) = 3
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.goals_for DESC, r.goal_difference DESC
+        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
     """)
     all_4th = cursor.fetchall()
     
@@ -3770,27 +3772,31 @@ def generate_follower_quali(game_name):
     
     # 5. Platzierte
     cursor.execute("""
-        SELECT r.team, r.points, r.goal_difference
+        SELECT r.team, r.points, r.goal_difference, r.goals_for
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.goals_for > r.goals_for 
-                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 4
+               AND (r2.points > r.points
+                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
+                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
+                        AND r2.goals_for > r.goals_for))) = 4
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.goals_for DESC, r.goal_difference DESC
+        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
     """)
     follower_teams.extend([(t['team'], t['points'], t['goal_difference']) for t in cursor.fetchall()])
     
     # 6. Platzierte
     cursor.execute("""
-        SELECT r.team, r.points, r.goal_difference
+        SELECT r.team, r.points, r.goal_difference, r.goals_for
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.goals_for > r.goals_for 
-                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 5
+               AND (r2.points > r.points
+                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
+                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
+                        AND r2.goals_for > r.goals_for))) = 5
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.goals_for DESC, r.goal_difference DESC
+        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
     """)
     follower_teams.extend([(t['team'], t['points'], t['goal_difference']) for t in cursor.fetchall()])
     
@@ -3910,7 +3916,17 @@ def save_follower_quali_result(game_name, match_id):
 
 @app.route('/generate_follower_cup/<game_name>')
 def generate_follower_cup(game_name):
-    """Follower Cup Hauptturnier generieren"""
+    """Follower Cup Hauptturnier generieren.
+
+    Zusammensetzung der 16 Teams:
+      - 4 direkt qualifizierte: die 2 besten Viertplatzierten aus den 10 Gruppen
+        (same Logik wie generate_follower_quali, aber die TOP-2 statt 3+)
+        PLUS die 4 Erstplatzierten aus den Quali-Matches (direkteinzug)
+      - 12 Quali-Gewinner aus follower_quali_matches
+
+    Fallback: Falls nicht genug Quali-Gewinner, werden weitere
+    Viertplatzierte aufgefüllt bis 16 Teams erreicht sind.
+    """
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     
     conn = get_db_connection(db_path)
@@ -3922,34 +3938,70 @@ def generate_follower_cup(game_name):
         return render_template("admin/error.html", 
                              error_message="Follower Cup wurde bereits generiert!")
     
-    # Direkt qualifizierte
+    # ── Schritt 1: Alle Viertplatzierten holen (nach Ranking sortiert) ──
+    # Gleiche Query wie in generate_follower_quali
     cursor.execute("""
         SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number
         FROM rankings r
         WHERE (SELECT COUNT(*) FROM rankings r2 
                WHERE r2.group_number = r.group_number 
-               AND (r2.goals_for > r.goals_for 
-                    OR (r2.goals_for = r.goals_for AND r2.goal_difference > r.goal_difference))) = 3
+               AND (r2.points > r.points
+                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
+                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
+                        AND r2.goals_for > r.goals_for))) = 3
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.goals_for DESC, r.goal_difference DESC
-        LIMIT 4
+        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
     """)
-    direct_teams = [row['team'] for row in cursor.fetchall()]
-    
-    # Quali-Gewinner
+    all_4th = [row['team'] for row in cursor.fetchall()]
+
+    # Die 2 besten Viertplatzierten sind direkt qualifiziert (kommen nicht in Quali)
+    direct_teams = all_4th[:2]
+
+    # ── Schritt 2: Quali-Gewinner holen ──
     cursor.execute("""
         SELECT winner FROM follower_quali_matches 
         WHERE winner IS NOT NULL
         ORDER BY match_number
     """)
     quali_winners = [row['winner'] for row in cursor.fetchall()]
-    
+
+    # ── Schritt 3: Zusammensetzen ──
+    # Direkt (2) + Quali-Gewinner
     all_teams = direct_teams + quali_winners
-    
+
+    # Falls noch nicht 16 Teams: weitere Viertplatzierte auffüllen
+    if len(all_teams) < 16:
+        for team in all_4th[2:]:
+            if team not in all_teams:
+                all_teams.append(team)
+            if len(all_teams) >= 16:
+                break
+
+    # Falls immer noch zu wenig: Fünftplatzierte holen
+    if len(all_teams) < 16:
+        cursor.execute("""
+            SELECT r.team
+            FROM rankings r
+            WHERE (SELECT COUNT(*) FROM rankings r2 
+                   WHERE r2.group_number = r.group_number 
+                   AND (r2.points > r.points
+                        OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
+                        OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
+                            AND r2.goals_for > r.goals_for))) = 4
+            AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
+            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        """)
+        for row in cursor.fetchall():
+            if row['team'] not in all_teams:
+                all_teams.append(row['team'])
+            if len(all_teams) >= 16:
+                break
+
     if len(all_teams) < 16:
         conn.close()
         return render_template("admin/error.html", 
-                             error_message=f"Nicht genug Teams! Nur {len(all_teams)} statt 16")
+                             error_message=f"Nicht genug Teams! Nur {len(all_teams)} statt 16. "
+                             f"Bitte zuerst die Quali-Runde spielen oder mehr Teams hinzufügen.")
     
     all_teams = all_teams[:16]
     
