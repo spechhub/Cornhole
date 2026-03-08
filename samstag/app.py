@@ -4212,52 +4212,114 @@ def save_follower_cup_result(game_name, match_id):
 
 @app.route('/generate_placement_round/<game_name>')
 def generate_placement_round(game_name):
-    """Platzierungsrunde für Teams 37-60 generieren"""
+    """
+    Platzierungsrunde für Follower-Quali-Verlierer.
+
+    Logik:
+    - Nimmt alle Teams die in der Follower Quali gespielt und VERLOREN haben
+    - Sortiert sie nach Gesamtpunkten im Round Robin (höchste zuerst)
+    - Stärkster vs. Schwächster, 2. vs. 2.-letzter, etc.
+    - Sieger bekommt besseren Platz, Verlierer schlechteren Platz
+    - Ergebnisse fliessen in die Endtabelle ein
+    """
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    
+
+    # Prüfen ob bereits generiert
+    cursor.execute("SELECT COUNT(*) as count FROM placement_matches")
+    if cursor.fetchone()['count'] > 0:
+        conn.close()
+        return render_template("admin/error.html",
+                             error_message="Platzierungsrunde wurde bereits generiert!")
+
+    # Follower Quali Verlierer holen:
+    # Teams die in follower_quali_matches gespielt haben, aber NICHT gewonnen haben
+    cursor.execute("""
+        SELECT DISTINCT
+            CASE 
+                WHEN fq.score1 < fq.score2 THEN fq.team1
+                ELSE fq.team2
+            END as loser
+        FROM follower_quali_matches fq
+        WHERE fq.score1 IS NOT NULL 
+          AND fq.score2 IS NOT NULL
+          AND fq.score1 != fq.score2
+    """)
+    losers = [row['loser'] for row in cursor.fetchall()]
+
+    # Falls noch nicht alle Quali-Spiele gespielt: alle Quali-Teilnehmer ohne Gewinner
+    if not losers:
+        # Fallback: alle Quali-Teams die kein Winner-Eintrag haben
+        cursor.execute("""
+            SELECT team1 as team FROM follower_quali_matches
+            UNION
+            SELECT team2 as team FROM follower_quali_matches WHERE team2 != 'BYE'
+        """)
+        all_quali = {row['team'] for row in cursor.fetchall()}
+        cursor.execute("""
+            SELECT winner FROM follower_quali_matches WHERE winner IS NOT NULL
+        """)
+        winners = {row['winner'] for row in cursor.fetchall()}
+        losers = list(all_quali - winners)
+
+    if not losers:
+        conn.close()
+        return render_template("admin/error.html",
+                             error_message="Keine Follower-Quali-Verlierer gefunden. "
+                             "Bitte zuerst alle Quali-Spiele eintragen.")
+
+    # Sortierung nach Round-Robin-Gesamtpunkten (höchste zuerst)
+    # Bei Gleichstand: Tordifferenz, dann erzielte Tore
     cursor.execute("""
         SELECT r.team, r.points, r.goal_difference, r.goals_for
         FROM rankings r
-        WHERE r.team NOT IN (
-            SELECT team1 FROM double_elim_matches WHERE round = 1
-            UNION
-            SELECT team2 FROM double_elim_matches WHERE round = 1
-            UNION
-            SELECT team1 FROM double_elim_matches WHERE round = 1
-            UNION
-            SELECT team2 FROM double_elim_matches WHERE round = 1
-        )
-        AND r.team NOT IN (
-            SELECT team1 FROM follower_quali_matches
-            UNION
-            SELECT team2 FROM follower_quali_matches WHERE team2 != 'BYE'
-        )
-        AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.goals_for DESC, r.goal_difference DESC
-    """)
+        WHERE r.team IN ({})
+        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+    """.format(','.join('?' * len(losers))), losers)
     
     placement_teams = [row['team'] for row in cursor.fetchall()]
-    
-    match_number = 400  # Platzierungsrunden starten bei #400
+
+    # Teams die nicht in rankings sind (sollte nicht passieren) ans Ende
+    for t in losers:
+        if t not in placement_teams:
+            placement_teams.append(t)
+
+    match_number = 400
     court = 1
-    
-    num_teams = len(placement_teams)
-    for i in range(num_teams // 2):
-        team1 = placement_teams[i]
-        team2 = placement_teams[-(i+1)]
-        
+    n = len(placement_teams)
+
+    # Stärkster vs. Schwächster Paarung
+    for i in range(n // 2):
+        team1 = placement_teams[i]           # stärkeres Team
+        team2 = placement_teams[n - 1 - i]   # schwächeres Team
+
+        # Platzierung: Sieger bekommt besseren Platz
+        # Startplatz hängt davon ab wo die Follower-Cup-Teams enden
+        # Platzierungsrunde beginnt nach Follower Cup (Platz 17+) 
+        # und Double Elim Verlierer → typisch ab Platz ~33
+        placement_label = f"P{33 + i*2}"
+
         cursor.execute("""
             INSERT INTO placement_matches 
             (match_number, placement, team1, team2, court)
             VALUES (?, ?, ?, ?, ?)
-        """, (match_number, f"P{37 + i*2}", team1, team2, court))
-        
+        """, (match_number, placement_label, team1, team2, court))
+
         match_number += 1
         court = (court % 15) + 1
-    
+
+    # Ungerade Anzahl: letztes Team bekommt Freilos (besten verfügbaren Platz)
+    if n % 2 == 1:
+        bye_team = placement_teams[n // 2]
+        bye_placement = f"P{33 + (n // 2) * 2}"
+        cursor.execute("""
+            INSERT INTO placement_matches 
+            (match_number, placement, team1, team2, court, winner, score1, score2)
+            VALUES (?, ?, ?, 'BYE', ?, ?, 1, 0)
+        """, (match_number, bye_placement, bye_team, court, bye_team))
+
     conn.commit()
     conn.close()
     
@@ -4775,47 +4837,259 @@ def debug_bracket(game_name, bracket_id):
 
 @app.route('/final_rankings/<game_name>')
 def final_rankings(game_name):
-    """Finale Gesamtplatzierung"""
+    """
+    Finale Gesamtplatzierung.
+
+    Platz  1–32: Double Elimination
+      Platz  1–  4: Super Finals
+      Platz  5    : LB-R7 Verlierer (1)
+      Platz  6–  7: LB-R6 Verlierer (2), nach RR-Punkten
+      Platz  8–  9: LB-R5 Verlierer (2), nach RR-Punkten
+      Platz 10– 13: LB-R4 Verlierer (4), nach RR-Punkten
+      Platz 14– 17: LB-R3 Verlierer (4), nach RR-Punkten
+      Platz 18– 25: LB-R2 Verlierer (8), nach RR-Punkten
+      Platz 26– 33: LB-R1 Verlierer (8), nach RR-Punkten
+    Platz 33–48: Follower Cup (16 Teams, nach Runde dann RR-Punkten)
+    Platz 49–60: Follower Quali Verlierer (12 Teams, 1 weiteres Spiel)
+    """
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    
+
     rankings = []
-    
-    # Platz 1-4: Super Finals
-    cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id = 'FINAL'")
-    row = cursor.fetchone()
-    if row and row['winner']:
-        rankings.append({'place': 1, 'team': row['winner'], 'phase': 'Super Finals Sieger'})
-    
+    placed = set()
+    place = [1]  # mutable counter
+
+    def add(team, phase):
+        if team and team not in placed and team != 'BYE':
+            rankings.append({'place': place[0], 'team': team, 'phase': phase})
+            placed.add(team)
+            place[0] += 1
+
+    def add_group(teams, phase_label):
+        """Fügt eine Gruppe von Teams hinzu (bereits nach Punkten sortiert)."""
+        for t in teams:
+            add(t, phase_label)
+
+    def losers_of(rows):
+        """Gibt Verlierer einer Liste von Match-Rows zurück."""
+        result = []
+        for row in rows:
+            if row['winner'] and row['score1'] is not None:
+                loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
+                if loser and loser != 'BYE':
+                    result.append(loser)
+        return result
+
+    def sort_by_rr_points(teams):
+        """Sortiert Teams nach Round-Robin-Punkten (beste zuerst)."""
+        if not teams:
+            return []
+        cursor.execute("""
+            SELECT team, points, goal_difference, goals_for FROM rankings
+            WHERE team IN ({})
+            ORDER BY points DESC, goal_difference DESC, goals_for DESC
+        """.format(','.join('?' * len(teams))), teams)
+        sorted_teams = [row['team'] for row in cursor.fetchall()]
+        # Teams die nicht in rankings sind ans Ende
+        for t in teams:
+            if t not in sorted_teams:
+                sorted_teams.append(t)
+        return sorted_teams
+
+    # ═══════════════════════════════════════════════════════
+    # PLATZ 1–4: SUPER FINALS
+    # ═══════════════════════════════════════════════════════
     cursor.execute("""
         SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'FINAL'
     """)
     row = cursor.fetchone()
     if row and row['winner']:
         loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
-        rankings.append({'place': 2, 'team': loser, 'phase': 'Super Finals Finalist'})
-    
-    cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id = 'THIRD'")
-    row = cursor.fetchone()
-    if row and row['winner']:
-        rankings.append({'place': 3, 'team': row['winner'], 'phase': 'Spiel um Platz 3'})
-    
+        add(row['winner'], '🥇 Turnier-Sieger')
+        add(loser,         '🥈 Finalist')
+
     cursor.execute("""
         SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'THIRD'
     """)
     row = cursor.fetchone()
     if row and row['winner']:
         loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
-        rankings.append({'place': 4, 'team': loser, 'phase': 'Spiel um Platz 3'})
-    
+        add(row['winner'], '🥉 Platz 3')
+        add(loser,         'Platz 4')
+
+    # ═══════════════════════════════════════════════════════
+    # PLATZ 5–32: DOUBLE ELIMINATION VERLIERER
+    # Sortierung: späteste Ausscheidung = bester Platz
+    # Bei gleicher Runde: nach RR-Punkten
+    # ═══════════════════════════════════════════════════════
+
+    # Platz 5: LB-R7 Verlierer (LB-Finale, 1 Team)
+    cursor.execute("""
+        SELECT team1, team2, winner, score1 FROM double_elim_matches
+        WHERE bracket = 'Losers' AND round = 7
+    """)
+    rows = cursor.fetchall()
+    lb7_losers = sort_by_rr_points(losers_of(rows))
+    add_group(lb7_losers, 'Double Elim – LB Finale Verlierer')
+
+    # Platz 6–7: LB-R6 Verlierer (2 Teams)
+    cursor.execute("""
+        SELECT team1, team2, winner, score1 FROM double_elim_matches
+        WHERE bracket = 'Losers' AND round = 6
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Double Elim – LB R6 Verlierer')
+
+    # Platz 8–9: LB-R5 Verlierer (2 Teams)
+    cursor.execute("""
+        SELECT team1, team2, winner, score1 FROM double_elim_matches
+        WHERE bracket = 'Losers' AND round = 5
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Double Elim – LB R5 Verlierer')
+
+    # Platz 10–13: LB-R4 Verlierer (4 Teams)
+    cursor.execute("""
+        SELECT team1, team2, winner, score1 FROM double_elim_matches
+        WHERE bracket = 'Losers' AND round = 4
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Double Elim – LB R4 Verlierer')
+
+    # Platz 14–17: LB-R3 Verlierer (4 Teams)
+    cursor.execute("""
+        SELECT team1, team2, winner, score1 FROM double_elim_matches
+        WHERE bracket = 'Losers' AND round = 3
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Double Elim – LB R3 Verlierer')
+
+    # Platz 18–25: LB-R2 Verlierer (8 Teams)
+    cursor.execute("""
+        SELECT team1, team2, winner, score1 FROM double_elim_matches
+        WHERE bracket = 'Losers' AND round = 2
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Double Elim – LB R2 Verlierer')
+
+    # Platz 26–33: LB-R1 Verlierer (8 Teams)
+    cursor.execute("""
+        SELECT team1, team2, winner, score1 FROM double_elim_matches
+        WHERE bracket = 'Losers' AND round = 1
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Double Elim – LB R1 Verlierer')
+
+    # ═══════════════════════════════════════════════════════
+    # PLATZ 33–48: FOLLOWER CUP (16 Teams)
+    # Sortierung: späteste Runde = bester Platz
+    # Bei gleicher Runde: nach RR-Punkten
+    # ═══════════════════════════════════════════════════════
+
+    # FC Sieger & Finalist
+    cursor.execute("""
+        SELECT team1, team2, winner FROM follower_cup_matches WHERE round = 'final'
+    """)
+    row = cursor.fetchone()
+    if row and row['winner']:
+        loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
+        add(row['winner'], '🏆 Follower Cup Sieger')
+        add(loser,         'Follower Cup Finalist')
+
+    # FC Platz 3
+    cursor.execute("""
+        SELECT team1, team2, winner FROM follower_cup_matches WHERE round = 'third'
+    """)
+    row = cursor.fetchone()
+    if row and row['winner']:
+        loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
+        add(row['winner'], 'Follower Cup Platz 3')
+        add(loser,         'Follower Cup Platz 4')
+
+    # HF Verlierer
+    cursor.execute("""
+        SELECT team1, team2, winner FROM follower_cup_matches WHERE round = 'semi'
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Follower Cup HF Verlierer')
+
+    # VF Verlierer
+    cursor.execute("""
+        SELECT team1, team2, winner FROM follower_cup_matches WHERE round = 'quarter'
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Follower Cup VF Verlierer')
+
+    # 1/8 Verlierer
+    cursor.execute("""
+        SELECT team1, team2, winner FROM follower_cup_matches WHERE round = 'eighth'
+        ORDER BY match_index
+    """)
+    rows = cursor.fetchall()
+    add_group(sort_by_rr_points(losers_of(rows)), 'Follower Cup 1/8 Verlierer')
+
+    # ═══════════════════════════════════════════════════════
+    # PLATZ 49–60: FOLLOWER QUALI VERLIERER (12 Teams)
+    # Spielen 1 weiteres Spiel gegeneinander (placement_matches)
+    # Sieger = besserer Platz, Verlierer = schlechterer Platz
+    # Sortierung innerhalb gleicher Runde: nach RR-Punkten
+    # ═══════════════════════════════════════════════════════
+    cursor.execute("""
+        SELECT placement, team1, team2, winner, score1, score2
+        FROM placement_matches
+        ORDER BY match_number
+    """)
+    placement_rows = cursor.fetchall()
+
+    if placement_rows:
+        # Sieger & Verlierer aus jedem Spiel: Sieger bekommt besseren Platz
+        # Spiele sind bereits nach Stärke gepaart (stärkstes vs schwächstes)
+        # Sieger der stärksten Paarung = bester Platz unter den Quali-Verlierern
+        winners_pl = []
+        losers_pl  = []
+        for row in placement_rows:
+            if row['team2'] == 'BYE':
+                winners_pl.append(row['team1'])
+            elif row['winner']:
+                w = row['winner']
+                l = row['team2'] if w == row['team1'] else row['team1']
+                winners_pl.append(w)
+                losers_pl.append(l)
+
+        # Sieger nach RR-Punkten sortiert (beste Sieger zuerst)
+        for t in sort_by_rr_points(winners_pl):
+            add(t, 'Platzierungsrunde Sieger')
+        # Verlierer nach RR-Punkten sortiert (beste Verlierer zuerst)
+        for t in sort_by_rr_points(losers_pl):
+            add(t, 'Platzierungsrunde Verlierer')
+    else:
+        # Noch keine Ergebnisse: alle Quali-Verlierer nach Punkten listen
+        cursor.execute("""
+            SELECT DISTINCT
+                CASE WHEN fq.score1 IS NOT NULL AND fq.score1 < fq.score2 THEN fq.team1
+                     WHEN fq.score2 IS NOT NULL AND fq.score2 < fq.score1 THEN fq.team2
+                END as loser
+            FROM follower_quali_matches fq
+            WHERE (fq.score1 IS NOT NULL OR fq.score2 IS NOT NULL)
+        """)
+        quali_losers = [row['loser'] for row in cursor.fetchall() if row['loser']]
+        for t in sort_by_rr_points(quali_losers):
+            add(t, 'Follower Quali Verlierer (Platzierung ausstehend)')
+
     conn.close()
-    
+
     return render_template("admin/final_rankings.html",
                          game_name=game_name,
-                         rankings=rankings)
-
+                         rankings=sorted(rankings, key=lambda x: x['place']))
 
 # ============================================================================
 # ERROR HANDLER
