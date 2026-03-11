@@ -42,8 +42,7 @@
                     <small>Eingetragene Ergebnisse</small>
                 </div>
                 <div class="card-footer">
-                    <a href="{{ url_for('enter_results', game_name=game_name) }}" class="text-white">Eintragen
-                        &rarr;</a>
+                    <a href="{{ url_for('enter_results', game_name=game_name) }}" class="text-white">Eintragen &rarr;</a>
                 </div>
             </div>
         </div>
@@ -53,7 +52,7 @@
             <div class="card text-white bg-secondary mb-3 shadow-sm" style="height: 100%;">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-cogs"></i> Setup</h5>
-                    <p class="card-text">Konfiguration & Export</p>
+                    <p class="card-text">Konfiguration &amp; Export</p>
                     <div class="btn-group-vertical w-100">
                         <a href="{{ url_for('export_complete', game_name=game_name) }}" class="btn btn-primary">
                             <i class="fas fa-file-excel"></i> Export CSV
@@ -73,21 +72,28 @@
         <div class="card-header">Schnellzugriff</div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
                     <a href="{{ url_for('generate_matches', game_name=game_name) }}"
                         class="btn btn-outline-primary btn-block p-3">
                         <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>
                         Spielplan Generieren
                     </a>
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
                     <a href="{{ url_for('generate_double_elim', game_name=game_name) }}"
                         class="btn btn-outline-success btn-block p-3">
                         <i class="fas fa-sitemap fa-2x mb-2 d-block"></i>
                         Brackets Generieren
                     </a>
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
+                    <a href="{{ url_for('display_round_robin', game_name=game_name) }}" target="_blank"
+                        class="btn btn-outline-warning btn-block p-3">
+                        <i class="fas fa-table fa-2x mb-2 d-block"></i>
+                        RR Live Display
+                    </a>
+                </div>
+                <div class="col-md-3 mb-3">
                     <a href="{{ url_for('display_home', game_name=game_name) }}" target="_blank"
                         class="btn btn-outline-dark btn-block p-3">
                         <i class="fas fa-tv fa-2x mb-2 d-block"></i>
