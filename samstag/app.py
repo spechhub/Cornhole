@@ -2413,6 +2413,7 @@ def generate_matches(game_name):
 
     recalculate_rankings_internal(conn)
     conn.close()
+    return redirect(url_for('game_overview', game_name=game_name))
 
 def generate_double_elim(game_name):
     """Beide Double Elimination Brackets generieren - 16 Teams pro Bracket (32 gesamt)"""
@@ -4013,6 +4014,110 @@ def display_groups(game_name):
                          game_name=game_name,
                          groups=groups)
 
+# ============================================================================
+# DISPLAY LIVE API ROUTES (JSON für Live-Polling)
+# ============================================================================
+
+@app.route('/display/<game_name>/round_robin')
+def display_round_robin(game_name):
+    """Round Robin Live Display - wechselt automatisch zu Bracket Standings"""
+    return render_template("display/display_round_robin.html", game_name=game_name)
+
+
+@app.route('/api/display/<game_name>/groups_json')
+def api_groups_json(game_name):
+    """JSON API: Aktuelle Gruppentabellen für Live-Polling"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return jsonify({})
+
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+
+    groups = {}
+    for group_num in range(1, 11):
+        cursor.execute("""
+            SELECT r.team, r.points, r.goal_difference, r.goals_for, r.matches_played,
+                   r.wins, r.losses
+            FROM rankings r
+            LEFT JOIN teams t ON r.team = t.name
+            WHERE r.group_number = ? AND (t.is_ghost IS NULL OR t.is_ghost = 0)
+            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        """, (group_num,))
+        rows = cursor.fetchall()
+        groups[group_num] = [dict(row) for row in rows]
+
+    conn.close()
+    return jsonify(groups)
+
+
+@app.route('/api/display/<game_name>/bracket_standings_json')
+def api_bracket_standings_json(game_name):
+    """JSON API: Bracket Standings für Live-Polling (wer ist noch dabei, wer ausgeschieden)"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return jsonify({'A': [], 'B': []})
+
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+
+    result = {}
+
+    for bracket, table in [('A', 'double_elim_matches_a'), ('B', 'double_elim_matches_b')]:
+        # Alle Teams im Bracket sammeln
+        cursor.execute(f"""
+            SELECT DISTINCT team1 as team FROM {table} WHERE team1 IS NOT NULL AND team1 != ''
+            UNION
+            SELECT DISTINCT team2 as team FROM {table} WHERE team2 IS NOT NULL AND team2 != ''
+        """)
+        all_teams = set(row['team'] for row in cursor.fetchall())
+
+        # Ausgeschiedene Teams (Loser, die nochmals verloren haben)
+        cursor.execute(f"""
+            SELECT DISTINCT loser as team FROM {table}
+            WHERE bracket = 'Losers' AND loser IS NOT NULL AND loser != ''
+        """)
+        eliminated = set(row['team'] for row in cursor.fetchall())
+
+        # Noch aktive Teams
+        active = all_teams - eliminated
+
+        # Höchste erreichte Runde pro Team bestimmen
+        team_status = {}
+        for team in all_teams:
+            cursor.execute(f"""
+                SELECT MAX(round) as max_round, bracket
+                FROM {table}
+                WHERE (team1 = ? OR team2 = ?) AND winner IS NOT NULL
+                GROUP BY bracket
+                ORDER BY MAX(round) DESC
+                LIMIT 1
+            """, (team, team))
+            row = cursor.fetchone()
+            if team in eliminated:
+                status = f"Ausgeschieden"
+            elif row:
+                bracket_name = "WB" if row['bracket'] == 'Winners' else "LB"
+                status = f"{bracket_name} R{row['max_round']}"
+            else:
+                status = "WB R1"
+            team_status[team] = {
+                'team': team,
+                'status': status,
+                'eliminated': team in eliminated
+            }
+
+        # Sortierung: Aktive zuerst (nach höchster Runde), dann Ausgeschiedene
+        def sort_key(t):
+            if not t['eliminated']:
+                return (0, -int(t['status'].split('R')[-1]) if 'R' in t['status'] else 0)
+            return (1, 0)
+
+        sorted_teams = sorted(team_status.values(), key=sort_key)
+        result[bracket] = sorted_teams
+
+    conn.close()
+    return jsonify(result)
 
 @app.route('/display/<game_name>/qualification_tree')
 def display_qualification_tree(game_name):
