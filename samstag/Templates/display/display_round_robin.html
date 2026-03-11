@@ -1,0 +1,152 @@
+{% extends "display/base.html" %}
+
+{% block content %}
+<div id="view-groups" class="view-section">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="display-title mb-0">Round Robin &mdash; Gruppen</h2>
+    <div class="text-muted small text-right">
+      Wechselt zu Bracket Standings in <span id="countdown">60</span>s
+      <div class="progress mt-1" style="width:120px; height:6px;">
+        <div id="progress-bar" class="progress-bar bg-warning" style="width:100%"></div>
+      </div>
+    </div>
+  </div>
+  <div id="groups-container" class="row flex-nowrap">
+    <div class="col-12 text-center text-muted py-5">Lade Daten...</div>
+  </div>
+</div>
+
+<div id="view-brackets" class="view-section" style="display:none;">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="display-title mb-0">Bracket Standings</h2>
+    <div class="text-muted small text-right">
+      Wechselt zu Gruppen in <span id="countdown2">60</span>s
+      <div class="progress mt-1" style="width:120px; height:6px;">
+        <div id="progress-bar2" class="progress-bar bg-info" style="width:100%"></div>
+      </div>
+    </div>
+  </div>
+  <div id="brackets-container" class="row">
+    <div class="col-12 text-center text-muted py-5">Lade Daten...</div>
+  </div>
+</div>
+
+<style>
+  .group-card { font-size: 0.8rem; }
+  .group-card .card-header { font-size: 0.82rem; padding: 3px 6px; letter-spacing: 1px; }
+  .group-card td { padding: 2px 5px; white-space: nowrap; }
+  .qualified { background: #d4edda; font-weight: bold; }
+  .best-fourth { background: #fff3cd; }
+  .bracket-row { padding: 4px 8px; border-bottom: 1px solid #dee2e6; font-size: 0.85rem; }
+  .bracket-row:last-child { border-bottom: none; }
+  .bracket-still-in { background: #d4edda; }
+  .bracket-out { background: #f8d7da; color: #999; }
+  .bracket-header { background: #343a40; color: white; padding: 5px 10px; font-size: 0.9rem; font-weight: bold; }
+  .display-title { font-size: 1.4rem; font-weight: bold; }
+  #groups-container { overflow-x: hidden; }
+</style>
+
+<script>
+  const gameName = "{{ game_name }}";
+  let pollInterval = null;
+  let countdownInterval = null;
+
+  // ── Gruppen laden ──────────────────────────────────────────────
+  function loadGroups() {
+    fetch('/api/display/' + gameName + '/groups_json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var container = document.getElementById('groups-container');
+        var html = '';
+        for (var g = 1; g <= 10; g++) {
+          var rows = data[g] || [];
+          var rowsHtml = '';
+          for (var i = 0; i < rows.length; i++) {
+            var cls = i < 3 ? 'qualified' : (i === 3 ? 'best-fourth' : '');
+            rowsHtml += '<tr class="' + cls + '">' +
+              '<td class="text-center">' + (i + 1) + '</td>' +
+              '<td style="max-width:75px;overflow:hidden;text-overflow:ellipsis;">' + rows[i].team + '</td>' +
+              '<td class="text-right font-weight-bold">' + rows[i].points + '</td>' +
+              '</tr>';
+          }
+          html += '<div style="flex: 0 0 10%; max-width: 10%; padding: 0 3px;">' +
+            '<div class="card group-card border-dark mb-2">' +
+            '<div class="card-header text-center bg-dark text-white font-weight-bold">GRP ' + g + '</div>' +
+            '<table class="table table-sm mb-0"><tbody>' + rowsHtml + '</tbody></table>' +
+            '</div></div>';
+        }
+        container.style.display = 'flex';
+        container.innerHTML = html;
+      })
+      .catch(function() {});
+  }
+
+  // ── Bracket Standings laden ────────────────────────────────────
+  function loadBrackets() {
+    fetch('/api/display/' + gameName + '/bracket_standings_json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var container = document.getElementById('brackets-container');
+        var html = '';
+        ['A', 'B'].forEach(function(bracket) {
+          var teams = data[bracket] || [];
+          var rowsHtml = teams.map(function(t, idx) {
+            var cls = t.eliminated ? 'bracket-out' : 'bracket-still-in';
+            return '<div class="bracket-row ' + cls + '">' +
+              '<span class="mr-2 font-weight-bold">' + (idx + 1) + '.</span>' +
+              t.team +
+              '<span class="float-right text-muted small">' + t.status + '</span>' +
+              '</div>';
+          }).join('');
+          html += '<div class="col-6">' +
+            '<div class="card mb-3">' +
+            '<div class="bracket-header">Bracket ' + bracket + '</div>' +
+            rowsHtml +
+            '</div></div>';
+        });
+        container.innerHTML = html;
+      })
+      .catch(function() {});
+  }
+
+  // ── Countdown ─────────────────────────────────────────────────
+  function startCountdown(seconds, spanId, barId, onDone) {
+    var left = seconds;
+    document.getElementById(spanId).textContent = left;
+    document.getElementById(barId).style.width = '100%';
+    clearInterval(countdownInterval);
+    countdownInterval = setInterval(function() {
+      left--;
+      document.getElementById(spanId).textContent = left;
+      document.getElementById(barId).style.width = (left / seconds * 100) + '%';
+      if (left <= 0) {
+        clearInterval(countdownInterval);
+        onDone();
+      }
+    }, 1000);
+  }
+
+  // ── View Gruppen ───────────────────────────────────────────────
+  function showGroups() {
+    document.getElementById('view-groups').style.display = '';
+    document.getElementById('view-brackets').style.display = 'none';
+    clearInterval(pollInterval);
+    loadGroups();
+    pollInterval = setInterval(loadGroups, 5000);
+    startCountdown(60, 'countdown', 'progress-bar', showBrackets);
+  }
+
+  // ── View Brackets ──────────────────────────────────────────────
+  function showBrackets() {
+    document.getElementById('view-groups').style.display = 'none';
+    document.getElementById('view-brackets').style.display = '';
+    clearInterval(pollInterval);
+    loadBrackets();
+    pollInterval = setInterval(loadBrackets, 5000);
+    startCountdown(60, 'countdown2', 'progress-bar2', showGroups);
+  }
+
+  // Start
+  showGroups();
+</script>
+{% endblock %}
