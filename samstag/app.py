@@ -2413,7 +2413,6 @@ def generate_matches(game_name):
 
     recalculate_rankings_internal(conn)
     conn.close()
-    return redirect(url_for('game_overview', game_name=game_name))
 
 def generate_double_elim(game_name):
     """Beide Double Elimination Brackets generieren - 16 Teams pro Bracket (32 gesamt)"""
@@ -4015,85 +4014,6 @@ def display_groups(game_name):
                          groups=groups)
 
 
-@app.route('/display/<game_name>/round_robin')
-def display_round_robin(game_name):
-    """Round Robin Live Display - wechselt automatisch zu Bracket Standings"""
-    return render_template("display/display_round_robin.html", game_name=game_name)
-
-
-@app.route('/api/display/<game_name>/groups_json')
-def api_groups_json(game_name):
-    """JSON API: Aktuelle Gruppentabellen fuer Live-Polling"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return jsonify({})
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    groups = {}
-    for group_num in range(1, 11):
-        cursor.execute("""
-            SELECT r.team, r.points, r.goal_difference, r.goals_for,
-                   r.matches_played, r.wins, r.losses
-            FROM rankings r
-            LEFT JOIN teams t ON r.team = t.name
-            WHERE r.group_number = ? AND (t.is_ghost IS NULL OR t.is_ghost = 0)
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
-        """, (group_num,))
-        rows = cursor.fetchall()
-        groups[group_num] = [dict(row) for row in rows]
-    conn.close()
-    return jsonify(groups)
-
-
-@app.route('/api/display/<game_name>/bracket_standings_json')
-def api_bracket_standings_json(game_name):
-    """JSON API: Bracket Standings fuer Live-Polling"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return jsonify({'A': [], 'B': []})
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    result = {}
-    for bracket, table in [('A', 'double_elim_matches_a'), ('B', 'double_elim_matches_b')]:
-        cursor.execute(f"""
-            SELECT DISTINCT team1 as team FROM {table} WHERE team1 IS NOT NULL AND team1 != ''
-            UNION
-            SELECT DISTINCT team2 as team FROM {table} WHERE team2 IS NOT NULL AND team2 != ''
-        """)
-        all_teams = set(row['team'] for row in cursor.fetchall())
-        cursor.execute(f"""
-            SELECT DISTINCT loser as team FROM {table}
-            WHERE bracket = 'Losers' AND loser IS NOT NULL AND loser != ''
-        """)
-        eliminated = set(row['team'] for row in cursor.fetchall())
-        team_status = {}
-        for team in all_teams:
-            cursor.execute(f"""
-                SELECT MAX(round) as max_round, bracket
-                FROM {table}
-                WHERE (team1 = ? OR team2 = ?) AND winner IS NOT NULL
-                GROUP BY bracket
-                ORDER BY MAX(round) DESC
-                LIMIT 1
-            """, (team, team))
-            row = cursor.fetchone()
-            if team in eliminated:
-                status = "Ausgeschieden"
-            elif row:
-                b = "WB" if row['bracket'] == 'Winners' else "LB"
-                status = f"{b} R{row['max_round']}"
-            else:
-                status = "WB R1"
-            team_status[team] = {'team': team, 'status': status, 'eliminated': team in eliminated}
-        def sort_key(t):
-            if not t['eliminated']:
-                return (0, -int(t['status'].split('R')[-1]) if 'R' in t['status'] else 0)
-            return (1, 0)
-        result[bracket] = sorted(team_status.values(), key=sort_key)
-    conn.close()
-    return jsonify(result)
-
-
 @app.route('/display/<game_name>/qualification_tree')
 def display_qualification_tree(game_name):
     """Qualifikationsbaum für Beamer"""
@@ -4237,113 +4157,6 @@ def display_slideshow(game_name):
     """Automatischer Slideshow-Durchlauf"""
     return render_template("display/display_slideshow.html",
                          game_name=game_name)
-
-
-# ============================================================================
-# MELDEBLATT PDF EXPORT
-# ============================================================================
-
-@app.route('/print_matches/<game_name>')
-def print_matches(game_name):
-    """Generiert PDF mit Meldeblättern - 2 pro A4-Seite"""
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
-
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
-
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT match_number, team1, team2, time, field, group_number, round
-        FROM matches
-        WHERE match_number IS NOT NULL
-        ORDER BY match_number
-    """)
-    matches = cursor.fetchall()
-    conn.close()
-
-    if not matches:
-        return render_template("admin/error.html",
-                               error_message="Keine Spiele gefunden! Bitte zuerst Spielplan generieren.")
-
-    def draw_match_card(c, x, y, w, h, match):
-        pad = 6*mm
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(1.5)
-        c.rect(x, y, w, h)
-        header_h = 14*mm
-        c.setLineWidth(1)
-        c.line(x, y + h - header_h, x + w, y + h - header_h)
-        c.setFont("Helvetica-Bold", 20)
-        c.setFillColor(colors.black)
-        c.drawString(x + pad, y + h - header_h + 3*mm, f"Spiel #{match['match_number']}")
-        c.setFont("Helvetica", 10)
-        info = f"Gruppe {match['group_number']}  |  Runde {match['round']}"
-        c.drawRightString(x + w - pad, y + h - header_h + 4*mm, info)
-        mid_y = y + h - header_h - 16*mm
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(x + pad, mid_y + 8*mm, "Zeit:")
-        c.drawString(x + pad, mid_y, "Feld:")
-        c.setFont("Helvetica", 14)
-        time_str = match['time'] if match['time'] else '-'
-        field_str = str(match['field']) if match['field'] else '-'
-        c.drawString(x + 30*mm, mid_y + 8*mm, time_str)
-        c.drawString(x + 30*mm, mid_y, field_str)
-        teams_y = y + h - header_h - 34*mm
-        c.setLineWidth(0.5)
-        c.setStrokeColor(colors.grey)
-        c.line(x + pad, teams_y + 18*mm, x + w - pad, teams_y + 18*mm)
-        c.setStrokeColor(colors.black)
-        c.setFont("Helvetica-Bold", 15)
-        c.drawString(x + pad, teams_y + 10*mm, match['team1'] or '-')
-        c.setFont("Helvetica", 10)
-        c.drawString(x + pad, teams_y + 3*mm, "Punkte:")
-        c.setLineWidth(0.8)
-        c.line(x + 28*mm, teams_y + 3*mm, x + 60*mm, teams_y + 3*mm)
-        c.setFont("Helvetica-Bold", 11)
-        c.setFillColor(colors.grey)
-        c.drawCentredString(x + w/2, teams_y - 2*mm, "vs.")
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica-Bold", 15)
-        c.drawString(x + pad, teams_y - 10*mm, match['team2'] or '-')
-        c.setFont("Helvetica", 10)
-        c.drawString(x + pad, teams_y - 17*mm, "Punkte:")
-        c.setLineWidth(0.8)
-        c.line(x + 28*mm, teams_y - 17*mm, x + 60*mm, teams_y - 17*mm)
-        sig_y = y + 8*mm
-        c.setFont("Helvetica", 8)
-        c.setFillColor(colors.grey)
-        c.drawString(x + pad, sig_y + 4*mm, "Unterschrift Schiedsrichter:")
-        c.setLineWidth(0.5)
-        c.line(x + 60*mm, sig_y + 4*mm, x + w - pad, sig_y + 4*mm)
-        c.setFillColor(colors.black)
-
-    buf = io.BytesIO()
-    width, height = A4
-    c = rl_canvas.Canvas(buf, pagesize=A4)
-    margin = 10*mm
-    card_w = width - 2*margin
-    card_h = (height - 3*margin) / 2
-
-    for i, match in enumerate(matches):
-        pos = i % 2
-        if pos == 0 and i > 0:
-            c.showPage()
-        y_pos = margin if pos == 1 else margin + card_h + margin
-        draw_match_card(c, margin, y_pos, card_w, card_h, match)
-
-    c.save()
-    buf.seek(0)
-    return send_file(
-        buf,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=f"{game_name}_meldeblätter.pdf"
-    )
 
 
 # ============================================================================
