@@ -1256,9 +1256,13 @@ def calculate_round_robin_times(conn):
         print("❌ Keine Turnier-Konfiguration gefunden!")
         return 0
 
-    match_duration = config['match_duration']
-    pause = config['break_between_games']  # NUR EINE Pause!
-    start_time = config['start_time']
+    match_duration = config["match_duration"]
+    pause_between_games = config["break_between_games"]
+    try:
+        pause_between_rounds = config["break_between_rounds"]
+    except (KeyError, TypeError, IndexError):
+        pause_between_rounds = pause_between_games
+    start_time = config["start_time"]
 
 
     # Mittagspause
@@ -1276,7 +1280,7 @@ def calculate_round_robin_times(conn):
     print("⏰ ZEITBERECHNUNG ROUND ROBIN (PARALLELE SPIELE)")
     print("=" * 70)
     print(f"   Spieldauer: {match_duration} Min")
-    print(f"   Pause: {pause} Min (gilt für alles)")
+    print(f"   Pause Spiele (A→B): {pause_between_games} Min | Pause Runden (B→A): {pause_between_rounds} Min")
     print(f"   Startzeit: {start_time}")
     if lunch_enabled:
         print(f"   Mittagspause: {lunch_start} - {lunch_end}")
@@ -1317,7 +1321,8 @@ def calculate_round_robin_times(conn):
         print(f"      → {len(bracket_a_matches)} Matches parallel")
     
         # Zeit vorrücken: Spieldauer + Pause
-        current_time = add_minutes_to_time(current_time, match_duration + pause)
+        # Zeit vorrücken nach Bracket A: Spieldauer + Pause A→B (=break_between_games)
+        current_time = add_minutes_to_time(current_time, match_duration + pause_between_games)
     
         # BRACKET B (Gruppen 6-10) - ALLE PARALLEL
         print(f"   Bracket B (Gruppen 6-10):")
@@ -1346,8 +1351,8 @@ def calculate_round_robin_times(conn):
     
         print(f"      → {len(bracket_b_matches)} Matches parallel")
     
-        # Zeit vorrücken: Spieldauer + Pause
-        current_time = add_minutes_to_time(current_time, match_duration + pause)
+        # Zeit vorrücken nach Bracket B: Spieldauer + Pause B→nächste Runde A (=break_between_rounds)
+        current_time = add_minutes_to_time(current_time, match_duration + pause_between_rounds)
 
     conn.commit()
 
@@ -2357,9 +2362,12 @@ def generate_matches(game_name):
     for team in all_teams:
         groups[team['group_number']].append(team['name'])
     
-    field_counter = 1
     # WICHTIG: match_number wird NICHT hier vergeben, sondern später!
-    
+    # Bracket A (Gruppen 1-5) und Bracket B (Gruppen 6-10) spielen zeitlich
+    # VERSETZT auf denselben Feldern 1-15 → separate field_counter pro Bracket
+    field_counter_a = 1  # Felder für Gruppen 1-5
+    field_counter_b = 1  # Felder für Gruppen 6-10
+
     for group_num in sorted(groups.keys()):
         teams = groups[group_num]
         
@@ -2368,6 +2376,9 @@ def generate_matches(game_name):
         
         n = len(teams)
         rounds = n - 1 if n % 2 == 0 else n
+
+        # Welches Bracket? A = Gruppen 1-5, B = Gruppen 6-10
+        is_bracket_b = (group_num >= 6)
         
         for round_num in range(1, rounds + 1):
             for i in range(n // 2):
@@ -2377,14 +2388,19 @@ def generate_matches(game_name):
                 if team1_idx < len(teams) and team2_idx < len(teams):
                     team1 = teams[team1_idx]
                     team2 = teams[team2_idx]
+
+                    if is_bracket_b:
+                        field = field_counter_b
+                        field_counter_b = (field_counter_b % 15) + 1
+                    else:
+                        field = field_counter_a
+                        field_counter_a = (field_counter_a % 15) + 1
                     
                     # KEINE match_number hier! Wird später vergeben
                     cursor.execute("""
                         INSERT INTO matches (round, team1, team2, group_number, field)
                         VALUES (?, ?, ?, ?, ?)
-                    """, (round_num, team1, team2, group_num, field_counter))
-                    
-                    field_counter = (field_counter % 15) + 1
+                    """, (round_num, team1, team2, group_num, field))
             
             if n > 2:
                 teams = [teams[0]] + [teams[-1]] + teams[1:-1]
@@ -2413,6 +2429,7 @@ def generate_matches(game_name):
 
     recalculate_rankings_internal(conn)
     conn.close()
+    return redirect(url_for('game_overview', game_name=game_name))
 
 def generate_double_elim(game_name):
     """Beide Double Elimination Brackets generieren - 16 Teams pro Bracket (32 gesamt)"""
@@ -4014,6 +4031,85 @@ def display_groups(game_name):
                          groups=groups)
 
 
+@app.route('/display/<game_name>/round_robin')
+def display_round_robin(game_name):
+    """Round Robin Live Display - wechselt automatisch zu Bracket Standings"""
+    return render_template("display/display_round_robin.html", game_name=game_name)
+
+
+@app.route('/api/display/<game_name>/groups_json')
+def api_groups_json(game_name):
+    """JSON API: Aktuelle Gruppentabellen fuer Live-Polling"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return jsonify({})
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    groups = {}
+    for group_num in range(1, 11):
+        cursor.execute("""
+            SELECT r.team, r.points, r.goal_difference, r.goals_for,
+                   r.matches_played, r.wins, r.losses
+            FROM rankings r
+            LEFT JOIN teams t ON r.team = t.name
+            WHERE r.group_number = ? AND (t.is_ghost IS NULL OR t.is_ghost = 0)
+            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        """, (group_num,))
+        rows = cursor.fetchall()
+        groups[group_num] = [dict(row) for row in rows]
+    conn.close()
+    return jsonify(groups)
+
+
+@app.route('/api/display/<game_name>/bracket_standings_json')
+def api_bracket_standings_json(game_name):
+    """JSON API: Bracket Standings fuer Live-Polling"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return jsonify({'A': [], 'B': []})
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    result = {}
+    for bracket, table in [('A', 'double_elim_matches_a'), ('B', 'double_elim_matches_b')]:
+        cursor.execute(f"""
+            SELECT DISTINCT team1 as team FROM {table} WHERE team1 IS NOT NULL AND team1 != ''
+            UNION
+            SELECT DISTINCT team2 as team FROM {table} WHERE team2 IS NOT NULL AND team2 != ''
+        """)
+        all_teams = set(row['team'] for row in cursor.fetchall())
+        cursor.execute(f"""
+            SELECT DISTINCT loser as team FROM {table}
+            WHERE bracket = 'Losers' AND loser IS NOT NULL AND loser != ''
+        """)
+        eliminated = set(row['team'] for row in cursor.fetchall())
+        team_status = {}
+        for team in all_teams:
+            cursor.execute(f"""
+                SELECT MAX(round) as max_round, bracket
+                FROM {table}
+                WHERE (team1 = ? OR team2 = ?) AND winner IS NOT NULL
+                GROUP BY bracket
+                ORDER BY MAX(round) DESC
+                LIMIT 1
+            """, (team, team))
+            row = cursor.fetchone()
+            if team in eliminated:
+                status = "Ausgeschieden"
+            elif row:
+                b = "WB" if row['bracket'] == 'Winners' else "LB"
+                status = f"{b} R{row['max_round']}"
+            else:
+                status = "WB R1"
+            team_status[team] = {'team': team, 'status': status, 'eliminated': team in eliminated}
+        def sort_key(t):
+            if not t['eliminated']:
+                return (0, -int(t['status'].split('R')[-1]) if 'R' in t['status'] else 0)
+            return (1, 0)
+        result[bracket] = sorted(team_status.values(), key=sort_key)
+    conn.close()
+    return jsonify(result)
+
+
 @app.route('/display/<game_name>/qualification_tree')
 def display_qualification_tree(game_name):
     """Qualifikationsbaum für Beamer"""
@@ -4157,6 +4253,324 @@ def display_slideshow(game_name):
     """Automatischer Slideshow-Durchlauf"""
     return render_template("display/display_slideshow.html",
                          game_name=game_name)
+
+
+# ============================================================================
+# MELDEBLATT PDF EXPORT
+# ============================================================================
+
+@app.route('/print_matches/<game_name>')
+def print_matches(game_name):
+    """Generiert PDF mit Meldeblättern - 2 pro A4-Seite"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT match_number, team1, team2, time, field, group_number, round
+        FROM matches
+        WHERE match_number IS NOT NULL
+        ORDER BY match_number
+    """)
+    matches = cursor.fetchall()
+    conn.close()
+
+    if not matches:
+        return render_template("admin/error.html",
+                               error_message="Keine Spiele gefunden! Bitte zuerst Spielplan generieren.")
+
+    def draw_match_card(c, x, y, w, h, match):
+        pad = 6*mm
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(1.5)
+        c.rect(x, y, w, h)
+        header_h = 14*mm
+        c.setLineWidth(1)
+        c.line(x, y + h - header_h, x + w, y + h - header_h)
+        c.setFont("Helvetica-Bold", 20)
+        c.setFillColor(colors.black)
+        c.drawString(x + pad, y + h - header_h + 3*mm, f"Spiel #{match['match_number']}")
+        c.setFont("Helvetica", 10)
+        info = f"Gruppe {match['group_number']}  |  Runde {match['round']}"
+        c.drawRightString(x + w - pad, y + h - header_h + 4*mm, info)
+        mid_y = y + h - header_h - 16*mm
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(x + pad, mid_y + 8*mm, "Zeit:")
+        c.drawString(x + pad, mid_y, "Feld:")
+        c.setFont("Helvetica", 14)
+        time_str = match['time'] if match['time'] else '-'
+        field_str = str(match['field']) if match['field'] else '-'
+        c.drawString(x + 30*mm, mid_y + 8*mm, time_str)
+        c.drawString(x + 30*mm, mid_y, field_str)
+        teams_y = y + h - header_h - 34*mm
+        c.setLineWidth(0.5)
+        c.setStrokeColor(colors.grey)
+        c.line(x + pad, teams_y + 18*mm, x + w - pad, teams_y + 18*mm)
+        c.setStrokeColor(colors.black)
+        c.setFont("Helvetica-Bold", 15)
+        c.drawString(x + pad, teams_y + 10*mm, match['team1'] or '-')
+        c.setFont("Helvetica", 10)
+        c.drawString(x + pad, teams_y + 3*mm, "Punkte:")
+        c.setLineWidth(0.8)
+        c.line(x + 28*mm, teams_y + 3*mm, x + 60*mm, teams_y + 3*mm)
+        c.setFont("Helvetica-Bold", 11)
+        c.setFillColor(colors.grey)
+        c.drawCentredString(x + w/2, teams_y - 2*mm, "vs.")
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 15)
+        c.drawString(x + pad, teams_y - 10*mm, match['team2'] or '-')
+        c.setFont("Helvetica", 10)
+        c.drawString(x + pad, teams_y - 17*mm, "Punkte:")
+        c.setLineWidth(0.8)
+        c.line(x + 28*mm, teams_y - 17*mm, x + 60*mm, teams_y - 17*mm)
+        sig_y = y + 8*mm
+        c.setFont("Helvetica", 8)
+        c.setFillColor(colors.grey)
+        c.drawString(x + pad, sig_y + 4*mm, "Unterschrift Schiedsrichter:")
+        c.setLineWidth(0.5)
+        c.line(x + 60*mm, sig_y + 4*mm, x + w - pad, sig_y + 4*mm)
+        c.setFillColor(colors.black)
+
+    buf = io.BytesIO()
+    width, height = A4
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    margin = 10*mm
+    card_w = width - 2*margin
+    card_h = (height - 3*margin) / 2
+
+    for i, match in enumerate(matches):
+        pos = i % 2
+        if pos == 0 and i > 0:
+            c.showPage()
+        y_pos = margin if pos == 1 else margin + card_h + margin
+        draw_match_card(c, margin, y_pos, card_w, card_h, match)
+
+    c.save()
+    buf.seek(0)
+    return send_file(
+        buf,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"{game_name}_meldeblätter.pdf"
+    )
+
+
+@app.route('/spielplan_pdf/<game_name>')
+def spielplan_pdf(game_name):
+    """
+    Spielplan-Übersicht als PDF:
+    Seite 1: Bracket A (Gruppen 1-5) - Felder 1-15, alle 5 Runden
+    Seite 2: Bracket B (Gruppen 6-10) - Felder 1-15, alle 5 Runden
+    Pro Zelle: Zeit | Gruppe | Team1 vs Team2
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT match_number, team1, team2, time, field, group_number, round
+        FROM matches
+        WHERE match_number IS NOT NULL
+        ORDER BY round, field
+    """)
+    matches = cursor.fetchall()
+    conn.close()
+
+    if not matches:
+        return render_template("admin/error.html",
+                               error_message="Keine Spiele gefunden! Bitte zuerst Spielplan generieren.")
+
+    # Daten strukturieren: {bracket: {field: {round: match}}}
+    bracket_a = {}  # Gruppen 1-5
+    bracket_b = {}  # Gruppen 6-10
+    all_rounds = sorted(set(m['round'] for m in matches))
+    all_fields_a = sorted(set(m['field'] for m in matches if m['group_number'] <= 5))
+    all_fields_b = sorted(set(m['field'] for m in matches if m['group_number'] >= 6))
+
+    for m in matches:
+        f = m['field']
+        r = m['round']
+        if m['group_number'] <= 5:
+            if f not in bracket_a:
+                bracket_a[f] = {}
+            bracket_a[f][r] = m
+        else:
+            if f not in bracket_b:
+                bracket_b[f] = {}
+            bracket_b[f][r] = m
+
+    buf = io.BytesIO()
+    page_w, page_h = A4
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+
+    def draw_spielplan_page(bracket_data, fields, rounds, bracket_name, gruppen_info):
+        margin = 12 * mm
+        usable_w = page_w - 2 * margin
+        usable_h = page_h - 2 * margin
+
+        # Titelbereich
+        title_h = 12 * mm
+        table_top = page_h - margin - title_h - 3 * mm
+
+        # Titel
+        c.setFont("Helvetica-Bold", 14)
+        c.setFillColor(colors.HexColor("#1a1a2e"))
+        c.drawString(margin, page_h - margin - 8 * mm, f"Round Robin Spielplan — {bracket_name}")
+        c.setFont("Helvetica", 9)
+        c.setFillColor(colors.grey)
+        c.drawString(margin, page_h - margin - 13 * mm, gruppen_info)
+
+        # Tabelle aufbauen
+        num_rounds = len(rounds)
+        num_fields = len(fields)
+
+        col_header_w = 14 * mm
+        col_w = (usable_w - col_header_w) / num_rounds
+        row_header_h = 10 * mm
+        row_h = (table_top - margin - row_header_h) / num_fields
+
+        # Kopfzeile zeichnen (Runden)
+        header_y = table_top - row_header_h
+        c.setFillColor(colors.HexColor("#1a1a2e"))
+        c.rect(margin, header_y, col_header_w, row_header_h, fill=1, stroke=0)
+
+        for ri, rnd in enumerate(rounds):
+            x = margin + col_header_w + ri * col_w
+            c.setFillColor(colors.HexColor("#2d4a7a"))
+            c.rect(x, header_y, col_w, row_header_h, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 9)
+            # Uhrzeit der Runde holen
+            rnd_time = "-"
+            for f in fields:
+                if f in bracket_data and rnd in bracket_data[f]:
+                    rnd_time = bracket_data[f][rnd]['time'] or "-"
+                    break
+            c.drawCentredString(x + col_w / 2, header_y + 6 * mm, f"Runde {rnd}")
+            c.setFont("Helvetica", 7)
+            c.drawCentredString(x + col_w / 2, header_y + 2 * mm, rnd_time)
+
+        # Gitterlinien + Zellen
+        for fi, field in enumerate(fields):
+            row_y = table_top - row_header_h - (fi + 1) * row_h
+            # Feld-Label links
+            bg = colors.HexColor("#e8ecf5") if fi % 2 == 0 else colors.white
+            c.setFillColor(colors.HexColor("#2d4a7a"))
+            c.rect(margin, row_y, col_header_w, row_h, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 8)
+            c.drawCentredString(margin + col_header_w / 2, row_y + row_h / 2 - 2 * mm, f"Feld")
+            c.setFont("Helvetica-Bold", 11)
+            c.drawCentredString(margin + col_header_w / 2, row_y + row_h / 2 + 2 * mm, str(field))
+
+            for ri, rnd in enumerate(rounds):
+                x = margin + col_header_w + ri * col_w
+                # Hintergrund abwechselnd
+                cell_bg = colors.HexColor("#f0f4ff") if fi % 2 == 0 else colors.white
+                c.setFillColor(cell_bg)
+                c.rect(x, row_y, col_w, row_h, fill=1, stroke=0)
+
+                m = bracket_data.get(field, {}).get(rnd)
+                if m:
+                    grp_color = colors.HexColor("#2d4a7a")
+                    # Gruppe Badge oben links
+                    c.setFillColor(grp_color)
+                    c.roundRect(x + 1.5 * mm, row_y + row_h - 5.5 * mm, 16 * mm, 4.5 * mm, 1, fill=1, stroke=0)
+                    c.setFillColor(colors.white)
+                    c.setFont("Helvetica-Bold", 6.5)
+                    c.drawCentredString(x + 9.5 * mm, row_y + row_h - 3 * mm, f"Grp {m['group_number']}")
+
+                    # Spielnummer oben rechts
+                    c.setFillColor(colors.HexColor("#888888"))
+                    c.setFont("Helvetica", 6)
+                    c.drawRightString(x + col_w - 1.5 * mm, row_y + row_h - 3 * mm, f"#{m['match_number']}")
+
+                    # Team 1
+                    c.setFillColor(colors.black)
+                    c.setFont("Helvetica-Bold", 7)
+                    t1 = (m['team1'] or '-')[:18]
+                    c.drawString(x + 1.5 * mm, row_y + row_h - 9.5 * mm, t1)
+
+                    # vs
+                    c.setFillColor(colors.grey)
+                    c.setFont("Helvetica-Oblique", 6)
+                    c.drawString(x + 1.5 * mm, row_y + row_h - 13 * mm, "vs.")
+
+                    # Team 2
+                    c.setFillColor(colors.black)
+                    c.setFont("Helvetica-Bold", 7)
+                    t2 = (m['team2'] or '-')[:18]
+                    c.drawString(x + 1.5 * mm, row_y + row_h - 16.5 * mm, t2)
+                else:
+                    c.setFillColor(colors.HexColor("#cccccc"))
+                    c.setFont("Helvetica", 7)
+                    c.drawCentredString(x + col_w / 2, row_y + row_h / 2, "–")
+
+        # Rahmen + Gitter über alles
+        c.setStrokeColor(colors.HexColor("#cccccc"))
+        c.setLineWidth(0.3)
+        table_h = row_header_h + num_fields * row_h
+        # Horizontale Linien
+        for fi in range(num_fields + 1):
+            y_line = table_top - row_header_h - fi * row_h
+            c.line(margin, y_line, margin + col_header_w + num_rounds * col_w, y_line)
+        # Vertikale Linien
+        for ri in range(num_rounds + 1):
+            x_line = margin + col_header_w + ri * col_w
+            c.line(x_line, table_top - row_header_h - num_fields * row_h, x_line, table_top)
+        c.line(margin, table_top - row_header_h - num_fields * row_h, margin, table_top)
+
+        # Äußerer Rahmen
+        c.setStrokeColor(colors.HexColor("#1a1a2e"))
+        c.setLineWidth(1.5)
+        c.rect(margin, table_top - row_header_h - num_fields * row_h,
+               col_header_w + num_rounds * col_w, row_header_h + num_fields * row_h)
+
+        # Footer
+        c.setFont("Helvetica", 7)
+        c.setFillColor(colors.grey)
+        c.drawString(margin, margin / 2, f"{game_name} — {bracket_name} — Grün = Bracket A qualifiziert für DE")
+        c.drawRightString(page_w - margin, margin / 2, f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+
+    # Seite 1: Bracket A
+    draw_spielplan_page(
+        bracket_a, sorted(all_fields_a), all_rounds,
+        "Bracket A (Gruppen 1–5)",
+        "Gruppen 1, 2, 3, 4, 5  |  Top 3 je Gruppe + beste 4. qualifizieren sich für Double Elimination"
+    )
+    c.showPage()
+
+    # Seite 2: Bracket B
+    draw_spielplan_page(
+        bracket_b, sorted(all_fields_b), all_rounds,
+        "Bracket B (Gruppen 6–10)",
+        "Gruppen 6, 7, 8, 9, 10  |  Top 3 je Gruppe + beste 4. qualifizieren sich für Double Elimination"
+    )
+
+    c.save()
+    buf.seek(0)
+    return send_file(
+        buf,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"{game_name}_spielplan.pdf"
+    )
 
 
 # ============================================================================

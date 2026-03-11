@@ -2,11 +2,19 @@
 
 {% block content %}
 <div class="container">
-    <h1 class="mb-4">Platzierungsrunde (Plätze 37-60)</h1>
+    <h1 class="mb-4">Platzierungsrunde <small class="text-muted">Follower Quali Verlierer (Plätze 49–60)</small></h1>
+
+    <div class="alert alert-secondary">
+        <i class="fas fa-info-circle"></i>
+        <strong>Wer spielt hier?</strong><br>
+        Die <strong>Verlierer der Follower Qualifikation</strong> spielen ein letztes Spiel gegeneinander.<br>
+        Sortierung nach <strong>Round-Robin-Gesamtpunkten</strong>: Stärkstes Team vs. schwächstes Team, 2. vs. 2.-letztes, etc.<br>
+        Sieger erhält den besseren Platz. Die Ergebnisse fliessen in die Endtabelle ein (Plätze 49–60).
+    </div>
 
     <div class="card shadow">
         <div class="card-header bg-dark text-white">
-            Matches
+            Platzierungsspiele
         </div>
         <div class="card-body">
             {% if matches %}
@@ -20,32 +28,35 @@
                             <th>Ergebnis</th>
                             <th>Team 2</th>
                             <th>Feld</th>
-                            <th>Aktion</th>
+                            <th>Sieger</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for match in matches %}
-                        <tr>
+                        <tr class="{{ 'table-success' if match.winner else '' }}">
                             <td><span class="badge badge-secondary">#{{ match.match_number }}</span></td>
-                            <td>{{ match.placement }}</td>
+                            <td><strong>{{ match.placement }}</strong></td>
                             <td>{{ match.team1 }}</td>
                             <td>
-                                <form
-                                    action="{{ url_for('save_placement_result', game_name=game_name, match_id=match.id) }}"
+                                {% if match.team2 == 'BYE' %}
+                                <span class="badge badge-info">Freilos</span>
+                                {% else %}
+                                <form action="{{ url_for('save_placement_result', game_name=game_name, match_id=match.id) }}"
                                     method="POST" class="form-inline">
                                     <input type="number" name="score1"
                                         class="form-control form-control-sm score-input mx-1"
                                         value="{{ match.score1 if match.score1 is not none else '' }}"
-                                        style="width: 60px;">
+                                        style="width: 60px;" min="0" max="42">
                                     :
                                     <input type="number" name="score2"
                                         class="form-control form-control-sm score-input mx-1"
                                         value="{{ match.score2 if match.score2 is not none else '' }}"
-                                        style="width: 60px;">
+                                        style="width: 60px;" min="0" max="42">
                                     <button type="submit" class="btn btn-sm btn-success ml-2">
                                         <i class="fas fa-save"></i>
                                     </button>
                                 </form>
+                                {% endif %}
                             </td>
                             <td>{{ match.team2 }}</td>
                             <td>{{ match.court }}</td>
@@ -59,18 +70,32 @@
                     </tbody>
                 </table>
             </div>
+            <div class="mt-3 text-right">
+                <form action="{{ url_for('reset_placement', game_name=game_name) }}" method="POST"
+                    onsubmit="return confirm('Platzierungsrunde wirklich zurücksetzen?');">
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="fas fa-undo"></i> Zurücksetzen
+                    </button>
+                </form>
+            </div>
             {% else %}
             <p class="text-center text-muted py-5">
                 Noch keine Platzierungsspiele generiert.<br>
-                Diese werden am Ende des Turniers aus den nicht qualifizierten Teams erstellt.
+                <small>Erst alle Follower Quali Spiele eintragen, dann hier generieren.</small>
             </p>
             <div class="text-center">
                 <a href="{{ url_for('generate_placement_round', game_name=game_name) }}" class="btn btn-primary">
-                    Matches generieren
+                    <i class="fas fa-magic"></i> Platzierungsspiele generieren
                 </a>
             </div>
             {% endif %}
         </div>
+    </div>
+
+    <div class="mt-4 text-center">
+        <a href="{{ url_for('final_rankings', game_name=game_name) }}" class="btn btn-outline-dark btn-lg">
+            <i class="fas fa-trophy"></i> Zur Endtabelle &rarr;
+        </a>
     </div>
 </div>
 {% endblock %}
