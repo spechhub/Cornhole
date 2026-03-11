@@ -4364,18 +4364,11 @@ def print_matches(game_name):
 
 @app.route('/spielplan_pdf/<game_name>')
 def spielplan_pdf(game_name):
-    """
-    Spielplan-Übersicht als PDF:
-    Seite 1: Bracket A (Gruppen 1-5) - Felder 1-15, alle 5 Runden
-    Seite 2: Bracket B (Gruppen 6-10) - Felder 1-15, alle 5 Runden
-    Pro Zelle: Zeit | Gruppe | Team1 vs Team2
-    """
-    from reportlab.lib.pagesizes import A4
+    """Spielplan-Übersicht als PDF (Querformat, 8 Felder pro Seite)"""
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas as rl_canvas
-    from reportlab.platypus import Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet
 
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     if not os.path.exists(db_path):
@@ -4385,9 +4378,7 @@ def spielplan_pdf(game_name):
     cursor = conn.cursor()
     cursor.execute("""
         SELECT match_number, team1, team2, time, field, group_number, round
-        FROM matches
-        WHERE match_number IS NOT NULL
-        ORDER BY round, field
+        FROM matches WHERE match_number IS NOT NULL ORDER BY round, field
     """)
     matches = cursor.fetchall()
     conn.close()
@@ -4396,172 +4387,180 @@ def spielplan_pdf(game_name):
         return render_template("admin/error.html",
                                error_message="Keine Spiele gefunden! Bitte zuerst Spielplan generieren.")
 
-    # Daten strukturieren: {bracket: {field: {round: match}}}
-    bracket_a = {}  # Gruppen 1-5
-    bracket_b = {}  # Gruppen 6-10
-    all_rounds = sorted(set(m['round'] for m in matches))
+    bracket_a, bracket_b = {}, {}
+    all_rounds   = sorted(set(m['round'] for m in matches))
     all_fields_a = sorted(set(m['field'] for m in matches if m['group_number'] <= 5))
     all_fields_b = sorted(set(m['field'] for m in matches if m['group_number'] >= 6))
 
     for m in matches:
-        f = m['field']
-        r = m['round']
+        f, r = m['field'], m['round']
         if m['group_number'] <= 5:
-            if f not in bracket_a:
-                bracket_a[f] = {}
-            bracket_a[f][r] = m
+            bracket_a.setdefault(f, {})[r] = dict(m)
         else:
-            if f not in bracket_b:
-                bracket_b[f] = {}
-            bracket_b[f][r] = m
+            bracket_b.setdefault(f, {})[r] = dict(m)
 
+    page_w, page_h = landscape(A4)
     buf = io.BytesIO()
-    page_w, page_h = A4
-    c = rl_canvas.Canvas(buf, pagesize=A4)
+    c = rl_canvas.Canvas(buf, pagesize=landscape(A4))
 
-    def draw_spielplan_page(bracket_data, fields, rounds, bracket_name, gruppen_info):
-        margin = 12 * mm
-        usable_w = page_w - 2 * margin
-        usable_h = page_h - 2 * margin
+    COL_BG  = colors.HexColor("#1e3a5f")
+    ROW_BG  = colors.HexColor("#2d5a9e")
+    WHITE   = colors.white
+    EVEN_BG = colors.HexColor("#eef3ff")
+    ODD_BG  = colors.white
+    BORDER  = colors.HexColor("#b0bcd4")
+    TITLE_C = colors.HexColor("#1e3a5f")
+    GRP_C   = colors.HexColor("#2d5a9e")
+    VS_C    = colors.HexColor("#aaaaaa")
+    NR_C    = colors.HexColor("#cccccc")
 
-        # Titelbereich
-        title_h = 12 * mm
-        table_top = page_h - margin - title_h - 3 * mm
+    def trunc(text, n):
+        if not text: return "-"
+        return text if len(text) <= n else text[:n-1] + "\u2026"
+
+    def draw_page(bracket_data, fields, rounds, bracket_name, sub, page_info=""):
+        margin    = 10 * mm
+        title_h   = 15 * mm
+        num_r     = len(rounds)
+        num_f     = len(fields)
+        row_hdr_w = 18 * mm
+        col_hdr_h = 15 * mm
+        table_top = page_h - margin - title_h
+        table_bot = margin + 5 * mm
+        avail_h   = table_top - table_bot
+        col_w     = (page_w - 2*margin - row_hdr_w) / num_r
+        row_h     = (avail_h - col_hdr_h) / num_f
 
         # Titel
+        c.setFillColor(TITLE_C)
         c.setFont("Helvetica-Bold", 14)
-        c.setFillColor(colors.HexColor("#1a1a2e"))
-        c.drawString(margin, page_h - margin - 8 * mm, f"Round Robin Spielplan — {bracket_name}")
-        c.setFont("Helvetica", 9)
-        c.setFillColor(colors.grey)
-        c.drawString(margin, page_h - margin - 13 * mm, gruppen_info)
+        c.drawString(margin, page_h - margin - 9*mm,
+                     f"Round Robin Spielplan \u2014 {bracket_name}  {page_info}")
+        c.setFont("Helvetica", 8)
+        c.setFillColor(colors.HexColor("#555555"))
+        c.drawString(margin, page_h - margin - 14*mm, sub)
 
-        # Tabelle aufbauen
-        num_rounds = len(rounds)
-        num_fields = len(fields)
-
-        col_header_w = 14 * mm
-        col_w = (usable_w - col_header_w) / num_rounds
-        row_header_h = 10 * mm
-        row_h = (table_top - margin - row_header_h) / num_fields
-
-        # Kopfzeile zeichnen (Runden)
-        header_y = table_top - row_header_h
-        c.setFillColor(colors.HexColor("#1a1a2e"))
-        c.rect(margin, header_y, col_header_w, row_header_h, fill=1, stroke=0)
-
+        # Spalten-Header
+        c.setFillColor(COL_BG)
+        c.rect(margin, table_top - col_hdr_h, row_hdr_w, col_hdr_h, fill=1, stroke=0)
         for ri, rnd in enumerate(rounds):
-            x = margin + col_header_w + ri * col_w
-            c.setFillColor(colors.HexColor("#2d4a7a"))
-            c.rect(x, header_y, col_w, row_header_h, fill=1, stroke=0)
-            c.setFillColor(colors.white)
-            c.setFont("Helvetica-Bold", 9)
-            # Uhrzeit der Runde holen
-            rnd_time = "-"
+            x = margin + row_hdr_w + ri * col_w
+            c.setFillColor(COL_BG)
+            c.rect(x, table_top - col_hdr_h, col_w, col_hdr_h, fill=1, stroke=0)
+            c.setFillColor(WHITE)
+            c.setFont("Helvetica-Bold", 10)
+            c.drawCentredString(x + col_w/2, table_top - col_hdr_h + 8*mm, f"Runde {rnd}")
+            rnd_time = "\u2013"
             for f in fields:
                 if f in bracket_data and rnd in bracket_data[f]:
-                    rnd_time = bracket_data[f][rnd]['time'] or "-"
+                    rnd_time = bracket_data[f][rnd].get('time') or "\u2013"
                     break
-            c.drawCentredString(x + col_w / 2, header_y + 6 * mm, f"Runde {rnd}")
-            c.setFont("Helvetica", 7)
-            c.drawCentredString(x + col_w / 2, header_y + 2 * mm, rnd_time)
+            c.setFont("Helvetica", 9)
+            c.setFillColor(colors.HexColor("#a8c4e8"))
+            c.drawCentredString(x + col_w/2, table_top - col_hdr_h + 3*mm, rnd_time)
 
-        # Gitterlinien + Zellen
+        # Zeilen
         for fi, field in enumerate(fields):
-            row_y = table_top - row_header_h - (fi + 1) * row_h
-            # Feld-Label links
-            bg = colors.HexColor("#e8ecf5") if fi % 2 == 0 else colors.white
-            c.setFillColor(colors.HexColor("#2d4a7a"))
-            c.rect(margin, row_y, col_header_w, row_h, fill=1, stroke=0)
-            c.setFillColor(colors.white)
-            c.setFont("Helvetica-Bold", 8)
-            c.drawCentredString(margin + col_header_w / 2, row_y + row_h / 2 - 2 * mm, f"Feld")
-            c.setFont("Helvetica-Bold", 11)
-            c.drawCentredString(margin + col_header_w / 2, row_y + row_h / 2 + 2 * mm, str(field))
+            row_y   = table_top - col_hdr_h - (fi+1)*row_h
+            cell_bg = EVEN_BG if fi % 2 == 0 else ODD_BG
+
+            # Feld-Label
+            c.setFillColor(ROW_BG)
+            c.rect(margin, row_y, row_hdr_w, row_h, fill=1, stroke=0)
+            c.setFillColor(WHITE)
+            c.setFont("Helvetica", 7)
+            c.drawCentredString(margin + row_hdr_w/2, row_y + row_h*0.65, "Feld")
+            c.setFont("Helvetica-Bold", 14)
+            c.drawCentredString(margin + row_hdr_w/2, row_y + row_h*0.28, str(field))
 
             for ri, rnd in enumerate(rounds):
-                x = margin + col_header_w + ri * col_w
-                # Hintergrund abwechselnd
-                cell_bg = colors.HexColor("#f0f4ff") if fi % 2 == 0 else colors.white
+                x = margin + row_hdr_w + ri * col_w
                 c.setFillColor(cell_bg)
                 c.rect(x, row_y, col_w, row_h, fill=1, stroke=0)
 
                 m = bracket_data.get(field, {}).get(rnd)
-                if m:
-                    grp_color = colors.HexColor("#2d4a7a")
-                    # Gruppe Badge oben links
-                    c.setFillColor(grp_color)
-                    c.roundRect(x + 1.5 * mm, row_y + row_h - 5.5 * mm, 16 * mm, 4.5 * mm, 1, fill=1, stroke=0)
-                    c.setFillColor(colors.white)
-                    c.setFont("Helvetica-Bold", 6.5)
-                    c.drawCentredString(x + 9.5 * mm, row_y + row_h - 3 * mm, f"Grp {m['group_number']}")
-
-                    # Spielnummer oben rechts
-                    c.setFillColor(colors.HexColor("#888888"))
-                    c.setFont("Helvetica", 6)
-                    c.drawRightString(x + col_w - 1.5 * mm, row_y + row_h - 3 * mm, f"#{m['match_number']}")
-
-                    # Team 1
-                    c.setFillColor(colors.black)
-                    c.setFont("Helvetica-Bold", 7)
-                    t1 = (m['team1'] or '-')[:18]
-                    c.drawString(x + 1.5 * mm, row_y + row_h - 9.5 * mm, t1)
-
-                    # vs
-                    c.setFillColor(colors.grey)
-                    c.setFont("Helvetica-Oblique", 6)
-                    c.drawString(x + 1.5 * mm, row_y + row_h - 13 * mm, "vs.")
-
-                    # Team 2
-                    c.setFillColor(colors.black)
-                    c.setFont("Helvetica-Bold", 7)
-                    t2 = (m['team2'] or '-')[:18]
-                    c.drawString(x + 1.5 * mm, row_y + row_h - 16.5 * mm, t2)
-                else:
+                if not m:
                     c.setFillColor(colors.HexColor("#cccccc"))
-                    c.setFont("Helvetica", 7)
-                    c.drawCentredString(x + col_w / 2, row_y + row_h / 2, "–")
+                    c.setFont("Helvetica", 8)
+                    c.drawCentredString(x + col_w/2, row_y + row_h/2, "\u2013")
+                    continue
 
-        # Rahmen + Gitter über alles
-        c.setStrokeColor(colors.HexColor("#cccccc"))
-        c.setLineWidth(0.3)
-        table_h = row_header_h + num_fields * row_h
-        # Horizontale Linien
-        for fi in range(num_fields + 1):
-            y_line = table_top - row_header_h - fi * row_h
-            c.line(margin, y_line, margin + col_header_w + num_rounds * col_w, y_line)
-        # Vertikale Linien
-        for ri in range(num_rounds + 1):
-            x_line = margin + col_header_w + ri * col_w
-            c.line(x_line, table_top - row_header_h - num_fields * row_h, x_line, table_top)
-        c.line(margin, table_top - row_header_h - num_fields * row_h, margin, table_top)
+                pad        = 3 * mm
+                bottom_pad = 3 * mm
+                line_h     = 4.5 * mm
 
-        # Äußerer Rahmen
-        c.setStrokeColor(colors.HexColor("#1a1a2e"))
+                team2_y  = row_y + bottom_pad
+                vs_y     = team2_y + line_h
+                team1_y  = vs_y + line_h * 0.9
+                header_y = row_y + row_h - 4*mm
+
+                # Header: Gruppe + Spielnummer
+                c.setFillColor(GRP_C)
+                c.setFont("Helvetica-Bold", 7.5)
+                c.drawString(x + pad, header_y, f"Grp {m['group_number']}")
+                c.setFillColor(NR_C)
+                c.setFont("Helvetica", 6.5)
+                c.drawRightString(x + col_w - pad, header_y, f"#{m['match_number']}")
+
+                # Trennlinie
+                c.setStrokeColor(colors.HexColor("#dddddd"))
+                c.setLineWidth(0.3)
+                c.line(x + pad, header_y - 1.5*mm, x + col_w - pad, header_y - 1.5*mm)
+
+                # Team 1
+                c.setFillColor(colors.black)
+                c.setFont("Helvetica-Bold", 8.5)
+                c.drawString(x + pad, team1_y, trunc(m['team1'], 23))
+
+                # vs.
+                c.setFillColor(VS_C)
+                c.setFont("Helvetica-Oblique", 7)
+                c.drawString(x + pad, vs_y, "vs.")
+
+                # Team 2
+                c.setFillColor(colors.black)
+                c.setFont("Helvetica-Bold", 8.5)
+                c.drawString(x + pad, team2_y, trunc(m['team2'], 23))
+
+        # Gitter
+        total_w = row_hdr_w + num_r * col_w
+        total_h = col_hdr_h + num_f * row_h
+        c.setStrokeColor(BORDER)
+        c.setLineWidth(0.4)
+        for fi in range(num_f + 1):
+            y_l = table_top - col_hdr_h - fi * row_h
+            c.line(margin, y_l, margin + total_w, y_l)
+        for ri in range(num_r + 1):
+            x_l = margin + row_hdr_w + ri * col_w
+            c.line(x_l, table_top - total_h, x_l, table_top)
+        c.line(margin, table_top - total_h, margin, table_top)
+        c.line(margin, table_top, margin + total_w, table_top)
+        c.setStrokeColor(TITLE_C)
         c.setLineWidth(1.5)
-        c.rect(margin, table_top - row_header_h - num_fields * row_h,
-               col_header_w + num_rounds * col_w, row_header_h + num_fields * row_h)
+        c.rect(margin, table_top - total_h, total_w, total_h)
 
         # Footer
         c.setFont("Helvetica", 7)
-        c.setFillColor(colors.grey)
-        c.drawString(margin, margin / 2, f"{game_name} — {bracket_name} — Grün = Bracket A qualifiziert für DE")
-        c.drawRightString(page_w - margin, margin / 2, f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+        c.setFillColor(colors.HexColor("#888888"))
+        c.drawString(margin, margin/2 + 1*mm, game_name)
+        c.drawRightString(page_w - margin, margin/2 + 1*mm,
+                          f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
 
-    # Seite 1: Bracket A
-    draw_spielplan_page(
-        bracket_a, sorted(all_fields_a), all_rounds,
-        "Bracket A (Gruppen 1–5)",
-        "Gruppen 1, 2, 3, 4, 5  |  Top 3 je Gruppe + beste 4. qualifizieren sich für Double Elimination"
-    )
-    c.showPage()
-
-    # Seite 2: Bracket B
-    draw_spielplan_page(
-        bracket_b, sorted(all_fields_b), all_rounds,
-        "Bracket B (Gruppen 6–10)",
-        "Gruppen 6, 7, 8, 9, 10  |  Top 3 je Gruppe + beste 4. qualifizieren sich für Double Elimination"
-    )
+    FIELDS_PER_PAGE = 8
+    for bracket_data, fields, bname in [
+        (bracket_a, sorted(all_fields_a), "Bracket A (Gruppen 1\u20135)"),
+        (bracket_b, sorted(all_fields_b), "Bracket B (Gruppen 6\u201310)"),
+    ]:
+        sub_a = "Gruppen 1, 2, 3, 4, 5  |  Top 3 je Gruppe + beste 4. qualifizieren sich f\u00fcr Double Elimination"
+        sub_b = "Gruppen 6, 7, 8, 9, 10  |  Top 3 je Gruppe + beste 4. qualifizieren sich f\u00fcr Double Elimination"
+        sub = sub_a if "1" in bname else sub_b
+        total_pages = (len(fields) + FIELDS_PER_PAGE - 1) // FIELDS_PER_PAGE
+        for i in range(0, len(fields), FIELDS_PER_PAGE):
+            chunk  = fields[i:i+FIELDS_PER_PAGE]
+            page_n = i // FIELDS_PER_PAGE + 1
+            draw_page(bracket_data, chunk, all_rounds, bname, sub,
+                      f"(Seite {page_n}/{total_pages})")
+            c.showPage()
 
     c.save()
     buf.seek(0)
