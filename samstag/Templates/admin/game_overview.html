@@ -5,7 +5,6 @@
     <h1 class="mb-4">Turnier-Übersicht: <span class="text-primary">{{ game_name }}</span></h1>
 
     <div class="row mb-4">
-        <!-- Teams Stats -->
         <div class="col-md-3">
             <div class="card text-white bg-info mb-3 shadow-sm" style="height: 100%;">
                 <div class="card-body">
@@ -18,8 +17,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Matches Stats -->
         <div class="col-md-3">
             <div class="card text-white bg-warning mb-3 shadow-sm" style="height: 100%;">
                 <div class="card-body">
@@ -32,8 +29,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Results Stats -->
         <div class="col-md-3">
             <div class="card text-white bg-success mb-3 shadow-sm" style="height: 100%;">
                 <div class="card-body">
@@ -46,15 +41,13 @@
                 </div>
             </div>
         </div>
-
-        <!-- Config Link -->
         <div class="col-md-3">
             <div class="card text-white bg-secondary mb-3 shadow-sm" style="height: 100%;">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-cogs"></i> Setup</h5>
                     <p class="card-text">Konfiguration &amp; Export</p>
                     <div class="btn-group-vertical w-100">
-                        <a href="{{ url_for('export_complete', game_name=game_name) }}" class="btn btn-primary">
+                        <a href="{{ url_for('export_complete', game_name=game_name) }}" class="btn btn-primary btn-sm">
                             <i class="fas fa-file-excel"></i> Export CSV
                         </a>
                         <form action="{{ url_for('cancel_game', game_name=game_name) }}" method="POST"
@@ -67,23 +60,29 @@
         </div>
     </div>
 
-    <!-- Quick Actions -->
     <div class="card shadow-sm">
-        <div class="card-header">Schnellzugriff</div>
+        <div class="card-header font-weight-bold">Schnellzugriff</div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-3 mb-3">
+                <div class="col-md-2 mb-3">
                     <a href="{{ url_for('generate_matches', game_name=game_name) }}"
                         class="btn btn-outline-primary btn-block p-3">
                         <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>
                         Spielplan Generieren
                     </a>
                 </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-2 mb-3">
                     <a href="{{ url_for('generate_double_elim', game_name=game_name) }}"
                         class="btn btn-outline-success btn-block p-3">
                         <i class="fas fa-sitemap fa-2x mb-2 d-block"></i>
                         Brackets Generieren
+                    </a>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <a href="{{ url_for('print_matches', game_name=game_name) }}" target="_blank"
+                        class="btn btn-outline-danger btn-block p-3">
+                        <i class="fas fa-print fa-2x mb-2 d-block"></i>
+                        Meldeblätter PDF
                     </a>
                 </div>
                 <div class="col-md-3 mb-3">
