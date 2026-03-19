@@ -1449,104 +1449,154 @@ def calculate_round_robin_times_alternative(conn):
 # DOUBLE ELIMINATION ZEITBERECHNUNG
 # ============================================================================
 
-def calculate_double_elim_times(conn, table_name, start_time_str=None):
+def calculate_double_elim_times_and_courts(conn, de_start_time_str=None):
     """
-    Berechnet Spielzeiten für Double Elimination Bracket.
+    Setzt Zeiten UND Felder fuer BEIDE DE-Brackets + FC + Platzierung
+    gemaess fixem Zeitplan (Spielplan Excel):
 
-    Logik:
-    - Winner Bracket Runde 1: Alle 8 Spiele parallel (verschiedene Felder)
-    - Nach Winner R1: Pause, dann Winner R2 (4 Spiele parallel)
-    - Loser Bracket: Direkt nach entsprechenden Winner-Spielen
-
-    Args:
-        conn: SQLite Connection
-        table_name: 'double_elim_matches_a' oder 'double_elim_matches_b'
-        start_time_str: Startzeit (optional, sonst nach Round Robin)
-
-    Returns:
-        str: Zeit nach letztem Spiel (für nächste Phase)
+      13:20  WB R1        Felder 1-16  (A:1-8, B:9-16)
+      14:10  WB R2        Felder 1-4(A), 13-16(B)
+      14:10  LB R1        Felder 5-8(A), 9-12(B)
+      14:35  Platzierung  Felder 1-6
+      14:35  FC 1/8       Felder 9-16
+      15:00  WB VF        Felder 9-10(A), 11-12(B)
+      15:00  LB R2        Felder 1-4(A), 5-8(B)
+      15:00  FC VF        Felder 13-16
+      15:25  LB R3        Felder 5-6(A), 7-8(B)
+      15:25  FC HF        Felder 9-10
+      15:50  WB HF        Felder 11(A), 12(B)
+      15:50  LB R4        Felder 1-2(A), 3-4(B)
+      15:50  FC Platz3    Feld 7
+      15:50  FC Final     Feld 8
+      16:15  LB R5        Felder 3(A), 4(B)
+      16:40  WB Final     Felder 7(A), 8(B)
+      16:40  LB R6        Felder 4(A), 5(B)
+      17:05  LB Final1    Felder 4(A), 5(B)
     """
     cursor = conn.cursor()
-    config = get_tournament_config(conn)
 
-    match_duration = config['match_duration']
-    break_between_games = config['break_between_games']
-
-    # Startzeit bestimmen
-    if start_time_str is None:
-        # Nach Round Robin: Letzte Zeit + 30 Min Pause
+    if de_start_time_str is None:
         cursor.execute("SELECT MAX(time) as last_time FROM matches WHERE time IS NOT NULL")
-        last_rr_time = cursor.fetchone()['last_time']
-    
-        if last_rr_time:
-            start_time_str = add_minutes_to_time(last_rr_time, 30)
-        else:
-            start_time_str = "13:00"  # Fallback
+        row = cursor.fetchone()
+        last_rr = row['last_time'] if row else None
+        de_start_time_str = add_minutes_to_time(last_rr, 15) if last_rr else "13:20"
 
-    current_time = start_time_str
+    print(f"\n⏰ ZEITBERECHNUNG NACHMITTAG – Start: {de_start_time_str}")
 
-    print(f"\n⏰ ZEITBERECHNUNG DOUBLE ELIMINATION ({table_name})")
-    print(f"   Startzeit: {current_time}")
-    print()
+    def set_tc(table, ids, time_str, courts):
+        for i, mid in enumerate(ids):
+            cursor.execute(f"UPDATE {table} SET time=?, court=? WHERE id=?",
+                           (time_str, courts[i % len(courts)], mid))
 
-    # Winner Bracket
-    for round_num in range(1, 5):
-        num_matches = 8 // (2 ** (round_num - 1))
-    
-        print(f"   Winner Runde {round_num}: {num_matches} Matches um {current_time}")
-    
-        cursor.execute(f"""
-            SELECT id FROM {table_name}
-            WHERE round = ? AND bracket = 'Winners'
-            ORDER BY match_index
-        """, (round_num,))
-    
-        for match_row in cursor.fetchall():
-            cursor.execute(f"""
-                UPDATE {table_name}
-                SET time = ?
-                WHERE id = ?
-            """, (current_time, match_row['id']))
-    
-        # Nächste Runde: Spieldauer + Pause
-        current_time = add_minutes_to_time(
-            current_time,
-            match_duration + break_between_games
-        )
+    def get_ids(table, bracket, rnd):
+        cursor.execute(f"SELECT id FROM {table} WHERE bracket=? AND round=? ORDER BY match_index",
+                       (bracket, rnd))
+        return [r['id'] for r in cursor.fetchall()]
 
-    # Loser Bracket (startet während Winner Bracket läuft)
-    # Vereinfachung: Loser Bracket 15 Min nach Winner Start
-    loser_start = add_minutes_to_time(start_time_str, 15)
-    current_time = loser_start
+    # 13:20 WB R1
+    t = de_start_time_str
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',1), t, list(range(1,9)))
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',1), t, list(range(9,17)))
+    print(f"   WB R1: {t}")
 
-    for round_num in range(1, 7):
-        num_matches = max(1, 8 // (2 ** (round_num - 1)))
-    
-        print(f"   Loser Runde {round_num}: {num_matches} Matches um {current_time}")
-    
-        cursor.execute(f"""
-            SELECT id FROM {table_name}
-            WHERE round = ? AND bracket = 'Losers'
-            ORDER BY match_index
-        """, (round_num,))
-    
-        for match_row in cursor.fetchall():
-            cursor.execute(f"""
-                UPDATE {table_name}
-                SET time = ?
-                WHERE id = ?
-            """, (current_time, match_row['id']))
-    
-        current_time = add_minutes_to_time(
-            current_time,
-            match_duration + break_between_games
-        )
+    # 14:10 WB R2 + LB R1
+    t2 = add_minutes_to_time(de_start_time_str, 50)
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',2), t2, [1,2,3,4])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',2), t2, [13,14,15,16])
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',1),  t2, [5,6,7,8])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',1),  t2, [9,10,11,12])
+    print(f"   WB R2 + LB R1: {t2}")
+
+    # 14:35 Platzierung + FC 1/8
+    t3 = add_minutes_to_time(t2, 25)
+    cursor.execute("SELECT id FROM placement_matches ORDER BY match_number")
+    ids_p = [r['id'] for r in cursor.fetchall()]
+    if ids_p:
+        set_tc('placement_matches', ids_p, t3, [1,2,3,4,5,6])
+    cursor.execute("SELECT id FROM follower_cup_matches WHERE round='eighth' ORDER BY match_index")
+    ids_fc8 = [r['id'] for r in cursor.fetchall()]
+    if ids_fc8:
+        set_tc('follower_cup_matches', ids_fc8, t3, [9,10,11,12,13,14,15,16])
+    print(f"   Platzierung + FC 1/8: {t3}")
+
+    # 15:00 WB VF + LB R2 + FC VF
+    t4 = add_minutes_to_time(t3, 25)
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',3), t4, [9,10])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',3), t4, [11,12])
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',2),  t4, [1,2,3,4])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',2),  t4, [5,6,7,8])
+    cursor.execute("SELECT id FROM follower_cup_matches WHERE round='quarter' ORDER BY match_index")
+    ids_fcq = [r['id'] for r in cursor.fetchall()]
+    if ids_fcq:
+        set_tc('follower_cup_matches', ids_fcq, t4, [13,14,15,16])
+    print(f"   WB VF + LB R2 + FC VF: {t4}")
+
+    # 15:25 LB R3 + FC HF
+    t5 = add_minutes_to_time(t4, 25)
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',3), t5, [5,6])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',3), t5, [7,8])
+    cursor.execute("SELECT id FROM follower_cup_matches WHERE round='semi' ORDER BY match_index")
+    ids_fcs = [r['id'] for r in cursor.fetchall()]
+    if ids_fcs:
+        set_tc('follower_cup_matches', ids_fcs, t5, [9,10])
+    print(f"   LB R3 + FC HF: {t5}")
+
+    # 15:50 WB HF + LB R4 + FC Final + FC Platz3
+    t6 = add_minutes_to_time(t5, 25)
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',4), t6, [11])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',4), t6, [12])
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',4),  t6, [1,2])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',4),  t6, [3,4])
+    cursor.execute("SELECT id FROM follower_cup_matches WHERE round='third'  ORDER BY match_index")
+    ids_fc3 = [r['id'] for r in cursor.fetchall()]
+    if ids_fc3:
+        set_tc('follower_cup_matches', ids_fc3, t6, [7])
+    cursor.execute("SELECT id FROM follower_cup_matches WHERE round='final'  ORDER BY match_index")
+    ids_fcf = [r['id'] for r in cursor.fetchall()]
+    if ids_fcf:
+        set_tc('follower_cup_matches', ids_fcf, t6, [8])
+    print(f"   WB HF + LB R4 + FC Final: {t6}")
+
+    # 16:15 LB R5
+    t7 = add_minutes_to_time(t6, 25)
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',5), t7, [3])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',5), t7, [4])
+    print(f"   LB R5: {t7}")
+
+    # 16:40 WB Final + LB R6
+    t8 = add_minutes_to_time(t7, 25)
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',5), t8, [7])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',5), t8, [8])
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',6),  t8, [4])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',6),  t8, [5])
+    print(f"   WB Final + LB R6: {t8}")
+
+    # 17:05 LB Final1
+    t9 = add_minutes_to_time(t8, 25)
+    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',7), t9, [4])
+    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',7), t9, [5])
+    print(f"   LB Final1: {t9}")
 
     conn.commit()
+    t_super = add_minutes_to_time(t9, 25)
+    print(f"   → Super Finals ab: {t_super}\n")
+    return t_super
 
-    print(f"   → Bracket endet ca. um: {current_time}")
 
-    return current_time
+def calculate_double_elim_times(conn, table_name, start_time_str=None):
+    """Legacy-Wrapper: ruft calculate_double_elim_times_and_courts auf."""
+    calculate_double_elim_times_and_courts(conn, start_time_str)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT MAX(time) as t FROM (
+            SELECT time FROM double_elim_matches_a WHERE time IS NOT NULL
+            UNION ALL
+            SELECT time FROM double_elim_matches_b WHERE time IS NOT NULL
+        )
+    """)
+    row = cursor.fetchone()
+    return row['t'] if row and row['t'] else start_time_str
+
 
 
 # ============================================================================
@@ -1555,87 +1605,36 @@ def calculate_double_elim_times(conn, table_name, start_time_str=None):
 
 def calculate_super_finals_times(conn, start_time_str=None):
     """
-    Berechnet Spielzeiten für Super Finals.
-
-    Reihenfolge:
-    1. Halbfinale 1 (HF1)
-    2. Halbfinale 2 (HF2) - parallel zu HF1 auf anderem Feld
-    3. Pause (30 Min)
-    4. Spiel um Platz 3 (THIRD)
-    5. Pause (15 Min)
-    6. Finale (FINAL)
-
-    Args:
-        conn: SQLite Connection
-        start_time_str: Startzeit (optional, sonst nach Double Elim)
-
-    Returns:
-        str: Zeit nach Finale
+    Super Finals Zeiten laut fixem Zeitplan:
+      17:30  Super Final 1  Feld 4
+      17:55  Super Final 2A Feld 6
+      18:20  Super Final 2B Feld 6
     """
     cursor = conn.cursor()
-    config = get_tournament_config(conn)
-
-    match_duration = config['match_duration']
-
-    # Startzeit bestimmen
     if start_time_str is None:
-        # Nach Double Elimination B
         cursor.execute("""
-            SELECT MAX(time) as last_time 
-            FROM double_elim_matches_b 
-            WHERE time IS NOT NULL
+            SELECT MAX(time) as t FROM (
+                SELECT time FROM double_elim_matches_a WHERE time IS NOT NULL
+                UNION ALL SELECT time FROM double_elim_matches_b WHERE time IS NOT NULL
+            )
         """)
-        last_de_time = cursor.fetchone()['last_time']
-    
-        if last_de_time:
-            start_time_str = add_minutes_to_time(last_de_time, 45)
-        else:
-            start_time_str = "15:00"  # Fallback
+        row = cursor.fetchone()
+        last_de = row['t'] if row and row['t'] else None
+        start_time_str = add_minutes_to_time(last_de, 25) if last_de else "17:30"
 
-    current_time = start_time_str
+    t_sf1  = start_time_str
+    t_sf2a = add_minutes_to_time(t_sf1, 25)
+    t_sf2b = add_minutes_to_time(t_sf2a, 25)
 
-    print(f"\n⏰ ZEITBERECHNUNG SUPER FINALS")
-    print(f"   Startzeit: {current_time}")
-    print()
+    print(f"\n⏰ SUPER FINALS: {t_sf1} / {t_sf2a} / {t_sf2b}")
 
-    # Halbfinale 1 & 2 (parallel)
-    print(f"   Halbfinale 1 & 2: {current_time}")
-    cursor.execute("""
-        UPDATE super_finals_matches 
-        SET time = ?
-        WHERE match_id IN ('HF1', 'HF2')
-    """, (current_time,))
-
-    # Pause nach Halbfinale
-    current_time = add_minutes_to_time(current_time, match_duration + 30)
-
-    # Spiel um Platz 3
-    print(f"   Spiel um Platz 3: {current_time}")
-    cursor.execute("""
-        UPDATE super_finals_matches 
-        SET time = ?
-        WHERE match_id = 'THIRD'
-    """, (current_time,))
-
-    # Pause vor Finale
-    current_time = add_minutes_to_time(current_time, match_duration + 15)
-
-    # Finale
-    print(f"   FINALE: {current_time}")
-    cursor.execute("""
-        UPDATE super_finals_matches 
-        SET time = ?
-        WHERE match_id = 'FINAL'
-    """, (current_time,))
-
-    # Endzeit
-    end_time = add_minutes_to_time(current_time, match_duration)
-
+    for match_id, t, court in [('HF1', t_sf1, 4), ('HF2', t_sf1, 4),
+                                ('THIRD', t_sf2a, 6), ('FINAL', t_sf2b, 6)]:
+        cursor.execute("UPDATE super_finals_matches SET time=?, court=? WHERE match_id=?",
+                       (t, court, match_id))
     conn.commit()
-
-    print(f"   → Turnier endet ca. um: {end_time}\n")
-
-    return end_time
+    print(f"   → Turnier endet ca. um: {t_sf2b}\n")
+    return t_sf2b
 
 
 # ============================================================================
@@ -1643,124 +1642,12 @@ def calculate_super_finals_times(conn, start_time_str=None):
 # ============================================================================
 
 def calculate_follower_cup_times(conn, start_time_str=None):
-    """
-    Berechnet Spielzeiten für Follower Cup.
-
-    Läuft parallel zu Double Elimination auf separaten Feldern.
-
-    Args:
-        conn: SQLite Connection
-        start_time_str: Startzeit (optional, parallel zu Double Elim)
-
-    Returns:
-        str: Zeit nach letztem Spiel
-    """
+    """No-op Wrapper: FC-Zeiten werden via calculate_double_elim_times_and_courts gesetzt."""
+    print("ℹ️  FC-Zeiten werden via calculate_double_elim_times_and_courts gesetzt.")
     cursor = conn.cursor()
-    config = get_tournament_config(conn)
-
-    match_duration = config['match_duration']
-    break_between_games = config['break_between_games']
-
-    # Startzeit bestimmen
-    if start_time_str is None:
-        # Parallel zu Double Elimination, aber auf anderen Feldern
-        cursor.execute("""
-            SELECT MIN(time) as first_time 
-            FROM double_elim_matches_a 
-            WHERE time IS NOT NULL
-        """)
-        de_start = cursor.fetchone()['first_time']
-    
-        if de_start:
-            start_time_str = de_start  # Gleiche Startzeit
-        else:
-            start_time_str = "13:00"  # Fallback
-
-    current_time = start_time_str
-
-    print(f"\n⏰ ZEITBERECHNUNG FOLLOWER CUP")
-    print(f"   Startzeit: {current_time}")
-    print()
-
-    # Qualifikationsspiele
-    cursor.execute("SELECT COUNT(*) as count FROM follower_quali_matches")
-    quali_count = cursor.fetchone()['count']
-
-    if quali_count > 0:
-        print(f"   Qualifikation: {quali_count} Matches ab {current_time}")
-    
-        cursor.execute("SELECT id FROM follower_quali_matches ORDER BY id")
-    
-        for i, match_row in enumerate(cursor.fetchall()):
-            # Alle 4 Spiele parallel (verschiedene Felder)
-            if i > 0 and i % 4 == 0:
-                current_time = add_minutes_to_time(
-                    current_time,
-                    match_duration + break_between_games
-                )
-        
-            cursor.execute("""
-                UPDATE follower_quali_matches 
-                SET time = ?
-                WHERE id = ?
-            """, (current_time, match_row['id']))
-    
-        # Pause nach Quali
-        current_time = add_minutes_to_time(current_time, 20)
-
-    # Cup-Runden
-    rounds = [
-        ('eighth', 8, "1/8-Finale"),
-        ('quarter', 4, "Viertelfinale"),
-        ('semi', 2, "Halbfinale"),
-        ('third', 1, "Spiel um Platz 3"),
-        ('final', 1, "Finale")
-    ]
-
-    for round_name, num_matches, display_name in rounds:
-        cursor.execute("""
-            SELECT COUNT(*) as count 
-            FROM follower_cup_matches 
-            WHERE round = ?
-        """, (round_name,))
-    
-        count = cursor.fetchone()['count']
-    
-        if count > 0:
-            print(f"   {display_name}: {count} Matches um {current_time}")
-        
-            cursor.execute("""
-                SELECT id FROM follower_cup_matches 
-                WHERE round = ?
-                ORDER BY match_index
-            """, (round_name,))
-        
-            for match_row in cursor.fetchall():
-                cursor.execute("""
-                    UPDATE follower_cup_matches 
-                    SET time = ?
-                    WHERE id = ?
-                """, (current_time, match_row['id']))
-        
-            # Nächste Runde
-            if round_name in ['semi', 'third']:
-                # Längere Pause vor Finale
-                current_time = add_minutes_to_time(
-                    current_time,
-                    match_duration + 20
-                )
-            else:
-                current_time = add_minutes_to_time(
-                    current_time,
-                    match_duration + break_between_games
-                )
-
-    conn.commit()
-
-    end_time = add_minutes_to_time(current_time, match_duration)
-    print(f"   → Follower Cup endet ca. um: {end_time}\n")
-
-    return end_time
+    cursor.execute("SELECT MAX(time) as t FROM follower_cup_matches WHERE time IS NOT NULL")
+    row = cursor.fetchone()
+    return row['t'] if row and row['t'] else (start_time_str or "15:50")
 
 
 # ============================================================================
@@ -1802,53 +1689,28 @@ def calculate_all_match_times(conn):
         times = cursor.fetchone()
         stats['round_robin'] = {'start': times['start'], 'end': times['end']}
 
-    # 2. Bracket A
+    # 2. Double Elimination + FC + Platzierung (integrierter Zeitplan)
     cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches_a")
     if cursor.fetchone()['count'] > 0:
-        end_time_a = calculate_double_elim_times(conn, 'double_elim_matches_a')
-    
+        calculate_double_elim_times_and_courts(conn)
+        cursor.execute("SELECT MIN(time) as start FROM double_elim_matches_a WHERE time IS NOT NULL")
+        start_de = cursor.fetchone()['start']
         cursor.execute("""
-            SELECT MIN(time) as start FROM double_elim_matches_a WHERE time IS NOT NULL
+            SELECT MAX(time) as t FROM (
+                SELECT time FROM double_elim_matches_a WHERE time IS NOT NULL
+                UNION ALL SELECT time FROM double_elim_matches_b WHERE time IS NOT NULL
+            )
         """)
-        start_a = cursor.fetchone()['start']
-        stats['bracket_a'] = {'start': start_a, 'end': end_time_a}
+        end_de = cursor.fetchone()['t']
+        stats['double_elim'] = {'start': start_de, 'end': end_de}
 
-    # 3. Bracket B (parallel zu A oder nacheinander)
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches_b")
-    if cursor.fetchone()['count'] > 0:
-        # Optional: Bracket B gleichzeitig mit A (verschiedene Felder)
-        # Oder: Bracket B nach A
-        end_time_b = calculate_double_elim_times(conn, 'double_elim_matches_b')
-    
-        cursor.execute("""
-            SELECT MIN(time) as start FROM double_elim_matches_b WHERE time IS NOT NULL
-        """)
-        start_b = cursor.fetchone()['start']
-        stats['bracket_b'] = {'start': start_b, 'end': end_time_b}
-
-    # 4. Super Finals
+    # 3. Super Finals
     cursor.execute("SELECT COUNT(*) as count FROM super_finals_matches")
     if cursor.fetchone()['count'] > 0:
         end_time_sf = calculate_super_finals_times(conn)
-    
-        cursor.execute("""
-            SELECT MIN(time) as start FROM super_finals_matches WHERE time IS NOT NULL
-        """)
+        cursor.execute("SELECT MIN(time) as start FROM super_finals_matches WHERE time IS NOT NULL")
         start_sf = cursor.fetchone()['start']
         stats['super_finals'] = {'start': start_sf, 'end': end_time_sf}
-
-    # 5. Follower Cup (parallel zu Double Elim)
-    cursor.execute("""
-        SELECT COUNT(*) as count 
-        FROM (
-            SELECT id FROM follower_quali_matches
-            UNION ALL
-            SELECT id FROM follower_cup_matches
-        )
-    """)
-    if cursor.fetchone()['count'] > 0:
-        end_time_fc = calculate_follower_cup_times(conn)
-        stats['follower_cup'] = {'end': end_time_fc}
 
     # Zusammenfassung
     print("\n" + "=" * 70)
@@ -3010,10 +2872,9 @@ def generate_double_elim(game_name):
     next_number = assign_double_elim_match_numbers_a(conn, next_number)
     assign_double_elim_match_numbers_b(conn, next_number)
 
-    # NEU: Spielzeiten
-    print("\n⏰ Berechne Spielzeiten...")
-    calculate_double_elim_times(conn, 'double_elim_matches_a')
-    calculate_double_elim_times(conn, 'double_elim_matches_b')
+    # Zeitplan + Feldzuteilung nach fixem Nachmittagsplan
+    print("\n⏰ Berechne Spielzeiten und Felder...")
+    calculate_double_elim_times_and_courts(conn)
 
     conn.close()
     
