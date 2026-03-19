@@ -3543,38 +3543,30 @@ def generate_follower_cup(game_name):
         return render_template("admin/error.html", 
                              error_message="Follower Cup wurde bereits generiert!")
     
-    # Direkt qualifizierte
+    # Die 28 Teams die NICHT im Double Elimination sind,
+    # sortiert nach RR-Punkten → Top 16 → Follower Cup (Plätze 33–48)
     cursor.execute("""
-        SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number
+        SELECT r.team, r.points, r.goal_difference, r.goals_for
         FROM rankings r
-        WHERE (SELECT COUNT(*) FROM rankings r2 
-               WHERE r2.group_number = r.group_number 
-               AND (r2.points > r.points 
-                    OR (r2.points = r.points AND r2.goal_difference > r.goal_difference)
-                    OR (r2.points = r.points AND r2.goal_difference = r.goal_difference 
-                        AND r2.goals_for > r.goals_for))) = 3
+        WHERE r.team NOT IN (
+            SELECT team1 FROM double_elim_matches_a WHERE round = 1
+            UNION
+            SELECT team2 FROM double_elim_matches_a WHERE round = 1
+            UNION
+            SELECT team1 FROM double_elim_matches_b WHERE round = 1
+            UNION
+            SELECT team2 FROM double_elim_matches_b WHERE round = 1
+        )
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
         ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
-        LIMIT 4
     """)
-    direct_teams = [row['team'] for row in cursor.fetchall()]
-    
-    # Quali-Gewinner
-    cursor.execute("""
-        SELECT winner FROM follower_quali_matches 
-        WHERE winner IS NOT NULL
-        ORDER BY match_number
-    """)
-    quali_winners = [row['winner'] for row in cursor.fetchall()]
-    
-    all_teams = direct_teams + quali_winners
-    
+    remaining_teams = cursor.fetchall()
+    all_teams = [row['team'] for row in remaining_teams[:16]]
+
     if len(all_teams) < 16:
         conn.close()
-        return render_template("admin/error.html", 
-                             error_message=f"Nicht genug Teams! Nur {len(all_teams)} statt 16")
-    
-    all_teams = all_teams[:16]
+        return render_template("admin/error.html",
+                             error_message=f"Nicht genug Teams! Nur {len(all_teams)} statt 16 (Double Elimination noch nicht generiert?)")
     
     match_number = 230
     court = 1
@@ -3813,16 +3805,12 @@ def generate_placement_round(game_name):
             UNION
             SELECT team2 FROM double_elim_matches_b WHERE round = 1
         )
-        AND r.team NOT IN (
-            SELECT team1 FROM follower_quali_matches
-            UNION
-            SELECT team2 FROM follower_quali_matches WHERE team2 != 'BYE'
-        )
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
         ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
     """)
-    
-    placement_teams = [row['team'] for row in cursor.fetchall()]
+    remaining = cursor.fetchall()
+    # Letzten 12 der 28 Nicht-DE-Teams → Platzierungsrunde (Plätze 49–60)
+    placement_teams = [row['team'] for row in remaining[16:]]
     
     match_number = 246
     court = 1
@@ -3836,7 +3824,7 @@ def generate_placement_round(game_name):
             INSERT INTO placement_matches 
             (match_number, placement, team1, team2, court)
             VALUES (?, ?, ?, ?, ?)
-        """, (match_number, f"P{37 + i*2}", team1, team2, court))
+        """, (match_number, f"P{49 + i*2}", team1, team2, court))
         
         match_number += 1
         court = (court % 15) + 1

@@ -2,66 +2,19 @@
 
 {% block content %}
 <div class="container">
-    <h1 class="mb-4">Follower Cup <small class="text-muted">Qualifikationsrunde</small></h1>
+    <h1 class="mb-4">Follower Cup <small class="text-muted">Qualifikation (entfällt)</small></h1>
 
-    <div class="alert alert-info">
+    <div class="alert alert-warning">
         <i class="fas fa-info-circle"></i>
-        Hier spielen die 4. Platzierten (außer den 2 Besten), alle 5. und alle 6. Platzierten gegeneinander.
-        Die Gewinner qualifizieren sich für das 1/8-Finale des Follower Cups.
-    </div>
-
-    {% if direct_qualifiers %}
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-success text-white">
-            <i class="fas fa-star"></i> Direkt qualifiziert (ohne Quali)
-        </div>
-        <div class="card-body">
-            <div class="row">
-                {% for team in direct_qualifiers %}
-                <div class="col-md-3 mb-2">
-                    <div class="alert alert-success mb-0">
-                        <strong>{{ team.team }}</strong>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-    <div class="card shadow-sm">
-        <div class="card-header bg-secondary text-white">
-            Qualifikations-Matches
-        </div>
-        <div class="card-body">
-            {% if quali_matches %}
-            <div class="row">
-                {% for team1, team2, court in quali_matches %}
-                <div class="col-md-6 mb-3">
-                    <div class="card match-card h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="small text-muted">Feld {{ court }}</span>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <strong>{{ team1.team }}</strong>
-                                <span class="mx-2 text-muted">vs</span>
-                                <strong>{{ team2.team }}</strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="text-center text-muted py-4">Noch keine Spiele generiert.</p>
-            {% endif %}
-        </div>
+        <strong>Hinweis:</strong> Die Qualifikationsrunde entfällt.<br>
+        Von den 28 Teams (nicht im Double Elimination) qualifizieren sich
+        die <strong>16 besten nach RR-Punkten</strong> direkt für den Follower Cup (Plätze 33–48).
+        Die <strong>12 schwächsten</strong> spielen die Platzierungsrunde (Plätze 49–60).
     </div>
 
     <div class="mt-4 text-center">
-        <a href="{{ url_for('follower_results', game_name=game_name) }}" class="btn btn-primary btn-lg">
-            Ergebnisse eintragen &rarr;
+        <a href="{{ url_for('follower_cup_overview', game_name=game_name) }}" class="btn btn-primary btn-lg">
+            Zum Follower Cup &rarr;
         </a>
     </div>
 </div>

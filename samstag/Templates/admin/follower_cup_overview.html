@@ -2,45 +2,76 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">Follower Cup <small class="text-muted">K.O. System</small></h1>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Follower Cup <small class="text-muted">Plätze 33–48</small></h1>
+        <div>
+            {% if matches_eighth %}
+            <a href="{{ url_for('enter_follower_cup_results', game_name=game_name) }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-edit"></i> Ergebnisse eintragen
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="alert alert-info py-2">
+        <i class="fas fa-info-circle"></i>
+        <strong>Top 16 der 28 Nicht-DE-Teams</strong> nach RR-Punkten spielen den Follower Cup.
+        Zeitplan: 1/8 (14:35) → VF (15:00) → HF (15:25) → Final/Platz3 (15:50)
+    </div>
+
+    {% if not matches_eighth %}
+    <div class="text-center py-5">
+        <p class="text-muted">Follower Cup noch nicht generiert.</p>
+        <a href="{{ url_for('generate_follower_cup', game_name=game_name) }}" class="btn btn-warning btn-lg">
+            <i class="fas fa-magic"></i> Follower Cup generieren
+        </a>
+    </div>
+    {% else %}
 
     <div class="row flex-nowrap overflow-auto pb-4">
-        <!-- 1/8 Finale -->
-        <div class="col-md-3" style="min-width: 300px;">
-            <h4 class="text-center mb-3">Achtelfinale</h4>
+        <!-- 1/8-Finale -->
+        <div class="col-md-3" style="min-width:280px">
+            <h5 class="text-center mb-3">1/8-Finale <small class="text-muted">14:35 · Felder 9–16</small></h5>
             {% for match in matches_eighth %}
             {% include "admin/_cup_match_card.html" %}
             {% endfor %}
         </div>
 
-        <!-- 1/4 Finale -->
-        <div class="col-md-3" style="min-width: 300px;">
-            <h4 class="text-center mb-3">Viertelfinale</h4>
+        <!-- Viertelfinale -->
+        <div class="col-md-3" style="min-width:280px">
+            <h5 class="text-center mb-3">Viertelfinale <small class="text-muted">15:00 · Felder 13–16</small></h5>
             {% for match in matches_quarter %}
             {% include "admin/_cup_match_card.html" %}
             {% endfor %}
         </div>
 
-        <!-- 1/2 Finale -->
-        <div class="col-md-3" style="min-width: 300px;">
-            <h4 class="text-center mb-3">Halbfinale</h4>
+        <!-- Halbfinale -->
+        <div class="col-md-3" style="min-width:280px">
+            <h5 class="text-center mb-3">Halbfinale <small class="text-muted">15:25 · Felder 9–10</small></h5>
             {% for match in matches_semi %}
             {% include "admin/_cup_match_card.html" %}
             {% endfor %}
         </div>
 
         <!-- Finale & Platz 3 -->
-        <div class="col-md-3" style="min-width: 300px;">
-            <h4 class="text-center mb-3">Finale</h4>
+        <div class="col-md-3" style="min-width:280px">
+            <h5 class="text-center mb-3">Finale <small class="text-muted">15:50 · Feld 8</small></h5>
             {% for match in matches_final %}
             {% include "admin/_cup_match_card.html" %}
             {% endfor %}
 
-            <h4 class="text-center mt-5 mb-3">Spiel um Platz 3</h4>
+            <h5 class="text-center mt-4 mb-3">Platz 3 <small class="text-muted">15:50 · Feld 7</small></h5>
             {% for match in matches_third %}
             {% include "admin/_cup_match_card.html" %}
             {% endfor %}
         </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{{ url_for('game_overview', game_name=game_name) }}" class="btn btn-outline-secondary">
+            &larr; Zur Spielübersicht
+        </a>
     </div>
 </div>
 {% endblock %}
