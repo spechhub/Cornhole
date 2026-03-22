@@ -2523,47 +2523,36 @@ def group_standings(game_name):
     for group_num in range(1, 11):
         groups[group_num] = sort_group_with_head_to_head(conn, group_num)
     
-    # Beste 4. Platzierte Bracket A - KORRIGIERT
-    cursor.execute("""
-        WITH ranked_teams AS (
-            SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number,
-                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC) as position
-            FROM rankings r
-            WHERE r.group_number BETWEEN 1 AND 5
-            AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        )
-        SELECT team, points, goal_difference, goals_for, group_number, position
-        FROM ranked_teams
-        WHERE position = 4
-        ORDER BY points DESC, goal_difference DESC, goals_for DESC
-        LIMIT 1
-    """)
-    best_4th_a = cursor.fetchone()
-    
-    # Beste 4. Platzierte Bracket B - KORRIGIERT
-    cursor.execute("""
-        WITH ranked_teams AS (
-            SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number,
-                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC) as position
-            FROM rankings r
-            WHERE r.group_number BETWEEN 6 AND 10
-            AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        )
-        SELECT team, points, goal_difference, goals_for, group_number, position
-        FROM ranked_teams
-        WHERE position = 4
-        ORDER BY points DESC, goal_difference DESC, goals_for DESC
-        LIMIT 1
-    """)
-    best_4th_b = cursor.fetchone()
-    
+    # 2 beste 4. Plaetze ueber ALLE 10 Gruppen (neue Logik: 1 Bracket, 32 Teams)
+    all_fourths = []
+    for g in range(1, 11):
+        sorted_g = sort_group_with_head_to_head(conn, g)
+        real = [t for t in sorted_g if not t['is_ghost']]
+        if len(real) >= 4:
+            fourth = real[3]
+            all_fourths.append({
+                'team':            fourth['team'],
+                'group_number':    g,
+                'goals_for':       fourth['goals_for'],
+                'goal_difference': fourth['goal_difference'],
+                'wins':            fourth['wins'],
+                'losses':          fourth['losses'],
+                'matches_played':  fourth['matches_played'],
+            })
+
+    # Sortierung: goals_for DESC, goal_difference DESC
+    all_fourths.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
+    best_4th_1 = all_fourths[0] if len(all_fourths) > 0 else None
+    best_4th_2 = all_fourths[1] if len(all_fourths) > 1 else None
+
     conn.close()
-    
+
     return render_template("admin/group_standings.html",
                          game_name=game_name,
                          groups=groups,
-                         best_4th_a=best_4th_a,
-                         best_4th_b=best_4th_b)
+                         best_4th_1=best_4th_1,
+                         best_4th_2=best_4th_2,
+                         all_fourths=all_fourths)
 
 
 @app.route('/generate_double_elim/<game_name>')

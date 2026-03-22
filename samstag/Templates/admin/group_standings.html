@@ -1,52 +1,102 @@
 {% extends "admin/base.html" %}
 
 {% block content %}
+<style>
+    .qualified-row    { background-color: #d4edda !important; }
+    .fourth-row       { background-color: #fff3cd !important; }
+    .eliminated-row   { background-color: #f8d7da !important; }
+    .best-fourth-row  { background-color: #cce5ff !important; }
+</style>
+
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Gruppentabellen <small class="text-muted">{{ game_name }}</small></h1>
-        <form action="{{ url_for('recalculate_rankings', game_name=game_name) }}" method="POST">
-            <button type="submit" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-sync"></i> Neu berechnen
-            </button>
-        </form>
+        <div class="d-flex align-items-center">
+            <span class="mr-3 small">
+                <span class="badge" style="background:#d4edda;color:#155724;border:1px solid #c3e6cb">&#10003; Platz 1–3 = DE</span>
+                <span class="badge ml-1" style="background:#cce5ff;color:#004085;border:1px solid #b8daff">&#9733; Bester 4. = DE</span>
+                <span class="badge ml-1" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba">Platz 4</span>
+                <span class="badge ml-1" style="background:#f8d7da;color:#721c24;border:1px solid #f5c6cb">Platz 5–6</span>
+            </span>
+            <form action="{{ url_for('recalculate_rankings', game_name=game_name) }}" method="POST" class="ml-2">
+                <button type="submit" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-sync"></i> Neu berechnen
+                </button>
+            </form>
+        </div>
     </div>
 
-    <!-- Bracket A (Groups 1-5) -->
-    <div class="card mb-4 border-primary">
-        <div class="card-header bg-primary text-white">
-            <h4>Bracket A (Gruppen 1-5)</h4>
+    <div class="alert alert-info py-2 small mb-3">
+        <i class="fas fa-info-circle"></i>
+        <strong>Sortierung:</strong>
+        1. Geworfene Punkte (G+) &nbsp;|&nbsp;
+        2. Tordifferenz (Diff) &nbsp;|&nbsp;
+        3. Direkter Vergleich
+        &nbsp;&nbsp;&nbsp;
+        <strong>DE-Qualifikation:</strong> Top 3 jeder Gruppe + 2 beste 4. Plätze über alle 10 Gruppen = 32 Teams
+    </div>
+
+    {% for bracket_label, bracket_color, group_range in [
+        ('Bracket A (Gruppen 1–5)', 'primary', range(1, 6)),
+        ('Bracket B (Gruppen 6–10)', 'info',   range(6, 11))
+    ] %}
+    <div class="card mb-4 border-{{ bracket_color }}">
+        <div class="card-header bg-{{ bracket_color }} text-white">
+            <h4 class="mb-0">{{ bracket_label }}</h4>
         </div>
         <div class="card-body">
             <div class="row">
-                {% for i in range(1, 6) %}
+                {% for i in group_range %}
                 <div class="col-md-6 col-xl-4 mb-3">
-                    <div class="card">
-                        <div class="card-header py-1">Gruppe {{ i }}</div>
+                    <div class="card shadow-sm">
+                        <div class="card-header py-1 font-weight-bold">Gruppe {{ i }}</div>
                         <div class="card-body p-0">
-                            <table class="table table-sm table-striped m-0" style="font-size: 0.9rem;">
-                                <thead>
+                            <table class="table table-sm m-0" style="font-size:0.85rem">
+                                <thead class="thead-light">
                                     <tr>
-                                        <th>#</th>
+                                        <th style="width:26px">#</th>
                                         <th>Team</th>
-                                        <th>Sp</th>
-                                        <th title="Geworfene Punkte">G+</th>
-                                        <th title="Erhaltene Punkte">G-</th>
-                                        <th>Diff</th>
+                                        <th class="text-center" title="Spiele">Sp</th>
+                                        <th class="text-center" title="Siege">S</th>
+                                        <th class="text-center" title="Niederlagen">N</th>
+                                        <th class="text-center font-weight-bold" title="Geworfene Punkte">G+</th>
+                                        <th class="text-center" title="Erhaltene Punkte">G-</th>
+                                        <th class="text-center" title="Differenz">Diff</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for row in groups.get(i, []) %}
-                                    <tr class="{% if loop.index <= 3 %}qualified-row{% elif loop.index == 4 %}best-fourth-row{% endif %}">
-                                        <td>{{ loop.index }}</td>
+                                    {% set is_best4_1 = (best_4th_1 and row.team == best_4th_1.team) %}
+                                    {% set is_best4_2 = (best_4th_2 and row.team == best_4th_2.team) %}
+                                    {% if loop.index <= 3 %}
+                                        {% set row_class = 'qualified-row' %}
+                                    {% elif is_best4_1 or is_best4_2 %}
+                                        {% set row_class = 'best-fourth-row' %}
+                                    {% elif loop.index == 4 %}
+                                        {% set row_class = 'fourth-row' %}
+                                    {% else %}
+                                        {% set row_class = 'eliminated-row' %}
+                                    {% endif %}
+                                    <tr class="{{ row_class }}">
+                                        <td class="font-weight-bold">{{ loop.index }}</td>
                                         <td>
-                                            <span class="{% if row.is_ghost %}ghost-team{% endif %}">
+                                            <span class="{% if row.is_ghost %}text-muted font-italic{% endif %}">
                                                 {{ row.team }}
                                             </span>
+                                            {% if is_best4_1 %}
+                                                <span class="badge badge-primary ml-1" title="Bester 4. Platz global – DE qualifiziert">&#9733;1</span>
+                                            {% elif is_best4_2 %}
+                                                <span class="badge badge-primary ml-1" title="Zweitbester 4. Platz global – DE qualifiziert">&#9733;2</span>
+                                            {% endif %}
                                         </td>
-                                        <td>{{ row.matches_played }}</td>
-                                        <td>{{ row.goals_for }}</td>
-                                        <td>{{ row.goals_against }}</td>
-                                        <td>{{ row.goal_difference }}</td>
+                                        <td class="text-center">{{ row.matches_played }}</td>
+                                        <td class="text-center">{{ row.wins }}</td>
+                                        <td class="text-center">{{ row.losses }}</td>
+                                        <td class="text-center font-weight-bold">{{ row.goals_for }}</td>
+                                        <td class="text-center">{{ row.goals_against }}</td>
+                                        <td class="text-center {% if row.goal_difference > 0 %}text-success{% elif row.goal_difference < 0 %}text-danger{% endif %}">
+                                            {{ row.goal_difference }}
+                                        </td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -56,67 +106,58 @@
                 </div>
                 {% endfor %}
             </div>
-            {% if best_4th_a %}
-            <div class="alert alert-warning mt-2">
-                <strong>Bester 4. Platzierter (A):</strong> {{ best_4th_a.team }} (Gruppe {{ best_4th_a.group_number }})
-                — {{ best_4th_a.goals_for }} G+, {{ best_4th_a.goal_difference }} Diff
-            </div>
-            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Tabelle: alle 10 Viertplatzierten mit Ranking -->
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-star"></i>
+                Vergleich aller 4. Platzierten – 2 beste qualifizieren sich für Double Elimination
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm m-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th style="width:40px">Rang</th>
+                        <th>Team</th>
+                        <th class="text-center">Gruppe</th>
+                        <th class="text-center font-weight-bold">G+</th>
+                        <th class="text-center">Diff</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in all_fourths %}
+                    <tr class="{% if loop.index <= 2 %}best-fourth-row{% endif %}">
+                        <td class="font-weight-bold">{{ loop.index }}</td>
+                        <td>
+                            {{ f.team }}
+                            {% if loop.index <= 2 %}
+                            <span class="badge badge-primary ml-1">&#9733; DE qualifiziert</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ f.group_number }}</td>
+                        <td class="text-center font-weight-bold">{{ f.goals_for }}</td>
+                        <td class="text-center {% if f.goal_difference > 0 %}text-success{% elif f.goal_difference < 0 %}text-danger{% endif %}">
+                            {{ f.goal_difference }}
+                        </td>
+                        <td>
+                            {% if loop.index <= 2 %}
+                            <span class="text-primary font-weight-bold">→ Double Elimination</span>
+                            {% else %}
+                            <span class="text-muted">→ Follower Cup / Platzierung</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <!-- Bracket B (Groups 6-10) -->
-    <div class="card mb-4 border-info">
-        <div class="card-header bg-info text-white">
-            <h4>Bracket B (Gruppen 6-10)</h4>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                {% for i in range(6, 11) %}
-                <div class="col-md-6 col-xl-4 mb-3">
-                    <div class="card">
-                        <div class="card-header py-1">Gruppe {{ i }}</div>
-                        <div class="card-body p-0">
-                            <table class="table table-sm table-striped m-0" style="font-size: 0.9rem;">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Team</th>
-                                        <th>Sp</th>
-                                        <th title="Geworfene Punkte">G+</th>
-                                        <th title="Erhaltene Punkte">G-</th>
-                                        <th>Diff</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for row in groups.get(i, []) %}
-                                    <tr class="{% if loop.index <= 3 %}qualified-row{% elif loop.index == 4 %}best-fourth-row{% endif %}">
-                                        <td>{{ loop.index }}</td>
-                                        <td>
-                                            <span class="{% if row.is_ghost %}ghost-team{% endif %}">
-                                                {{ row.team }}
-                                            </span>
-                                        </td>
-                                        <td>{{ row.matches_played }}</td>
-                                        <td>{{ row.goals_for }}</td>
-                                        <td>{{ row.goals_against }}</td>
-                                        <td>{{ row.goal_difference }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% if best_4th_b %}
-            <div class="alert alert-warning mt-2">
-                <strong>Bester 4. Platzierter (B):</strong> {{ best_4th_b.team }} (Gruppe {{ best_4th_b.group_number }})
-                — {{ best_4th_b.goals_for }} G+, {{ best_4th_b.goal_difference }} Diff
-            </div>
-            {% endif %}
-        </div>
-    </div>
 </div>
 {% endblock %}
