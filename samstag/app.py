@@ -51,7 +51,7 @@ WINNER_MAPPING = {
 }
 
 LOSER_MAPPING = {
-    # WB R1 (16V) → LB R1 (8 Spiele, je 2 Verlierer pro Match)
+    # WB R1 (16V) → LB R1 (8 Matches, je 2 Verlierer)
     (1, 0):  (1, 0, 'team1'), (1, 1):  (1, 0, 'team2'),
     (1, 2):  (1, 1, 'team1'), (1, 3):  (1, 1, 'team2'),
     (1, 4):  (1, 2, 'team1'), (1, 5):  (1, 2, 'team2'),
@@ -60,50 +60,45 @@ LOSER_MAPPING = {
     (1, 10): (1, 5, 'team1'), (1, 11): (1, 5, 'team2'),
     (1, 12): (1, 6, 'team1'), (1, 13): (1, 6, 'team2'),
     (1, 14): (1, 7, 'team1'), (1, 15): (1, 7, 'team2'),
-    # WB R2 (8V) → LB R3 als team2
-    (2, 0): (3, 0, 'team2'), (2, 1): (3, 1, 'team2'),
-    (2, 2): (3, 2, 'team2'), (2, 3): (3, 3, 'team2'),
-    (2, 4): (3, 4, 'team2'), (2, 5): (3, 5, 'team2'),
-    (2, 6): (3, 6, 'team2'), (2, 7): (3, 7, 'team2'),
-    # WB R3 (4V) → LB R5 als team2
-    (3, 0): (5, 0, 'team2'), (3, 1): (5, 1, 'team2'),
-    (3, 2): (5, 2, 'team2'), (3, 3): (5, 3, 'team2'),
-    # WB R4 (2V) → LB R7 als team2
-    (4, 0): (7, 0, 'team2'), (4, 1): (7, 1, 'team2'),
-    # WB Final (1V) → LB Final als team2
-    (5, 0): (9, 0, 'team2'),
+    # WB R2 (8V) → LB R2 als team2 (je 1 WBR2-Verlierer pro LBR2-Match)
+    (2, 0): (2, 0, 'team2'), (2, 1): (2, 1, 'team2'),
+    (2, 2): (2, 2, 'team2'), (2, 3): (2, 3, 'team2'),
+    (2, 4): (2, 4, 'team2'), (2, 5): (2, 5, 'team2'),
+    (2, 6): (2, 6, 'team2'), (2, 7): (2, 7, 'team2'),
+    # WB R3 (4V) → LB R4 als team2
+    (3, 0): (4, 0, 'team2'), (3, 1): (4, 1, 'team2'),
+    (3, 2): (4, 2, 'team2'), (3, 3): (4, 3, 'team2'),
+    # WB R4 (2V) → LB R6 als team2
+    (4, 0): (6, 0, 'team2'), (4, 1): (6, 1, 'team2'),
+    # WB Final (1V) → LB R8 als team2
+    (5, 0): (8, 0, 'team2'),
 }
 
 LOSER_WINNER_MAPPING = {
-    # LB R1 (8S) → LB R2 als team1
+    # LB R1 (8S) → LB R2 als team1 (8 Sieger → 8 Plätze)
     (1, 0): (2, 0, 'team1'), (1, 1): (2, 1, 'team1'),
     (1, 2): (2, 2, 'team1'), (1, 3): (2, 3, 'team1'),
     (1, 4): (2, 4, 'team1'), (1, 5): (2, 5, 'team1'),
     (1, 6): (2, 6, 'team1'), (1, 7): (2, 7, 'team1'),
-    # LB R2 (8S) → LB R3 als team1
-    (2, 0): (3, 0, 'team1'), (2, 1): (3, 1, 'team1'),
-    (2, 2): (3, 2, 'team1'), (2, 3): (3, 3, 'team1'),
-    (2, 4): (3, 4, 'team1'), (2, 5): (3, 5, 'team1'),
-    (2, 6): (3, 6, 'team1'), (2, 7): (3, 7, 'team1'),
-    # LB R3 (8S) → LB R4 als team1
+    # LB R2 (8S) → LB R3 als team1 (8 Sieger → 4 Matches, je 2 pro Match)
+    # Sieger 0+1 → Match 0, Sieger 2+3 → Match 1, etc.
+    (2, 0): (3, 0, 'team1'), (2, 1): (3, 0, 'team2'),
+    (2, 2): (3, 1, 'team1'), (2, 3): (3, 1, 'team2'),
+    (2, 4): (3, 2, 'team1'), (2, 5): (3, 2, 'team2'),
+    (2, 6): (3, 3, 'team1'), (2, 7): (3, 3, 'team2'),
+    # LB R3 (4S) → LB R4 als team1 (4 WB-R3-Verlierer kommen als team2)
     (3, 0): (4, 0, 'team1'), (3, 1): (4, 1, 'team1'),
     (3, 2): (4, 2, 'team1'), (3, 3): (4, 3, 'team1'),
-    (3, 4): (4, 4, 'team1'), (3, 5): (4, 5, 'team1'),
-    (3, 6): (4, 6, 'team1'), (3, 7): (4, 7, 'team1'),
-    # LB R4 (8S) → LB R5 als team1
-    (4, 0): (5, 0, 'team1'), (4, 1): (5, 1, 'team1'),
-    (4, 2): (5, 2, 'team1'), (4, 3): (5, 3, 'team1'),
-    (4, 4): (5, 4, 'team1'), (4, 5): (5, 5, 'team1'),
-    (4, 6): (5, 6, 'team1'), (4, 7): (5, 7, 'team1'),
-    # LB R5 (8S→4M nach WB3 drop) → LB R6 als team1
+    # LB R4 (4S) → LB R5 (2 Matches: je 2 Sieger spielen)
+    (4, 0): (5, 0, 'team1'), (4, 1): (5, 0, 'team2'),
+    (4, 2): (5, 1, 'team1'), (4, 3): (5, 1, 'team2'),
+    # LB R5 (2S) → LB R6 als team1 (2 WB-R4-Verlierer als team2)
     (5, 0): (6, 0, 'team1'), (5, 1): (6, 1, 'team1'),
-    (5, 2): (6, 2, 'team1'), (5, 3): (6, 3, 'team1'),
-    # LB R6 (4S) → LB R7 als team1
-    (6, 0): (7, 0, 'team1'), (6, 1): (7, 1, 'team1'),
-    (6, 2): (7, 2, 'team1'), (6, 3): (7, 3, 'team1'),
-    # LB R7 (4S→2M nach WB4 drop) → LB R8 als team1
-    (7, 0): (8, 0, 'team1'), (7, 1): (8, 1, 'team1'),
-    # LB R8 (2S) → LB R9 (Final) als team1
+    # LB R6 (2S) → LB R7 (1 Match)
+    (6, 0): (7, 0, 'team1'), (6, 1): (7, 0, 'team2'),
+    # LB R7 (1S) → LB R8 als team1 (WB-Final-Verlierer als team2)
+    (7, 0): (8, 0, 'team1'),
+    # LB R8 (1S) → LB R9 = LB Final
     (8, 0): (9, 0, 'team1'),
 }
 
@@ -1391,22 +1386,19 @@ def calculate_double_elim_times_and_courts(conn, de_start_time_str=None):
         set_tc('follower_cup_matches', ids_fcq, t4, [13,14,15,16])
     print(f"   WB VF + LB R2 + FC VF: {t4}")
 
-    # 15:25 LB R3 + FC HF
+    # 15:25 LB R3 (4 Matches) + FC HF
     t5 = add_minutes_to_time(t4, 25)
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',3), t5, [5,6])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',3), t5, [7,8])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',3), t5, [5,6,7,8])
     cursor.execute("SELECT id FROM follower_cup_matches WHERE round='semi' ORDER BY match_index")
     ids_fcs = [r['id'] for r in cursor.fetchall()]
     if ids_fcs:
         set_tc('follower_cup_matches', ids_fcs, t5, [9,10])
     print(f"   LB R3 + FC HF: {t5}")
 
-    # 15:50 WB HF + LB R4 + FC Final + FC Platz3
+    # 15:50 WB HF + LB R4 (4 Matches) + FC Final + FC Platz3
     t6 = add_minutes_to_time(t5, 25)
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',4), t6, [11])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',4), t6, [12])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',4),  t6, [1,2])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',4),  t6, [3,4])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',4), t6, [11,12])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',4),  t6, [1,2,3,4])
     cursor.execute("SELECT id FROM follower_cup_matches WHERE round='third'  ORDER BY match_index")
     ids_fc3 = [r['id'] for r in cursor.fetchall()]
     if ids_fc3:
@@ -1417,25 +1409,28 @@ def calculate_double_elim_times_and_courts(conn, de_start_time_str=None):
         set_tc('follower_cup_matches', ids_fcf, t6, [8])
     print(f"   WB HF + LB R4 + FC Final: {t6}")
 
-    # 16:15 LB R5
+    # 16:15 LB R5 (2 Matches)
     t7 = add_minutes_to_time(t6, 25)
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',5), t7, [3])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',5), t7, [4])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',5), t7, [3,4])
     print(f"   LB R5: {t7}")
 
-    # 16:40 WB Final + LB R6
+    # 16:40 WB Final + LB R6 (2 Matches)
     t8 = add_minutes_to_time(t7, 25)
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',5), t8, [7])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',5), t8, [8])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',6),  t8, [4])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',6),  t8, [5])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',5), t8, [7,8])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',6),  t8, [4,5])
     print(f"   WB Final + LB R6: {t8}")
 
-    # 17:05 LB Final1
+    # 17:05 LB R7 (1 Match)
     t9 = add_minutes_to_time(t8, 25)
     set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',7), t9, [4])
-    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',7), t9, [5])
-    print(f"   LB Final1: {t9}")
+    print(f"   LB R7: {t9}")
+
+    # 17:30 LB R8 (1 Match: WB-Final-Verlierer kommt rein)
+    t9b = add_minutes_to_time(t9, 25)
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',8), t9b, [5])
+    print(f"   LB R8: {t9b}")
+
+    t9 = t9b  # für LB Final Berechnung unten
 
     conn.commit()
     t_super = add_minutes_to_time(t9, 25)
@@ -2640,8 +2635,9 @@ def generate_double_elim(game_name):
                 "INSERT INTO double_elim_matches (round,bracket,match_index,team1,team2) VALUES (?,'Winners',?,NULL,NULL)",
                 (rnd, i))
 
-    # LB R1-R9
-    for rnd, nm in [(1,8),(2,8),(3,8),(4,8),(5,4),(6,4),(7,4),(8,2),(9,1)]:
+    # LB R1-R9 - korrekte Struktur fuer 32 Teams
+    # R1:8, R2:8, R3:4, R4:4, R5:2, R6:2, R7:1, R8:1, R9:1 = 31 Matches
+    for rnd, nm in [(1,8),(2,8),(3,4),(4,4),(5,2),(6,2),(7,1),(8,1),(9,1)]:
         for i in range(nm):
             cursor.execute(
                 "INSERT INTO double_elim_matches (round,bracket,match_index,team1,team2) VALUES (?,'Losers',?,NULL,NULL)",
@@ -3141,6 +3137,12 @@ def generate_follower_cup(game_name):
     """, (match_number, court))
     
     conn.commit()
+
+    # Zeiten + Felder fuer FC aus dem DE-Zeitplan setzen (falls DE bereits generiert)
+    cursor.execute("SELECT COUNT(*) as c FROM double_elim_matches WHERE time IS NOT NULL")
+    if cursor.fetchone()['c'] > 0:
+        calculate_double_elim_times_and_courts(conn)
+
     conn.close()
     
     return redirect(url_for('follower_cup_overview', game_name=game_name))
@@ -3436,6 +3438,24 @@ def reset_placement(game_name):
     return redirect(url_for('game_overview', game_name=game_name))
 
 
+@app.route('/recalculate_all_times/<game_name>', methods=['POST'])
+def recalculate_all_times(game_name):
+    """Alle Zeiten und Felder neu berechnen (DE + FC + PLZ + Super Finals)"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    # DE + FC + PLZ Zeiten
+    cursor.execute("SELECT COUNT(*) as c FROM double_elim_matches WHERE time IS NOT NULL")
+    if cursor.fetchone()['c'] > 0:
+        calculate_double_elim_times_and_courts(conn)
+    # Super Finals Zeiten
+    cursor.execute("SELECT COUNT(*) as c FROM super_finals_matches")
+    if cursor.fetchone()['c'] > 0:
+        calculate_super_finals_times(conn)
+    conn.close()
+    return redirect(url_for('game_overview', game_name=game_name))
+
+
 # ============================================================================
 # TURNIER-KONFIGURATION
 # ============================================================================
@@ -3539,24 +3559,72 @@ def display_round_robin(game_name):
 
 @app.route('/api/display/<game_name>/groups_json')
 def api_groups_json(game_name):
-    """JSON API: Aktuelle Gruppentabellen fuer Live-Polling"""
+    """JSON API: Aktuelle Gruppentabellen fuer Live-Polling (mit Phase)"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     if not os.path.exists(db_path):
         return jsonify({})
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
+
+    # DE-Teams berechnen
+    all_fourths = []
+    for g in range(1, 11):
+        sg = sort_group_with_head_to_head(conn, g)
+        real = [t for t in sg if not t['is_ghost']]
+        if len(real) >= 4:
+            f = real[3]
+            all_fourths.append({'team': f['team'], 'goals_for': f['goals_for'],
+                                 'goal_difference': f['goal_difference']})
+    all_fourths.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
+    wild1 = all_fourths[0]['team'] if len(all_fourths) > 0 else None
+    wild2 = all_fourths[1]['team'] if len(all_fourths) > 1 else None
+
+    de_teams = set()
+    for g in range(1, 11):
+        sg = sort_group_with_head_to_head(conn, g)
+        real = [t['team'] for t in sg if not t['is_ghost']]
+        de_teams.update(real[:3])
+    if wild1: de_teams.add(wild1)
+    if wild2: de_teams.add(wild2)
+
+    # FC/PLZ: alle 28 Nicht-DE nach goals_for sortieren
+    cursor.execute("""
+        SELECT r.team, r.goals_for, r.goal_difference
+        FROM rankings r
+        WHERE r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
+        ORDER BY r.goals_for DESC, r.goal_difference DESC
+    """)
+    non_de_sorted = [r['team'] for r in cursor.fetchall() if r['team'] not in de_teams]
+    fc_teams  = set(non_de_sorted[:16])
+    plz_teams = set(non_de_sorted[16:])
+
     groups = {}
     for group_num in range(1, 11):
-        cursor.execute("""
-            SELECT r.team, r.points, r.goal_difference, r.goals_for,
-                   r.matches_played, r.wins, r.losses
-            FROM rankings r
-            LEFT JOIN teams t ON r.team = t.name
-            WHERE r.group_number = ? AND (t.is_ghost IS NULL OR t.is_ghost = 0)
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
-        """, (group_num,))
-        rows = cursor.fetchall()
-        groups[group_num] = [dict(row) for row in rows]
+        sorted_g = sort_group_with_head_to_head(conn, group_num)
+        result = []
+        for row in sorted_g:
+            if row['is_ghost']:
+                continue
+            t = row['team']
+            if t in de_teams and t != wild1 and t != wild2:
+                phase = 'DE'
+            elif t == wild1 or t == wild2:
+                phase = 'DE*'
+            elif t in fc_teams:
+                phase = 'FC'
+            else:
+                phase = 'PLZ'
+            result.append({
+                'team':            t,
+                'matches_played':  row['matches_played'],
+                'wins':            row['wins'],
+                'losses':          row['losses'],
+                'goals_for':       row['goals_for'],
+                'goals_against':   row['goals_against'],
+                'goal_difference': row['goal_difference'],
+                'phase':           phase,
+            })
+        groups[group_num] = result
     conn.close()
     return jsonify(groups)
 
@@ -3608,6 +3676,62 @@ def api_bracket_standings_json(game_name):
         result[bracket] = sorted(team_status.values(), key=sort_key)
     conn.close()
     return jsonify(result)
+
+
+@app.route('/api/display/<game_name>/brackets_full_json')
+def api_brackets_full_json(game_name):
+    """JSON API: Vollstaendige DE-Bracket Daten + FC + Platzierung fuer Live-Display"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return jsonify({})
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+
+    # Winner Bracket
+    cursor.execute("""
+        SELECT round, match_index, match_number, team1, team2,
+               score1, score2, winner, loser, court, time
+        FROM double_elim_matches WHERE bracket='Winners'
+        ORDER BY round, match_index
+    """)
+    wb = [dict(r) for r in cursor.fetchall()]
+
+    # Loser Bracket
+    cursor.execute("""
+        SELECT round, match_index, match_number, team1, team2,
+               score1, score2, winner, loser, court, time
+        FROM double_elim_matches WHERE bracket='Losers'
+        ORDER BY round, match_index
+    """)
+    lb = [dict(r) for r in cursor.fetchall()]
+
+    # Follower Cup
+    cursor.execute("""
+        SELECT round, match_index, match_number, team1, team2,
+               score1, score2, winner, court, time
+        FROM follower_cup_matches
+        ORDER BY CASE round WHEN 'eighth' THEN 1 WHEN 'quarter' THEN 2
+                 WHEN 'semi' THEN 3 WHEN 'final' THEN 4 WHEN 'third' THEN 5 END,
+                 match_index
+    """)
+    fc = [dict(r) for r in cursor.fetchall()]
+    fc_done = all(m['winner'] for m in fc if m['team1'] and m['team2']) if fc else False
+
+    # Platzierungsrunde
+    cursor.execute("""
+        SELECT placement, match_number, team1, team2,
+               score1, score2, winner, court, time
+        FROM placement_matches ORDER BY match_number
+    """)
+    plz = [dict(r) for r in cursor.fetchall()]
+    plz_done = all(m['winner'] for m in plz if m['team1'] and m['team2']) if plz else False
+
+    conn.close()
+    return jsonify({
+        'wb': wb, 'lb': lb,
+        'fc': fc, 'fc_done': fc_done,
+        'plz': plz, 'plz_done': plz_done,
+    })
 
 
 @app.route('/display/<game_name>/qualification_tree')
@@ -3862,6 +3986,213 @@ def print_matches(game_name):
     )
 
 
+@app.route('/print_ko_matches/<game_name>')
+def print_ko_matches(game_name):
+    """Meldeblätter KO-Phase: 2 Karten pro Seite.
+    Spielplan fix aus calculate_double_elim_times_and_courts —
+    funktioniert auch ohne generierte DB-Matches."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+
+    # ── Fixer Zeitplan (identisch zu calculate_double_elim_times_and_courts) ──
+    T1  = "13:20"
+    T2  = add_minutes_to_time(T1, 50)   # 14:10
+    T3  = add_minutes_to_time(T2, 25)   # 14:35
+    T4  = add_minutes_to_time(T3, 25)   # 15:00
+    T5  = add_minutes_to_time(T4, 25)   # 15:25
+    T6  = add_minutes_to_time(T5, 25)   # 15:50
+    T7  = add_minutes_to_time(T6, 25)   # 16:15
+    T8  = add_minutes_to_time(T7, 25)   # 16:40
+    T9  = add_minutes_to_time(T8, 25)   # 17:05
+    T10 = add_minutes_to_time(T9, 25)   # 17:30
+    T11 = add_minutes_to_time(T10, 25)  # 17:55
+
+    FIXED_SCHEDULE = [
+        # (match_number, kategorie, runde, zeit, feld)
+        # WB R1 — 16 Matches
+        *[(151+i, 'Winner Bracket', '1/16-Finale', T1, i+1) for i in range(16)],
+        # WB R2 — 8 Matches, Felder 1-4 + 13-16
+        *[(167+i, 'Winner Bracket', '1/8-Finale',  T2, [1,2,3,4,13,14,15,16][i]) for i in range(8)],
+        # LB R1 — 8 Matches, Felder 5-12
+        *[(175+i, 'Loser Bracket',  'LB R1',        T2, 5+i) for i in range(8)],
+        # WB R3 VF — 4 Matches, Felder 9-12
+        *[(183+i, 'Winner Bracket', 'Viertelfinale', T4, 9+i) for i in range(4)],
+        # LB R2 — 8 Matches, Felder 1-8
+        *[(187+i, 'Loser Bracket',  'LB R2',         T4, 1+i) for i in range(8)],
+        # LB R3 — 4 Matches, Felder 5-8
+        *[(195+i, 'Loser Bracket',  'LB R3',         T5, 5+i) for i in range(4)],
+        # WB R4 HF — 2 Matches, Felder 11-12
+        *[(199+i, 'Winner Bracket', 'Halbfinale',    T6, 11+i) for i in range(2)],
+        # LB R4 — 4 Matches, Felder 1-4
+        *[(201+i, 'Loser Bracket',  'LB R4',         T6, 1+i) for i in range(4)],
+        # LB R5 — 2 Matches, Felder 3-4
+        *[(205+i, 'Loser Bracket',  'LB R5',         T7, 3+i) for i in range(2)],
+        # WB Final — 1 Match, Feld 7
+        (207,     'Winner Bracket', 'WB Final',      T8, 7),
+        # LB R6 — 2 Matches, Felder 4-5
+        *[(208+i, 'Loser Bracket',  'LB R6',         T8, 4+i) for i in range(2)],
+        # LB R7 — 1 Match, Feld 4
+        (210,     'Loser Bracket',  'LB R7',         T9,  4),
+        # LB R8 — 1 Match, Feld 5
+        (211,     'Loser Bracket',  'LB R8',         T10, 5),
+        # LB Final — 1 Match, Feld 5
+        (212,     'Loser Bracket',  'LB Final',      T11, 5),
+        # Follower Cup 1/8 — 8 Matches, Felder 9-16
+        *[(230+i, 'Follower Cup',   '1/8-Finale',    T3, 9+i)  for i in range(8)],
+        # FC VF — 4 Matches, Felder 13-16
+        *[(238+i, 'Follower Cup',   'Viertelfinale', T4, 13+i) for i in range(4)],
+        # FC HF — 2 Matches, Felder 9-10
+        *[(242+i, 'Follower Cup',   'Halbfinale',    T5, 9+i)  for i in range(2)],
+        # FC Platz 3 + Final
+        (244,     'Follower Cup',   'Platz 3',       T6, 7),
+        (245,     'Follower Cup',   'Final',         T6, 8),
+        # Platzierungsrunde — 6 Matches, Felder 1-6
+        *[(246+i, 'Platzierungsrunde', f'P{49+i*2}', T3, 1+i) for i in range(6)],
+    ]
+
+    # Nach Spielnummer sortieren
+    FIXED_SCHEDULE.sort(key=lambda x: x[0])
+
+    matches = [{'match_number': s[0], 'kategorie': s[1], 'runde': s[2],
+                'time': s[3], 'court': str(s[4])} for s in FIXED_SCHEDULE]
+
+    KAT_COLORS = {
+        'Winner Bracket':    colors.HexColor('#1a6b3a'),
+        'Loser Bracket':     colors.HexColor('#7a3000'),
+        'Follower Cup':      colors.HexColor('#7a5200'),
+        'Platzierungsrunde': colors.HexColor('#6b1a1a'),
+    }
+
+    buf = io.BytesIO()
+    width, height = A4
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    margin = 10*mm
+    card_w = width - 2*margin          # volle Breite wie RR
+    card_h = (height - 3*margin) / 2   # 2 Karten pro Seite wie RR
+
+    def draw_ko_card(c, x, y, w, h, match):
+        pad = 6*mm
+        kat = match['kategorie']
+        kat_color = KAT_COLORS.get(kat, colors.black)
+
+        # Äusserer Rahmen
+        c.setStrokeColor(kat_color)
+        c.setLineWidth(2)
+        c.rect(x, y, w, h)
+
+        # Kategorie-Banner (farbig oben)
+        bh = 13*mm
+        c.setFillColor(kat_color)
+        c.rect(x, y+h-bh, w, bh, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont('Helvetica-Bold', 10)
+        c.drawString(x+pad, y+h-bh+4*mm, kat.upper())
+        c.setFont('Helvetica', 9)
+        c.drawRightString(x+w-pad, y+h-bh+4*mm, match['runde'])
+
+        # Spielnummer gross
+        c.setFillColor(colors.black)
+        c.setFont('Helvetica-Bold', 30)
+        c.drawString(x+pad, y+h-bh-17*mm, f"#{match['match_number']}")
+
+        # Zeit-Box und Feld-Box (vorgedruckt, farbig)
+        box_y = y+h-bh-30*mm
+        box_h = 12*mm
+        # Zeit
+        c.setFillColor(colors.HexColor('#f0f4fa'))
+        c.setStrokeColor(kat_color)
+        c.setLineWidth(0.8)
+        c.rect(x+pad, box_y, 45*mm, box_h, fill=1, stroke=1)
+        c.setFillColor(colors.HexColor('#888888'))
+        c.setFont('Helvetica', 7)
+        c.drawString(x+pad+2*mm, box_y+8*mm, 'SPIELZEIT')
+        c.setFillColor(kat_color)
+        c.setFont('Helvetica-Bold', 16)
+        c.drawString(x+pad+2*mm, box_y+1.5*mm, str(match['time']))
+        # Feld
+        c.setFillColor(colors.HexColor('#f0f4fa'))
+        c.setStrokeColor(kat_color)
+        c.rect(x+pad+50*mm, box_y, 30*mm, box_h, fill=1, stroke=1)
+        c.setFillColor(colors.HexColor('#888888'))
+        c.setFont('Helvetica', 7)
+        c.drawString(x+pad+52*mm, box_y+8*mm, 'FELD')
+        c.setFillColor(kat_color)
+        c.setFont('Helvetica-Bold', 16)
+        c.drawString(x+pad+52*mm, box_y+1.5*mm, str(match['court']))
+
+        # Trennlinie
+        sep_y = box_y - 5*mm
+        c.setStrokeColor(colors.HexColor('#dddddd'))
+        c.setLineWidth(0.5)
+        c.line(x+pad, sep_y, x+w-pad, sep_y)
+
+        # Team 1 — leer zum Eintragen
+        t1_y = sep_y - 12*mm
+        c.setFillColor(kat_color)
+        c.setFont('Helvetica-Bold', 8)
+        c.drawString(x+pad, t1_y+5*mm, 'TEAM 1')
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(0.8)
+        c.line(x+pad, t1_y, x+w-pad-38*mm, t1_y)
+        c.setFillColor(colors.HexColor('#f8f8f8'))
+        c.setStrokeColor(colors.HexColor('#aaaaaa'))
+        c.setLineWidth(0.5)
+        c.rect(x+w-pad-35*mm, t1_y-3.5*mm, 35*mm, 8*mm, fill=1, stroke=1)
+        c.setFillColor(colors.HexColor('#999999'))
+        c.setFont('Helvetica', 7)
+        c.drawCentredString(x+w-pad-17.5*mm, t1_y-0.5*mm, 'Punkte')
+
+        # vs.
+        vs_y = t1_y - 8*mm
+        c.setFillColor(colors.HexColor('#bbbbbb'))
+        c.setFont('Helvetica-BoldOblique', 9)
+        c.drawCentredString(x+w/2, vs_y, '— vs. —')
+
+        # Team 2 — leer zum Eintragen
+        t2_y = vs_y - 8*mm
+        c.setFillColor(kat_color)
+        c.setFont('Helvetica-Bold', 8)
+        c.drawString(x+pad, t2_y+5*mm, 'TEAM 2')
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(0.8)
+        c.line(x+pad, t2_y, x+w-pad-38*mm, t2_y)
+        c.setFillColor(colors.HexColor('#f8f8f8'))
+        c.setStrokeColor(colors.HexColor('#aaaaaa'))
+        c.setLineWidth(0.5)
+        c.rect(x+w-pad-35*mm, t2_y-3.5*mm, 35*mm, 8*mm, fill=1, stroke=1)
+        c.setFillColor(colors.HexColor('#999999'))
+        c.setFont('Helvetica', 7)
+        c.drawCentredString(x+w-pad-17.5*mm, t2_y-0.5*mm, 'Punkte')
+
+        # Unterschrift
+        sig_y = y + 6*mm
+        c.setFillColor(colors.HexColor('#aaaaaa'))
+        c.setFont('Helvetica', 7.5)
+        c.drawString(x+pad, sig_y+3*mm, 'Unterschrift Schiedsrichter:')
+        c.setStrokeColor(colors.HexColor('#bbbbbb'))
+        c.setLineWidth(0.4)
+        c.line(x+57*mm, sig_y+3*mm, x+w-pad, sig_y+3*mm)
+
+    # 2 Karten pro Seite wie RR
+    for i, match in enumerate(matches):
+        pos = i % 2
+        if pos == 0 and i > 0:
+            c.showPage()
+        y_pos = margin if pos == 1 else margin + card_h + margin
+        draw_ko_card(c, margin, y_pos, card_w, card_h, match)
+
+    c.save()
+    buf.seek(0)
+    return send_file(buf, mimetype='application/pdf', as_attachment=True,
+                     download_name=f"{game_name}_ko_meldeblätter.pdf")
+
+
 @app.route('/spielplan_pdf/<game_name>')
 def spielplan_pdf(game_name):
     """Spielplan-Übersicht als PDF (Querformat, 8 Felder pro Seite)"""
@@ -4061,6 +4392,159 @@ def spielplan_pdf(game_name):
             draw_page(bracket_data, chunk, all_rounds, bname, sub,
                       f"(Seite {page_n}/{total_pages})")
             c.showPage()
+
+    # -------------------------------------------------------------------------
+    # ZUSATZSEITE: KO-Nachmittagsplan (Querformat, Felder × Zeitslots, farbig)
+    # -------------------------------------------------------------------------
+    KO_SCHEDULE = [
+        ("13:20", [(list(range(1,17)), "WB", "Winner Bracket R1  (16 Spiele)")]),
+        ("14:10", [([1,2,3,4,13,14,15,16], "WB", "Winner Bracket R2  (8 Spiele)"),
+                   ([5,6,7,8,9,10,11,12],  "LB", "Loser Bracket R1   (8 Spiele)")]),
+        ("14:35", [([1,2,3,4,5,6],            "PLZ", "Platzierungsrunde  (6 Spiele)"),
+                   ([9,10,11,12,13,14,15,16], "FC",  "Follower Cup 1/8-Finale  (8 Spiele)")]),
+        ("15:00", [([9,10,11,12],       "WB", "Winner Bracket VF  (4 Spiele)"),
+                   ([1,2,3,4,5,6,7,8], "LB", "Loser Bracket R2   (8 Spiele)"),
+                   ([13,14,15,16],      "FC", "Follower Cup VF    (4 Spiele)")]),
+        ("15:25", [([5,6,7,8], "LB", "Loser Bracket R3   (4 Spiele)"),
+                   ([9,10],    "FC", "Follower Cup HF    (2 Spiele)")]),
+        ("15:50", [([11,12],   "WB", "Winner Bracket HF  (2 Spiele)"),
+                   ([1,2,3,4], "LB", "Loser Bracket R4   (4 Spiele)"),
+                   ([8],       "FC", "FC Final"),
+                   ([7],       "FC", "FC Platz 3")]),
+        ("16:15", [([3,4], "LB", "Loser Bracket R5   (2 Spiele)")]),
+        ("16:40", [([7,8], "WB", "Winner Bracket Final"),
+                   ([4,5], "LB", "Loser Bracket R6   (2 Spiele)")]),
+        ("17:05", [([4], "LB", "Loser Bracket R7")]),
+        ("17:30", [([5], "LB", "Loser Bracket R8")]),
+        ("17:55", [([5], "LB", "LB Final (R9)")]),
+    ]
+    KAT_CLR = {
+        "WB":  colors.HexColor("#1a6b3a"),
+        "LB":  colors.HexColor("#7a3000"),
+        "FC":  colors.HexColor("#7a5200"),
+        "PLZ": colors.HexColor("#6b1a1a"),
+    }
+    KAT_LBL = {"WB":"Winner Bracket","LB":"Loser Bracket",
+                "FC":"Follower Cup","PLZ":"Platzierungsrunde"}
+
+    c.showPage()
+
+    ko_w, ko_h = page_w, page_h   # Querformat
+    mg2 = 10*mm
+    num_slots  = len(KO_SCHEDULE)
+    num_fields = 16
+    time_col_w = 16*mm
+    field_hdr_h = 7*mm
+    title_h2 = 18*mm
+    avail_w2 = ko_w - 2*mg2 - time_col_w
+    col_w2   = avail_w2 / num_fields
+    avail_h2 = ko_h - 2*mg2 - title_h2 - field_hdr_h
+    row_h2   = avail_h2 / num_slots
+    table_top2 = ko_h - mg2 - title_h2
+
+    # Titel
+    c.setFillColor(colors.HexColor("#1e3a5f"))
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(mg2, ko_h - mg2 - 9*mm,
+                 f"Nachmittags-Spielplan  —  Feld- und Zeitübersicht  —  {game_name}")
+    c.setFont("Helvetica", 8)
+    c.setFillColor(colors.HexColor("#555555"))
+    c.drawString(mg2, ko_h - mg2 - 14*mm,
+                 "Jede Zeile = Zeitslot  |  Jede Spalte = Spielfeld  |  Farben: Kategorie")
+
+    # Legende
+    lx = ko_w - mg2 - 115*mm
+    ly = ko_h - mg2 - 8*mm
+    for cat, label in KAT_LBL.items():
+        c.setFillColor(KAT_CLR[cat])
+        c.rect(lx, ly - 3*mm, 7*mm, 4.5*mm, fill=1, stroke=0)
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 7.5)
+        c.drawString(lx + 8.5*mm, ly - 1.5*mm, label)
+        lx += 29*mm
+
+    # Feld-Header
+    c.setFillColor(colors.HexColor("#1e3a5f"))
+    c.rect(mg2, table_top2 - field_hdr_h, time_col_w, field_hdr_h, fill=1, stroke=0)
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 7)
+    c.drawCentredString(mg2 + time_col_w/2, table_top2 - field_hdr_h + 2*mm, "Zeit")
+    for fi in range(num_fields):
+        fx = mg2 + time_col_w + fi * col_w2
+        c.setFillColor(colors.HexColor("#2d5a9e"))
+        c.rect(fx, table_top2 - field_hdr_h, col_w2, field_hdr_h, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 6.5)
+        c.drawCentredString(fx + col_w2/2, table_top2 - field_hdr_h + 2*mm, str(fi+1))
+
+    # Zeilen
+    for si, (zeit, blocks) in enumerate(KO_SCHEDULE):
+        ry = table_top2 - field_hdr_h - (si + 1) * row_h2
+        row_bg = colors.HexColor("#eef3ff") if si % 2 == 0 else colors.white
+        # Zeit-Zelle
+        c.setFillColor(colors.HexColor("#f0f4fa"))
+        c.rect(mg2, ry, time_col_w, row_h2, fill=1, stroke=0)
+        c.setFillColor(colors.HexColor("#1e3a5f"))
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawCentredString(mg2 + time_col_w/2, ry + row_h2/2 - 2.5*mm, zeit)
+        # Leere Felder
+        for fi in range(num_fields):
+            fx = mg2 + time_col_w + fi * col_w2
+            c.setFillColor(row_bg)
+            c.rect(fx, ry, col_w2, row_h2, fill=1, stroke=0)
+        # Farbige Blöcke
+        for felder, cat, beschr in blocks:
+            cat_col = KAT_CLR.get(cat, colors.grey)
+            groups2 = []
+            cur2 = [felder[0]]
+            for f2 in felder[1:]:
+                if f2 == cur2[-1] + 1:
+                    cur2.append(f2)
+                else:
+                    groups2.append(cur2)
+                    cur2 = [f2]
+            groups2.append(cur2)
+            for grp2 in groups2:
+                f0 = grp2[0] - 1
+                fn = grp2[-1] - 1
+                bx = mg2 + time_col_w + f0 * col_w2
+                bw = (fn - f0 + 1) * col_w2
+                c.setFillColor(cat_col)
+                c.setStrokeColor(colors.white)
+                c.setLineWidth(1.2)
+                c.rect(bx + 0.5, ry + 0.8*mm, bw - 1, row_h2 - 1.6*mm, fill=1, stroke=1)
+                c.setFillColor(colors.white)
+                ftxt = f"Feld {grp2[0]}" if len(grp2)==1 else f"Felder {grp2[0]}–{grp2[-1]}"
+                c.setFont("Helvetica-Bold", 6.5)
+                c.drawCentredString(bx + bw/2, ry + row_h2 * 0.58, ftxt)
+                max_chars = max(3, int(bw / (2.0*mm)))
+                desc2 = beschr if len(beschr) <= max_chars else beschr[:max_chars-1] + "…"
+                c.setFont("Helvetica", 5.5)
+                c.drawCentredString(bx + bw/2, ry + row_h2 * 0.28, desc2)
+
+    # Gitter
+    total_w2 = time_col_w + num_fields * col_w2
+    total_h2 = field_hdr_h + num_slots * row_h2
+    c.setStrokeColor(colors.HexColor("#cccccc"))
+    c.setLineWidth(0.25)
+    for i in range(num_slots + 1):
+        yg = table_top2 - field_hdr_h - i * row_h2
+        c.line(mg2, yg, mg2 + total_w2, yg)
+    c.line(mg2, table_top2 - total_h2, mg2, table_top2)
+    c.line(mg2 + time_col_w, table_top2 - total_h2, mg2 + time_col_w, table_top2)
+    for fi in range(1, num_fields + 1):
+        xg = mg2 + time_col_w + fi * col_w2
+        c.line(xg, table_top2 - total_h2, xg, table_top2)
+    c.setStrokeColor(colors.HexColor("#1e3a5f"))
+    c.setLineWidth(1.5)
+    c.rect(mg2, table_top2 - total_h2, total_w2, total_h2)
+
+    # Footer
+    c.setFont("Helvetica", 7)
+    c.setFillColor(colors.HexColor("#888888"))
+    c.drawString(mg2, mg2/2 + 1*mm, game_name)
+    c.drawRightString(ko_w - mg2, mg2/2 + 1*mm,
+                      f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
 
     c.save()
     buf.seek(0)
@@ -4339,48 +4823,370 @@ def debug_follower_cup(game_name):
 # STATISTIKEN
 # ============================================================================
 
+def _get_total_stats(cursor, team):
+    """Gesamte Goals + Differenz über ALLE Phasen"""
+    gf = gd = 0
+    for table, t1f, s1f, t2f, s2f in [
+        ('matches','team1','score1','team2','score2'),
+        ('double_elim_matches','team1','score1','team2','score2'),
+        ('follower_cup_matches','team1','score1','team2','score2'),
+        ('placement_matches','team1','score1','team2','score2'),
+    ]:
+        try:
+            cursor.execute(f"SELECT {s1f},{s2f} FROM {table} WHERE {t1f}=? AND {s1f} IS NOT NULL",(team,))
+            for r in cursor.fetchall(): gf+=r[0]; gd+=(r[0]-r[1])
+            cursor.execute(f"SELECT {s1f},{s2f} FROM {table} WHERE {t2f}=? AND {s1f} IS NOT NULL",(team,))
+            for r in cursor.fetchall(): gf+=r[1]; gd+=(r[1]-r[0])
+        except Exception: pass
+    return gf, gd
+
+
+def _compute_final_rankings(conn):
+    """Vollständige Schlussrangliste P1-P60"""
+    cursor = conn.cursor()
+    rankings = []
+    placed = set()
+
+    def add(place, team, phase):
+        if team and team not in placed:
+            gf, gd = _get_total_stats(cursor, team)
+            rankings.append({'place':place,'team':team,'phase':phase,
+                             'total_goals':gf,'goal_diff':gd})
+            placed.add(team)
+
+    def add_sorted(start, teams, phase):
+        enriched = []
+        for t in teams:
+            if t and t not in placed:
+                gf, gd = _get_total_stats(cursor, t)
+                enriched.append((t, gf, gd))
+        enriched.sort(key=lambda x: (-x[1], -x[2]))
+        for i,(t,gf,gd) in enumerate(enriched):
+            rankings.append({'place':start+i,'team':t,'phase':phase,
+                             'total_goals':gf,'goal_diff':gd})
+            placed.add(t)
+
+    # ── P1-P2: Super Finals ──────────────────────────────────────────────────
+    cursor.execute("SELECT * FROM super_finals_matches WHERE match_id='FINAL'")
+    sf = cursor.fetchone()
+    if not sf or not sf['winner']:
+        cursor.execute("SELECT * FROM super_finals_matches WHERE match_id='HF1'")
+        sf = cursor.fetchone()
+    if sf and sf['winner']:
+        loser = sf['team2'] if sf['winner']==sf['team1'] else sf['team1']
+        add(1, sf['winner'], 'Turniersieger')
+        add(2, loser, 'Finalist')
+
+    # ── P3-P32: DE via LB Verlierer ──────────────────────────────────────────
+    # P3: LB R8 Verlierer (1)
+    # P4: LB R7 Verlierer (1)
+    # P5-6: LB R6 Verlierer (2)
+    # P7-8: LB R5 Verlierer (2)
+    # P9-12: LB R4 Verlierer (4)
+    # P13-16: LB R3 Verlierer (4)
+    # P17-24: LB R2 Verlierer (8)
+    # P25-32: LB R1 Verlierer (8)
+    for lb_rnd, start in [(8,3),(7,4),(6,5),(5,7),(4,9),(3,13),(2,17),(1,25)]:
+        cursor.execute("""SELECT loser FROM double_elim_matches
+            WHERE bracket='Losers' AND round=? AND loser IS NOT NULL
+            ORDER BY match_index""", (lb_rnd,))
+        losers = [r['loser'] for r in cursor.fetchall()]
+        add_sorted(start, losers, f'DE — LB R{lb_rnd}')
+
+    # ── P33-48: Follower Cup ─────────────────────────────────────────────────
+    cursor.execute("SELECT * FROM follower_cup_matches WHERE round='final' LIMIT 1")
+    fc_f = cursor.fetchone()
+    if fc_f and fc_f['winner']:
+        fc_l = fc_f['team2'] if fc_f['winner']==fc_f['team1'] else fc_f['team1']
+        add(33, fc_f['winner'], 'FC Sieger')
+        add(34, fc_l, 'FC Finalist')
+
+    cursor.execute("SELECT * FROM follower_cup_matches WHERE round='third' LIMIT 1")
+    fc_3 = cursor.fetchone()
+    if fc_3 and fc_3['winner']:
+        fc_3l = fc_3['team2'] if fc_3['winner']==fc_3['team1'] else fc_3['team1']
+        add(35, fc_3['winner'], 'FC Platz 3')
+        add(36, fc_3l, 'FC Platz 4')
+
+    cursor.execute("SELECT loser FROM follower_cup_matches WHERE round='semi' AND loser IS NOT NULL")
+    add_sorted(37, [r['loser'] for r in cursor.fetchall()], 'FC Halbfinale')
+
+    cursor.execute("SELECT loser FROM follower_cup_matches WHERE round='quarter' AND loser IS NOT NULL")
+    add_sorted(39, [r['loser'] for r in cursor.fetchall()], 'FC Viertelfinale')
+
+    cursor.execute("SELECT loser FROM follower_cup_matches WHERE round='eighth' AND loser IS NOT NULL")
+    add_sorted(43, [r['loser'] for r in cursor.fetchall()], 'FC 1/8-Finale')
+
+    # ── P49-60: Platzierungsrunde ─────────────────────────────────────────────
+    cursor.execute("SELECT * FROM placement_matches WHERE winner IS NOT NULL ORDER BY placement")
+    for m in cursor.fetchall():
+        plz_str = m['placement'] or 'P49'
+        plz_num = int(plz_str[1:]) if plz_str.startswith('P') else 49
+        loser_plz = m['team2'] if m['winner']==m['team1'] else m['team1']
+        add(plz_num,   m['winner'],  f'PLZ Sieger')
+        add(plz_num+1, loser_plz,    f'PLZ Verlierer')
+
+    # Noch nicht platzierte Teams aus RR auffüllen
+    cursor.execute("""SELECT DISTINCT team FROM (
+        SELECT team1 as team FROM matches UNION SELECT team2 FROM matches)
+        WHERE team NOT IN (SELECT name FROM teams WHERE is_ghost=1)""")
+    all_teams = [r['team'] for r in cursor.fetchall()]
+    next_place = max((r['place'] for r in rankings), default=0) + 1
+    unplaced = [t for t in all_teams if t not in placed]
+    add_sorted(next_place, unplaced, 'Round Robin')
+
+    rankings.sort(key=lambda x: x['place'])
+    return rankings
+
+
+def _compute_tournament_facts(conn):
+    """Interessante Turnier-Statistiken"""
+    cursor = conn.cursor()
+    facts = []
+    all_matches = []
+    for table, phase in [
+        ('matches','Round Robin'),
+        ('double_elim_matches','Double Elimination'),
+        ('follower_cup_matches','Follower Cup'),
+        ('placement_matches','Platzierungsrunde'),
+    ]:
+        try:
+            cursor.execute(f"SELECT team1,team2,score1,score2 FROM {table} WHERE score1 IS NOT NULL AND score2 IS NOT NULL")
+            for r in cursor.fetchall():
+                all_matches.append({'team1':r['team1'],'team2':r['team2'],
+                                    'score1':r['score1'],'score2':r['score2'],'phase':phase})
+        except Exception: pass
+
+    if not all_matches:
+        return facts
+
+    total_g = len(all_matches)
+    total_pts = sum(m['score1']+m['score2'] for m in all_matches)
+    avg = round(total_pts/total_g, 1)
+    facts.append({'label':'Total Spiele gespielt','value':str(total_g)})
+    facts.append({'label':'Total geworfene Punkte','value':str(total_pts)})
+    facts.append({'label':'Ø Punkte pro Spiel','value':str(avg)})
+
+    best = max(all_matches, key=lambda m: abs(m['score1']-m['score2']))
+    bw = best['team1'] if best['score1']>best['score2'] else best['team2']
+    bl = best['team2'] if best['score1']>best['score2'] else best['team1']
+    bws,bls = (best['score1'],best['score2']) if best['score1']>best['score2'] else (best['score2'],best['score1'])
+    facts.append({'label':'Höchster Sieg','value':f"{bw} {bws}:{bls} gegen {bl} ({best['phase']})"})
+
+    close = min(all_matches, key=lambda m: abs(m['score1']-m['score2']))
+    facts.append({'label':'Engster Match','value':f"{close['team1']} {close['score1']}:{close['score2']} {close['team2']} ({close['phase']})"})
+
+    htot = max(all_matches, key=lambda m: m['score1']+m['score2'])
+    facts.append({'label':'Meiste Punkte in einem Spiel',
+        'value':f"{htot['team1']} {htot['score1']}:{htot['score2']} {htot['team2']} = {htot['score1']+htot['score2']} Pkt"})
+
+    tg = {}
+    tw = {}
+    tgames = {}
+    for m in all_matches:
+        tg[m['team1']] = tg.get(m['team1'],0)+m['score1']
+        tg[m['team2']] = tg.get(m['team2'],0)+m['score2']
+        w = m['team1'] if m['score1']>m['score2'] else m['team2']
+        tw[w] = tw.get(w,0)+1
+        tgames[m['team1']] = tgames.get(m['team1'],0)+1
+        tgames[m['team2']] = tgames.get(m['team2'],0)+1
+
+    if tg:
+        top_tg = max(tg, key=tg.get)
+        facts.append({'label':'Meiste Punkte gesamt','value':f"{top_tg} — {tg[top_tg]} Punkte"})
+    if tw:
+        top_tw = max(tw, key=tw.get)
+        facts.append({'label':'Meiste Siege gesamt','value':f"{top_tw} — {tw[top_tw]} Siege"})
+    if tgames:
+        top_games = max(tgames, key=tgames.get)
+        facts.append({'label':'Meiste Spiele gespielt','value':f"{top_games} — {tgames[top_games]} Spiele"})
+
+    cursor.execute("SELECT COUNT(*) as c FROM teams WHERE is_ghost=0")
+    facts.append({'label':'Teilnehmende Teams','value':str(cursor.fetchone()['c'])})
+    return facts
+
+
 @app.route('/final_rankings/<game_name>')
 def final_rankings(game_name):
-    """Finale Gesamtplatzierung"""
+    """Schlussrangliste Webseite"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
     conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    
-    rankings = []
-    
-    # Platz 1-4: Super Finals
-    cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id = 'FINAL'")
-    row = cursor.fetchone()
-    if row and row['winner']:
-        rankings.append({'place': 1, 'team': row['winner'], 'phase': 'Super Finals Sieger'})
-    
-    cursor.execute("""
-        SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'FINAL'
-    """)
-    row = cursor.fetchone()
-    if row and row['winner']:
-        loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
-        rankings.append({'place': 2, 'team': loser, 'phase': 'Super Finals Finalist'})
-    
-    cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id = 'THIRD'")
-    row = cursor.fetchone()
-    if row and row['winner']:
-        rankings.append({'place': 3, 'team': row['winner'], 'phase': 'Spiel um Platz 3'})
-    
-    cursor.execute("""
-        SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'THIRD'
-    """)
-    row = cursor.fetchone()
-    if row and row['winner']:
-        loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
-        rankings.append({'place': 4, 'team': loser, 'phase': 'Spiel um Platz 3'})
-    
+    rankings = _compute_final_rankings(conn)
+    facts    = _compute_tournament_facts(conn)
     conn.close()
-    
     return render_template("admin/final_rankings.html",
-                         game_name=game_name,
-                         rankings=rankings)
+                           game_name=game_name, rankings=rankings, facts=facts)
+
+
+@app.route('/final_rankings_pdf/<game_name>')
+def final_rankings_pdf(game_name):
+    """Schlussrangliste als PDF"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+
+    conn = get_db_connection(db_path)
+    rankings = _compute_final_rankings(conn)
+    facts    = _compute_tournament_facts(conn)
+    conn.close()
+
+    buf = io.BytesIO()
+    W, H = A4
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    mg = 12*mm
+
+    # Farben pro Phase-Gruppe
+    def place_color(place):
+        if place == 1:   return colors.HexColor('#FFD700')  # Gold
+        if place == 2:   return colors.HexColor('#C0C0C0')  # Silber
+        if place == 3:   return colors.HexColor('#CD7F32')  # Bronze
+        if place <= 32:  return colors.HexColor('#1a6b3a')  # DE grün
+        if place <= 48:  return colors.HexColor('#7a5200')  # FC orange
+        return colors.HexColor('#6b1a1a')                   # PLZ rot
+
+    def phase_bg(place):
+        if place <= 4:   return colors.HexColor('#fffbe6')
+        if place <= 32:  return colors.HexColor('#f0f7f0')
+        if place <= 48:  return colors.HexColor('#fdf5e6')
+        return colors.HexColor('#fdf0f0')
+
+    # ── Seite 1: Rangliste ────────────────────────────────────────────────────
+    def draw_header(page_num):
+        c.setFillColor(colors.HexColor('#1e3a5f'))
+        c.rect(mg, H-mg-18*mm, W-2*mg, 18*mm, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont('Helvetica-Bold', 16)
+        c.drawString(mg+5*mm, H-mg-12*mm, f'Schlussrangliste  —  {game_name}')
+        c.setFont('Helvetica', 8)
+        c.drawRightString(W-mg-3*mm, H-mg-12*mm,
+                          f'Erstellt: {datetime.now().strftime("%d.%m.%Y %H:%M")}')
+        if page_num > 1:
+            c.setFillColor(colors.HexColor('#888888'))
+            c.setFont('Helvetica', 7)
+            c.drawCentredString(W/2, H-mg-16*mm, f'Seite {page_num}')
+
+    # Spaltenbreiten
+    col_place = 15*mm
+    col_team  = 90*mm
+    col_phase = 55*mm
+    col_goals = 20*mm
+    col_diff  = 18*mm
+    row_h = 7*mm
+    table_x = mg
+    header_h = 18*mm
+    col_hdr_h = 7*mm
+
+    def draw_table_header(y):
+        c.setFillColor(colors.HexColor('#2d5a9e'))
+        c.rect(table_x, y, W-2*mg, col_hdr_h, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont('Helvetica-Bold', 8)
+        x = table_x + 3*mm
+        c.drawString(x, y+2*mm, 'Platz')
+        c.drawString(x+col_place, y+2*mm, 'Team')
+        c.drawString(x+col_place+col_team, y+2*mm, 'Phase')
+        c.drawString(x+col_place+col_team+col_phase, y+2*mm, 'Punkte')
+        c.drawString(x+col_place+col_team+col_phase+col_goals, y+2*mm, 'Diff')
+
+    page = 1
+    draw_header(page)
+    y = H - mg - header_h - col_hdr_h
+    draw_table_header(y)
+    y -= row_h
+
+    for i, r in enumerate(rankings):
+        if y < mg + 20*mm:
+            c.showPage()
+            page += 1
+            draw_header(page)
+            y = H - mg - header_h - col_hdr_h
+            draw_table_header(y)
+            y -= row_h
+
+        bg = phase_bg(r['place'])
+        clr = place_color(r['place'])
+        # Zeilenhintergrund
+        c.setFillColor(bg)
+        c.rect(table_x, y, W-2*mg, row_h, fill=1, stroke=0)
+        # Farbige Platz-Zelle
+        c.setFillColor(clr)
+        c.rect(table_x, y, col_place, row_h, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont('Helvetica-Bold', 9)
+        c.drawCentredString(table_x+col_place/2, y+2*mm, str(r['place']))
+        # Team
+        c.setFillColor(colors.black)
+        c.setFont('Helvetica-Bold' if r['place'] <= 3 else 'Helvetica', 8.5)
+        team_str = r['team'][:38] if r['team'] else '—'
+        c.drawString(table_x+col_place+3*mm, y+2*mm, team_str)
+        # Phase
+        c.setFont('Helvetica', 7.5)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(table_x+col_place+col_team+3*mm, y+2*mm, r['phase'])
+        # Goals
+        c.setFillColor(colors.black)
+        c.setFont('Helvetica', 8)
+        c.drawRightString(table_x+col_place+col_team+col_phase+col_goals-2*mm, y+2*mm,
+                          str(r['total_goals']))
+        # Diff
+        diff_str = ('+' if r['goal_diff'] > 0 else '') + str(r['goal_diff'])
+        diff_clr = colors.HexColor('#1a6b3a') if r['goal_diff'] > 0 else (
+                   colors.HexColor('#7a1a1a') if r['goal_diff'] < 0 else colors.black)
+        c.setFillColor(diff_clr)
+        c.drawRightString(table_x+col_place+col_team+col_phase+col_goals+col_diff-2*mm,
+                          y+2*mm, diff_str)
+        # Trennlinie
+        c.setStrokeColor(colors.HexColor('#dddddd'))
+        c.setLineWidth(0.3)
+        c.line(table_x, y, table_x+W-2*mg, y)
+        y -= row_h
+
+    # Äusserer Rahmen
+    c.setStrokeColor(colors.HexColor('#1e3a5f'))
+    c.setLineWidth(1)
+
+    # ── Turnier-Fakten Seite ──────────────────────────────────────────────────
+    if facts:
+        c.showPage()
+        page += 1
+        draw_header(page)
+        fy = H - mg - header_h - 10*mm
+
+        c.setFillColor(colors.HexColor('#1e3a5f'))
+        c.setFont('Helvetica-Bold', 14)
+        c.drawString(mg, fy, 'Turnier-Statistiken')
+        fy -= 10*mm
+
+        for fact in facts:
+            if fy < mg + 15*mm:
+                c.showPage(); page += 1
+                draw_header(page)
+                fy = H - mg - header_h - 10*mm
+
+            # Karte
+            c.setFillColor(colors.HexColor('#f8faff'))
+            c.setStrokeColor(colors.HexColor('#2d5a9e'))
+            c.setLineWidth(0.5)
+            c.roundRect(mg, fy-11*mm, W-2*mg, 13*mm, 2*mm, fill=1, stroke=1)
+            c.setFillColor(colors.HexColor('#2d5a9e'))
+            c.setFont('Helvetica-Bold', 8)
+            c.drawString(mg+4*mm, fy-2*mm, fact['label'])
+            c.setFillColor(colors.black)
+            c.setFont('Helvetica', 9)
+            c.drawString(mg+4*mm, fy-8*mm, str(fact['value']))
+            fy -= 16*mm
+
+    c.save()
+    buf.seek(0)
+    return send_file(buf, mimetype='application/pdf', as_attachment=True,
+                     download_name=f"{game_name}_schlussrangliste.pdf")
 
 
 # ============================================================================

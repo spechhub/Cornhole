@@ -4,6 +4,7 @@
 <div class="container">
     <h1 class="mb-4">Turnier-Übersicht: <span class="text-primary">{{ game_name }}</span></h1>
 
+    <!-- Statistik-Karten -->
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card text-white bg-info mb-3 shadow-sm" style="height: 100%;">
@@ -45,11 +46,15 @@
             <div class="card text-white bg-secondary mb-3 shadow-sm" style="height: 100%;">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-cogs"></i> Setup</h5>
-                    <p class="card-text">Konfiguration &amp; Export</p>
                     <div class="btn-group-vertical w-100">
-                        <a href="{{ url_for('export_complete', game_name=game_name) }}" class="btn btn-primary btn-sm">
+                        <a href="{{ url_for('export_complete', game_name=game_name) }}" class="btn btn-primary btn-sm mb-1">
                             <i class="fas fa-file-excel"></i> Export CSV
                         </a>
+                        <form action="{{ url_for('recalculate_all_times', game_name=game_name) }}" method="POST" class="mb-1">
+                            <button type="submit" class="btn btn-info btn-sm w-100">
+                                <i class="fas fa-clock"></i> Zeiten neu berechnen
+                            </button>
+                        </form>
                         <form action="{{ url_for('cancel_game', game_name=game_name) }}" method="POST"
                             onsubmit="return confirm('Wirklich ALLES löschen?');">
                             <button type="submit" class="btn btn-danger btn-sm w-100">Reset Alles</button>
@@ -60,54 +65,157 @@
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="card-header font-weight-bold">Schnellzugriff</div>
+    <!-- Round Robin -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header font-weight-bold">
+            <i class="fas fa-sync-alt text-primary"></i> Round Robin
+        </div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-2 mb-3">
+                <div class="col-md-2 mb-2">
                     <a href="{{ url_for('generate_matches', game_name=game_name) }}"
                         class="btn btn-outline-primary btn-block p-3">
                         <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>
-                        Spielplan Generieren
+                        Spielplan generieren
                     </a>
                 </div>
-                <div class="col-md-2 mb-3">
-                    <a href="{{ url_for('generate_double_elim', game_name=game_name) }}"
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('enter_results', game_name=game_name) }}"
                         class="btn btn-outline-success btn-block p-3">
-                        <i class="fas fa-sitemap fa-2x mb-2 d-block"></i>
-                        Brackets Generieren
+                        <i class="fas fa-edit fa-2x mb-2 d-block"></i>
+                        Ergebnisse eintragen
                     </a>
                 </div>
-                <div class="col-md-2 mb-3">
-                    <a href="{{ url_for('spielplan_pdf', game_name=game_name) }}" target="_blank"
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('group_standings', game_name=game_name) }}"
                         class="btn btn-outline-info btn-block p-3">
+                        <i class="fas fa-table fa-2x mb-2 d-block"></i>
+                        Gruppentabellen
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('spielplan_pdf', game_name=game_name) }}" target="_blank"
+                        class="btn btn-outline-secondary btn-block p-3">
                         <i class="fas fa-calendar-week fa-2x mb-2 d-block"></i>
                         Spielplan PDF
                     </a>
                 </div>
-                <div class="col-md-2 mb-3">
+                <div class="col-md-2 mb-2">
                     <a href="{{ url_for('print_matches', game_name=game_name) }}" target="_blank"
                         class="btn btn-outline-danger btn-block p-3">
                         <i class="fas fa-print fa-2x mb-2 d-block"></i>
-                        Meldeblätter PDF
+                        Meldeblätter RR
                     </a>
                 </div>
-                <div class="col-md-2 mb-3">
+                <div class="col-md-2 mb-2">
                     <a href="{{ url_for('display_round_robin', game_name=game_name) }}" target="_blank"
                         class="btn btn-outline-warning btn-block p-3">
-                        <i class="fas fa-table fa-2x mb-2 d-block"></i>
-                        RR Live Display
-                    </a>
-                </div>
-                <div class="col-md-2 mb-3">
-                    <a href="{{ url_for('display_home', game_name=game_name) }}" target="_blank"
-                        class="btn btn-outline-dark btn-block p-3">
                         <i class="fas fa-tv fa-2x mb-2 d-block"></i>
-                        Display-Modus
+                        RR Live Display
                     </a>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- KO-Phase -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header font-weight-bold">
+            <i class="fas fa-sitemap text-success"></i> KO-Phase
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('generate_double_elim', game_name=game_name) }}"
+                        class="btn btn-outline-success btn-block p-3">
+                        <i class="fas fa-sitemap fa-2x mb-2 d-block"></i>
+                        DE generieren
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('enter_double_elim_results', game_name=game_name) }}"
+                        class="btn btn-outline-primary btn-block p-3">
+                        <i class="fas fa-edit fa-2x mb-2 d-block"></i>
+                        DE Ergebnisse
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('generate_follower_cup', game_name=game_name) }}"
+                        class="btn btn-outline-warning btn-block p-3">
+                        <i class="fas fa-trophy fa-2x mb-2 d-block"></i>
+                        Follower Cup
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('generate_placement_round', game_name=game_name) }}"
+                        class="btn btn-outline-secondary btn-block p-3">
+                        <i class="fas fa-list-ol fa-2x mb-2 d-block"></i>
+                        Platzierungsrunde
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('print_ko_matches', game_name=game_name) }}" target="_blank"
+                        class="btn btn-outline-danger btn-block p-3">
+                        <i class="fas fa-print fa-2x mb-2 d-block"></i>
+                        Meldeblätter KO
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('display_brackets', game_name=game_name) }}" target="_blank"
+                        class="btn btn-outline-dark btn-block p-3">
+                        <i class="fas fa-tv fa-2x mb-2 d-block"></i>
+                        Brackets Display
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Super Finals & Schlussrangliste -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header font-weight-bold">
+            <i class="fas fa-star text-warning"></i> Super Finals &amp; Schluss
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('generate_super_finals', game_name=game_name) }}"
+                        class="btn btn-outline-warning btn-block p-3">
+                        <i class="fas fa-trophy fa-2x mb-2 d-block"></i>
+                        Super Finals gen.
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('super_finals_overview', game_name=game_name) }}"
+                        class="btn btn-outline-danger btn-block p-3">
+                        <i class="fas fa-star fa-2x mb-2 d-block"></i>
+                        Super Finals
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('final_rankings', game_name=game_name) }}"
+                        class="btn btn-outline-success btn-block p-3">
+                        <i class="fas fa-medal fa-2x mb-2 d-block"></i>
+                        Schlussrangliste
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('final_rankings_pdf', game_name=game_name) }}" target="_blank"
+                        class="btn btn-outline-danger btn-block p-3">
+                        <i class="fas fa-file-pdf fa-2x mb-2 d-block"></i>
+                        Rangliste PDF
+                    </a>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <a href="{{ url_for('display_home', game_name=game_name) }}" target="_blank"
+                        class="btn btn-outline-dark btn-block p-3">
+                        <i class="fas fa-home fa-2x mb-2 d-block"></i>
+                        Display Startseite
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

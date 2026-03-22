@@ -19,51 +19,42 @@
         <strong>Zeitplan:</strong>
         WB R1: 13:20 (alle 16 Felder) &nbsp;|&nbsp;
         WB R2 + LB R1: 14:10 &nbsp;|&nbsp;
-        WB VF + LB R2: 15:00 &nbsp;|&nbsp;
-        LB R3: 15:25 &nbsp;|&nbsp;
-        WB HF + LB R4: 15:50 &nbsp;|&nbsp;
-        LB R5: 16:15 &nbsp;|&nbsp;
+        WB VF + LB R2+R3: 15:00 &nbsp;|&nbsp;
+        LB R4: 15:25 &nbsp;|&nbsp;
+        WB HF + LB R5: 15:50 &nbsp;|&nbsp;
         WB Final + LB R6: 16:40 &nbsp;|&nbsp;
-        LB Final: 17:05
+        LB R7: 17:05 &nbsp;|&nbsp;
+        LB HF: 17:30 &nbsp;|&nbsp;
+        LB Final: 17:55
     </div>
 
     <ul class="nav nav-tabs mb-3" id="bracketTabs" role="tablist">
         <li class="nav-item">
-            <a class="nav-link active" id="tab-a-wb" data-toggle="tab" href="#bracket-a-wb" role="tab">
-                <span class="badge badge-success mr-1">A</span> Winner Bracket
+            <a class="nav-link active" id="tab-wb" data-toggle="tab" href="#bracket-wb" role="tab">
+                <span class="badge badge-success mr-1">WB</span> Winner Bracket
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" id="tab-a-lb" data-toggle="tab" href="#bracket-a-lb" role="tab">
-                <span class="badge badge-danger mr-1">A</span> Loser Bracket
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="tab-b-wb" data-toggle="tab" href="#bracket-b-wb" role="tab">
-                <span class="badge badge-success mr-1">B</span> Winner Bracket
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="tab-b-lb" data-toggle="tab" href="#bracket-b-lb" role="tab">
-                <span class="badge badge-danger mr-1">B</span> Loser Bracket
+            <a class="nav-link" id="tab-lb" data-toggle="tab" href="#bracket-lb" role="tab">
+                <span class="badge badge-danger mr-1">LB</span> Loser Bracket
             </a>
         </li>
     </ul>
 
     <div class="tab-content" id="bracketTabContent">
 
-        {# ── Bracket A Winner ── #}
-        <div class="tab-pane fade show active" id="bracket-a-wb" role="tabpanel">
+        {# ── Winner Bracket ── #}
+        <div class="tab-pane fade show active" id="bracket-wb" role="tabpanel">
             <div class="d-flex overflow-auto pb-4">
                 {% for round in range(1, 6) %}
                 {% set round_label = ['1/16-Finale','1/8-Finale','Viertelfinale','Halbfinale','WB Final'][round-1] %}
                 <div class="round-column mx-2" style="min-width:220px">
                     <div class="text-center font-weight-bold mb-3 text-success">{{ round_label }}</div>
-                    {% for match in matches_a if match.bracket == 'Winners' and match.round == round %}
+                    {% for match in matches if match.bracket == 'Winners' and match.round == round %}
                     <div class="card mb-2 shadow-sm border-success">
                         <div class="card-header py-1 small bg-light d-flex justify-content-between">
                             <span class="font-weight-bold">#{{ match.match_number }}</span>
-                            <span class="text-muted">{{ match.time or '' }}{% if match.court %} · F{{ match.court }}{% endif %}</span>
+                            <span class="text-muted">{{ match.time or '' }}{% if match.court %} &middot; F{{ match.court }}{% endif %}</span>
                         </div>
                         <div class="card-body p-2">
                             <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
@@ -82,78 +73,18 @@
             </div>
         </div>
 
-        {# ── Bracket A Loser ── #}
-        <div class="tab-pane fade" id="bracket-a-lb" role="tabpanel">
+        {# ── Loser Bracket ── #}
+        <div class="tab-pane fade" id="bracket-lb" role="tabpanel">
             <div class="d-flex overflow-auto pb-4">
-                {% for round in range(1, 8) %}
-                {% set round_label = 'LB Final' if round == 7 else 'LB R' ~ round %}
+                {% for round in range(1, 10) %}
+                {% set round_label = 'LB Final' if round == 9 else ('LB Halbfinale' if round == 8 else 'LB R' ~ round) %}
                 <div class="round-column mx-2" style="min-width:220px">
                     <div class="text-center font-weight-bold mb-3 text-danger">{{ round_label }}</div>
-                    {% for match in matches_a if match.bracket == 'Losers' and match.round == round %}
+                    {% for match in matches if match.bracket == 'Losers' and match.round == round %}
                     <div class="card mb-2 shadow-sm border-danger">
                         <div class="card-header py-1 small bg-light d-flex justify-content-between">
                             <span class="font-weight-bold">#{{ match.match_number }}</span>
-                            <span class="text-muted">{{ match.time or '' }}{% if match.court %} · F{{ match.court }}{% endif %}</span>
-                        </div>
-                        <div class="card-body p-2">
-                            <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
-                                <span class="text-truncate" style="max-width:150px">{{ match.team1 or 'TBD' }}</span>
-                                <span>{{ match.score1 if match.score1 is not none else '' }}</span>
-                            </div>
-                            <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
-                                <span class="text-truncate" style="max-width:150px">{{ match.team2 or 'TBD' }}</span>
-                                <span>{{ match.score2 if match.score2 is not none else '' }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        {# ── Bracket B Winner ── #}
-        <div class="tab-pane fade" id="bracket-b-wb" role="tabpanel">
-            <div class="d-flex overflow-auto pb-4">
-                {% for round in range(1, 6) %}
-                {% set round_label = ['1/16-Finale','1/8-Finale','Viertelfinale','Halbfinale','WB Final'][round-1] %}
-                <div class="round-column mx-2" style="min-width:220px">
-                    <div class="text-center font-weight-bold mb-3 text-success">{{ round_label }}</div>
-                    {% for match in matches_b if match.bracket == 'Winners' and match.round == round %}
-                    <div class="card mb-2 shadow-sm border-success">
-                        <div class="card-header py-1 small bg-light d-flex justify-content-between">
-                            <span class="font-weight-bold">#{{ match.match_number }}</span>
-                            <span class="text-muted">{{ match.time or '' }}{% if match.court %} · F{{ match.court }}{% endif %}</span>
-                        </div>
-                        <div class="card-body p-2">
-                            <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
-                                <span class="text-truncate" style="max-width:150px">{{ match.team1 or 'TBD' }}</span>
-                                <span>{{ match.score1 if match.score1 is not none else '' }}</span>
-                            </div>
-                            <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
-                                <span class="text-truncate" style="max-width:150px">{{ match.team2 or 'TBD' }}</span>
-                                <span>{{ match.score2 if match.score2 is not none else '' }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        {# ── Bracket B Loser ── #}
-        <div class="tab-pane fade" id="bracket-b-lb" role="tabpanel">
-            <div class="d-flex overflow-auto pb-4">
-                {% for round in range(1, 8) %}
-                {% set round_label = 'LB Final' if round == 7 else 'LB R' ~ round %}
-                <div class="round-column mx-2" style="min-width:220px">
-                    <div class="text-center font-weight-bold mb-3 text-danger">{{ round_label }}</div>
-                    {% for match in matches_b if match.bracket == 'Losers' and match.round == round %}
-                    <div class="card mb-2 shadow-sm border-danger">
-                        <div class="card-header py-1 small bg-light d-flex justify-content-between">
-                            <span class="font-weight-bold">#{{ match.match_number }}</span>
-                            <span class="text-muted">{{ match.time or '' }}{% if match.court %} · F{{ match.court }}{% endif %}</span>
+                            <span class="text-muted">{{ match.time or '' }}{% if match.court %} &middot; F{{ match.court }}{% endif %}</span>
                         </div>
                         <div class="card-body p-2">
                             <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">

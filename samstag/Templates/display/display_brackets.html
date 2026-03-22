@@ -1,62 +1,232 @@
 {% extends "display/base.html" %}
 
 {% block content %}
-<h1 class="display-title">Double Elimination Brackets</h1>
+<style>
+  .display-title { font-size:1.3rem; font-weight:bold; }
+  .timer-box { font-size:0.78rem; color:#aaa; text-align:right; min-width:120px; }
+  .view-label { font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:#888; }
 
-<div class="row h-100">
-    <!-- Bracket A -->
-    <div class="col-6 border-right">
-        <h2 class="text-center bg-primary text-white py-2">Bracket A</h2>
-        <div class="row">
-            <div class="col-12">
-                <h4 class="text-center text-muted">Winner Bracket</h4>
-                <div class="d-flex overflow-hidden">
-                    <!-- Just showing last round matches for brevity on display -->
-                    {% for match in matches_a if match.bracket == 'Winners' and match.round >= 3 %}
-                    <div class="bracket-match mx-auto" style="width: 80%;">
-                        <div>R{{ match.round }} - #{{ match.match_number }}</div>
-                        <div class="d-flex justify-content-between">
-                            <span class="{% if match.winner == match.team1 %}winner-highlight{% endif %}">{{ match.team1
-                                }}</span>
-                            <b>{{ match.score1 }}</b>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span class="{% if match.winner == match.team2 %}winner-highlight{% endif %}">{{ match.team2
-                                }}</span>
-                            <b>{{ match.score2 }}</b>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
+  .mc { border:1px solid #dee2e6; border-radius:4px; margin-bottom:5px; font-size:0.73rem; overflow:hidden; }
+  .mc-head { background:#343a40; color:#adb5bd; padding:2px 6px; font-size:0.63rem; display:flex; justify-content:space-between; gap:4px; }
+  .mc-head .mn { color:#fff; font-weight:700; white-space:nowrap; }
+  .mc-head .mt { color:#ffc107; white-space:nowrap; }
+  .mc-head .mf { color:#17a2b8; white-space:nowrap; }
+  .mc-team { padding:3px 6px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f0f0f0; min-height:26px; }
+  .mc-team:last-of-type { border-bottom:none; }
+  .mc-team.winner { background:#d4edda; font-weight:700; }
+  .mc-team.loser  { background:#f8f9fa; color:#999; }
+  .mc-team.tbd    { color:#aaa; font-style:italic; }
+  .mc-score { font-weight:700; font-size:0.8rem; min-width:16px; text-align:right; }
+  .mc-pending { background:#fff8e1; }
+  .mc-done    { background:#f0fff4; }
 
-    <!-- Bracket B -->
-    <div class="col-6">
-        <h2 class="text-center bg-info text-white py-2">Bracket B</h2>
-        <div class="row">
-            <div class="col-12">
-                <h4 class="text-center text-muted">Winner Bracket</h4>
-                <div class="d-flex overflow-hidden">
-                    {% for match in matches_b if match.bracket == 'Winners' and match.round >= 3 %}
-                    <div class="bracket-match mx-auto" style="width: 80%;">
-                        <div>R{{ match.round }} - #{{ match.match_number }}</div>
-                        <div class="d-flex justify-content-between">
-                            <span class="{% if match.winner == match.team1 %}winner-highlight{% endif %}">{{ match.team1
-                                }}</span>
-                            <b>{{ match.score1 }}</b>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span class="{% if match.winner == match.team2 %}winner-highlight{% endif %}">{{ match.team2
-                                }}</span>
-                            <b>{{ match.score2 }}</b>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
+  .rnd-hdr { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+             color:#fff; padding:3px 6px; border-radius:3px; margin-bottom:4px; text-align:center; }
+  .rnd-wb  { background:#1a6b3a; }
+  .rnd-lb  { background:#7a3000; }
+  .rnd-fc  { background:#7a5200; }
+  .rnd-plz { background:#6b1a1a; }
+
+  .bracket-scroll { overflow-x:auto; padding-bottom:8px; }
+  .bracket-cols   { display:flex; gap:5px; min-width:max-content; }
+  .bc-sm   { min-width:135px; max-width:145px; }  /* WB 1/16 Hälften */
+  .bc-md   { min-width:150px; max-width:165px; }  /* normal */
+  .bc-wide { min-width:160px; max-width:175px; }  /* FC */
+</style>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <div>
+    <div id="view-label" class="view-label">Double Elimination</div>
+    <h2 id="view-title" class="display-title mb-0">Winner Bracket</h2>
+  </div>
+  <div class="timer-box">
+    Weiter in <span id="cd">40</span>s
+    <div class="progress mt-1" style="width:100px;height:5px;">
+      <div id="bar" class="progress-bar bg-success" style="width:100%"></div>
     </div>
+  </div>
 </div>
+
+<div id="view-wb"><div class="bracket-scroll"><div id="cols-wb" class="bracket-cols"></div></div></div>
+<div id="view-lb" style="display:none;"><div class="bracket-scroll"><div id="cols-lb" class="bracket-cols"></div></div></div>
+<div id="view-fc" style="display:none;"><div class="bracket-scroll"><div id="cols-fc" class="bracket-cols"></div></div></div>
+<div id="view-plz" style="display:none;"><div id="cols-plz" class="row"></div></div>
+
+<script>
+const gameName = "{{ game_name }}";
+let cdTimer = null, pollTimer = null;
+
+const WB_NAMES = {1:'1/16 (1-8)',2:'1/8-Finale',3:'Viertelfinale',4:'Halbfinale',5:'WB Final'};
+const WB_NAMES2= {1:'1/16 (9-16)'};
+const LB_NAMES = {1:'LB R1',2:'LB R2',3:'LB R3',4:'LB R4',5:'LB R5',6:'LB R6',7:'LB R7',8:'LB R8',9:'LB Final'};
+const FC_NAMES = {eighth:'1/8-Finale',quarter:'Viertelfinale',semi:'Halbfinale',final:'Final',third:'Platz 3'};
+
+function load(cb) {
+  fetch('/api/display/' + gameName + '/brackets_full_json')
+    .then(r => r.json()).then(d => { if(cb) cb(d); }).catch(() => {});
+}
+
+function tn(t) {
+  if(!t) return 'TBD';
+  return t.length > 15 ? t.substring(0,14)+'…' : t;
+}
+
+function matchCard(m) {
+  var played  = m.winner != null;
+  var pending = m.team1 && m.team2 && !played;
+  var cls = 'mc' + (played ? ' mc-done' : (pending ? ' mc-pending' : ''));
+
+  function row(team, score, isWin) {
+    if (!team) return '<div class="mc-team tbd"><span>TBD</span><span class="mc-score">—</span></div>';
+    var c = 'mc-team' + (played ? (isWin ? ' winner' : ' loser') : '');
+    var s = score != null ? score : '';
+    return '<div class="'+c+'"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:108px;">'+tn(team)+'</span><span class="mc-score">'+s+'</span></div>';
+  }
+
+  var head = '<div class="mc-head">'
+    +'<span class="mn">#'+(m.match_number||'—')+'</span>'
+    +'<span class="mt">'+(m.time||'')+'</span>'
+    +'<span class="mf">'+(m.court?'F'+m.court:'')+'</span>'
+    +'</div>';
+
+  return '<div class="'+cls+'">'+head
+    +row(m.team1, m.score1, played && m.winner===m.team1)
+    +row(m.team2, m.score2, played && m.winner===m.team2)
+    +'</div>';
+}
+
+// ── WB: R1 in 2 Spalten à 8, Rest je 1 Spalte ──────────────
+function buildWB(wb) {
+  var byRound = {};
+  wb.forEach(m => { if(!byRound[m.round]) byRound[m.round]=[]; byRound[m.round].push(m); });
+  var rounds = Object.keys(byRound).map(Number).sort((a,b)=>a-b);
+  var html = '';
+  rounds.forEach(r => {
+    var matches = byRound[r];
+    if (r === 1) {
+      // Zwei Hälften nebeneinander
+      var half = Math.ceil(matches.length / 2);
+      [matches.slice(0,half), matches.slice(half)].forEach((grp, gi) => {
+        var lbl = gi===0 ? '1/16 (1–8)' : '1/16 (9–16)';
+        html += '<div class="bc-sm">'
+          +'<div class="rnd-hdr rnd-wb">'+lbl+'</div>';
+        grp.forEach(m => { html += matchCard(m); });
+        html += '</div>';
+      });
+    } else {
+      var lbl = WB_NAMES[r] || ('R'+r);
+      html += '<div class="bc-md">'
+        +'<div class="rnd-hdr rnd-wb">'+lbl+'</div>';
+      matches.forEach(m => { html += matchCard(m); });
+      html += '</div>';
+    }
+  });
+  document.getElementById('cols-wb').innerHTML = html;
+}
+
+// ── LB: alle Runden anzeigen, scrollbar ─────────────────────
+function buildLB(lb) {
+  var byRound = {};
+  lb.forEach(m => { if(!byRound[m.round]) byRound[m.round]=[]; byRound[m.round].push(m); });
+  var rounds = Object.keys(byRound).map(Number).sort((a,b)=>a-b);
+  var html = '';
+  rounds.forEach(r => {
+    var lbl = LB_NAMES[r] || ('LB R'+r);
+    html += '<div class="bc-md">'
+      +'<div class="rnd-hdr rnd-lb">'+lbl+'</div>';
+    byRound[r].forEach(m => { html += matchCard(m); });
+    html += '</div>';
+  });
+  document.getElementById('cols-lb').innerHTML = html;
+}
+
+// ── FC: alle Runden in Spalten ──────────────────────────────
+function buildFC(fc) {
+  var byRound = {};
+  fc.forEach(m => { if(!byRound[m.round]) byRound[m.round]=[]; byRound[m.round].push(m); });
+  var order = ['eighth','quarter','semi','final','third'];
+  var html = '';
+  order.forEach(r => {
+    if (!byRound[r]) return;
+    html += '<div class="bc-wide">'
+      +'<div class="rnd-hdr rnd-fc">'+(FC_NAMES[r]||r)+'</div>';
+    byRound[r].forEach(m => { html += matchCard(m); });
+    html += '</div>';
+  });
+  document.getElementById('cols-fc').innerHTML = html;
+}
+
+// ── PLZ ─────────────────────────────────────────────────────
+function buildPLZ(plz) {
+  var html = '';
+  plz.forEach(m => {
+    html += '<div class="col-md-3 col-sm-4 col-6 mb-2">'
+      +'<div class="rnd-hdr rnd-plz mb-1">'+(m.placement||'')+'</div>'
+      +matchCard(m)+'</div>';
+  });
+  document.getElementById('cols-plz').innerHTML = html;
+}
+
+function render(d) {
+  buildWB(d.wb);
+  buildLB(d.lb);
+  buildFC(d.fc);
+  buildPLZ(d.plz);
+}
+
+var VIEWS = [];
+function buildViewList(d) {
+  VIEWS = ['wb','lb'];
+  if (d.fc  && d.fc.length  && !d.fc_done)  VIEWS.push('fc');
+  if (d.plz && d.plz.length && !d.plz_done) VIEWS.push('plz');
+}
+
+const VIEW_TITLES = {wb:'Winner Bracket',lb:'Loser Bracket',fc:'Follower Cup',plz:'Platzierungsrunde'};
+const VIEW_LABELS = {wb:'Double Elimination',lb:'Double Elimination',fc:'KO-Phase',plz:'Platzierungen'};
+const VIEW_BARS   = {wb:'bg-success',lb:'bg-warning',fc:'bg-info',plz:'bg-danger'};
+var curIdx = 0;
+
+function showView(idx) {
+  ['wb','lb','fc','plz'].forEach(v => document.getElementById('view-'+v).style.display='none');
+  var v = VIEWS[idx];
+  document.getElementById('view-'+v).style.display='';
+  document.getElementById('view-title').textContent = VIEW_TITLES[v];
+  document.getElementById('view-label').textContent = VIEW_LABELS[v];
+  document.getElementById('bar').className = 'progress-bar '+(VIEW_BARS[v]||'bg-warning');
+}
+
+function startCD(sec, onDone) {
+  var left = sec;
+  document.getElementById('cd').textContent = left;
+  document.getElementById('bar').style.width = '100%';
+  clearInterval(cdTimer);
+  cdTimer = setInterval(() => {
+    left--;
+    document.getElementById('cd').textContent = left;
+    document.getElementById('bar').style.width = (left/sec*100)+'%';
+    if (left <= 0) { clearInterval(cdTimer); onDone(); }
+  }, 1000);
+}
+
+function nextView() {
+  curIdx = (curIdx+1) % VIEWS.length;
+  showView(curIdx);
+  startCD(40, nextView);
+}
+
+load(d => {
+  buildViewList(d);
+  render(d);
+  showView(0);
+  startCD(40, nextView);
+  pollTimer = setInterval(() => {
+    load(d => {
+      buildViewList(d);
+      render(d);
+      if (curIdx >= VIEWS.length) curIdx = 0;
+    });
+  }, 4000);
+});
+</script>
 {% endblock %}

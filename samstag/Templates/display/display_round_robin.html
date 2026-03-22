@@ -1,152 +1,163 @@
 {% extends "display/base.html" %}
 
 {% block content %}
-<div id="view-groups" class="view-section">
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <h2 class="display-title mb-0">Round Robin &mdash; Gruppen</h2>
-    <div class="text-muted small text-right">
-      Wechselt zu Bracket Standings in <span id="countdown">60</span>s
-      <div class="progress mt-1" style="width:120px; height:6px;">
-        <div id="progress-bar" class="progress-bar bg-warning" style="width:100%"></div>
-      </div>
-    </div>
-  </div>
-  <div id="groups-container" class="row flex-nowrap">
-    <div class="col-12 text-center text-muted py-5">Lade Daten...</div>
-  </div>
-</div>
-
-<div id="view-brackets" class="view-section" style="display:none;">
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <h2 class="display-title mb-0">Bracket Standings</h2>
-    <div class="text-muted small text-right">
-      Wechselt zu Gruppen in <span id="countdown2">60</span>s
-      <div class="progress mt-1" style="width:120px; height:6px;">
-        <div id="progress-bar2" class="progress-bar bg-info" style="width:100%"></div>
-      </div>
-    </div>
-  </div>
-  <div id="brackets-container" class="row">
-    <div class="col-12 text-center text-muted py-5">Lade Daten...</div>
-  </div>
-</div>
-
 <style>
-  .group-card { font-size: 0.8rem; }
-  .group-card .card-header { font-size: 0.82rem; padding: 3px 6px; letter-spacing: 1px; }
-  .group-card td { padding: 2px 5px; white-space: nowrap; }
-  .qualified { background: #d4edda; font-weight: bold; }
-  .best-fourth { background: #fff3cd; }
-  .bracket-row { padding: 4px 8px; border-bottom: 1px solid #dee2e6; font-size: 0.85rem; }
-  .bracket-row:last-child { border-bottom: none; }
-  .bracket-still-in { background: #d4edda; }
-  .bracket-out { background: #f8d7da; color: #999; }
-  .bracket-header { background: #343a40; color: white; padding: 5px 10px; font-size: 0.9rem; font-weight: bold; }
   .display-title { font-size: 1.4rem; font-weight: bold; }
-  #groups-container { overflow-x: hidden; }
+  .timer-box { font-size: 0.8rem; color: #aaa; text-align: right; min-width: 130px; }
+
+  .group-card { font-size: 0.8rem; }
+  .group-card .card-header { font-size: 0.82rem; padding: 4px 8px; }
+  .group-card td, .group-card th { padding: 3px 5px; white-space: nowrap; }
+  .group-card thead th { font-size: 0.72rem; color: #666; border-bottom: 1px solid #ddd; background:#f8f9fa; }
+
+  .row-de   { background: #d4edda; }
+  .row-wild { background: #cce5ff; }
+  .row-fc   { background: #fff3cd; }
+  .row-plz  { background: #f8d7da; }
+
+  .phase-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #fff;
+  }
+  .phase-de   { background: #28a745; }
+  .phase-wild { background: #007bff; }
+  .phase-fc   { background: #fd7e14; }
+  .phase-plz  { background: #dc3545; }
+
+  .legend-item { display:inline-flex; align-items:center; margin-right:14px; font-size:0.8rem; }
+  .legend-dot  { width:13px; height:13px; border-radius:2px; margin-right:4px; flex-shrink:0; }
 </style>
+
+<!-- LEGENDE (immer sichtbar) -->
+<div class="mb-2 d-flex flex-wrap align-items-center" style="gap:4px;">
+  <span class="legend-item"><span class="legend-dot" style="background:#d4edda;border:1px solid #c3e6cb;"></span><span class="phase-badge phase-de mr-1">DE</span> Double Elimination</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#cce5ff;border:1px solid #b8daff;"></span><span class="phase-badge phase-wild mr-1">DE★</span> Wildcard</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#fff3cd;border:1px solid #ffeeba;"></span><span class="phase-badge phase-fc mr-1">FC</span> Follower Cup</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f8d7da;border:1px solid #f5c6cb;"></span><span class="phase-badge phase-plz mr-1">PLZ</span> Platzierungsrunde</span>
+  <span style="font-size:0.72rem;color:#888;margin-left:6px;">FC/PLZ basiert auf G+ aller 28 Nicht-DE-Teams</span>
+</div>
+
+<!-- VIEW A: Gruppen 1–5 -->
+<div id="view-a">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="display-title mb-0">Round Robin &mdash; Gruppen 1–5</h2>
+    <div class="timer-box">
+      Weiter in <span id="cd-a">35</span>s
+      <div class="progress mt-1" style="width:110px;height:5px;">
+        <div id="bar-a" class="progress-bar bg-warning" style="width:100%"></div>
+      </div>
+    </div>
+  </div>
+  <div id="groups-a" class="row"></div>
+</div>
+
+<!-- VIEW B: Gruppen 6–10 -->
+<div id="view-b" style="display:none;">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="display-title mb-0">Round Robin &mdash; Gruppen 6–10</h2>
+    <div class="timer-box">
+      Weiter in <span id="cd-b">35</span>s
+      <div class="progress mt-1" style="width:110px;height:5px;">
+        <div id="bar-b" class="progress-bar bg-warning" style="width:100%"></div>
+      </div>
+    </div>
+  </div>
+  <div id="groups-b" class="row"></div>
+</div>
 
 <script>
   const gameName = "{{ game_name }}";
-  let pollInterval = null;
-  let countdownInterval = null;
+  let pollTimer = null;
+  let cdTimer   = null;
 
-  // ── Gruppen laden ──────────────────────────────────────────────
-  function loadGroups() {
+  const PHASE_CLASS = { 'DE': 'row-de', 'DE*': 'row-wild', 'FC': 'row-fc', 'PLZ': 'row-plz' };
+  const PHASE_BADGE = { 'DE': 'phase-de', 'DE*': 'phase-wild', 'FC': 'phase-fc', 'PLZ': 'phase-plz' };
+  const PHASE_LABEL = { 'DE': 'DE', 'DE*': 'DE★', 'FC': 'FC', 'PLZ': 'PLZ' };
+
+  function buildGroups(data, groupNums, containerId) {
+    var container = document.getElementById(containerId);
+    var html = '';
+    groupNums.forEach(function(g) {
+      var rows = data[g] || [];
+      var rowsHtml = '';
+      rows.forEach(function(r, i) {
+        var phase  = r.phase || 'PLZ';
+        var rClass = PHASE_CLASS[phase] || '';
+        var bClass = PHASE_BADGE[phase] || '';
+        var bLabel = PHASE_LABEL[phase] || phase;
+        var diff   = r.goal_difference;
+        var diffStr = (diff > 0 ? '+' : '') + diff;
+        var diffColor = diff > 0 ? 'color:#28a745;' : (diff < 0 ? 'color:#dc3545;' : '');
+        rowsHtml += '<tr class="' + rClass + '">' +
+          '<td class="text-center" style="width:20px;">' + (i+1) + '</td>' +
+          '<td style="max-width:105px;overflow:hidden;text-overflow:ellipsis;">' + r.team + '</td>' +
+          '<td class="text-center">' + r.matches_played + '</td>' +
+          '<td class="text-center font-weight-bold">' + r.goals_for + '</td>' +
+          '<td class="text-center">' + r.goals_against + '</td>' +
+          '<td class="text-center" style="' + diffColor + '">' + diffStr + '</td>' +
+          '<td class="text-center"><span class="phase-badge ' + bClass + '">' + bLabel + '</span></td>' +
+          '</tr>';
+      });
+      html += '<div class="col-md-4 mb-3">' +
+        '<div class="card group-card border-dark">' +
+        '<div class="card-header bg-dark text-white text-center font-weight-bold">Gruppe ' + g + '</div>' +
+        '<table class="table table-sm mb-0">' +
+        '<thead><tr>' +
+        '<th style="width:20px;">#</th><th>Team</th>' +
+        '<th class="text-center">Sp</th>' +
+        '<th class="text-center">G+</th>' +
+        '<th class="text-center">G-</th>' +
+        '<th class="text-center">Diff</th>' +
+        '<th class="text-center">Phase</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody>' +
+        '</table></div></div>';
+    });
+    container.innerHTML = html;
+  }
+
+  function loadAndRender(groupNums, containerId) {
     fetch('/api/display/' + gameName + '/groups_json')
       .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var container = document.getElementById('groups-container');
-        var html = '';
-        for (var g = 1; g <= 10; g++) {
-          var rows = data[g] || [];
-          var rowsHtml = '';
-          for (var i = 0; i < rows.length; i++) {
-            var cls = i < 3 ? 'qualified' : (i === 3 ? 'best-fourth' : '');
-            rowsHtml += '<tr class="' + cls + '">' +
-              '<td class="text-center">' + (i + 1) + '</td>' +
-              '<td style="max-width:75px;overflow:hidden;text-overflow:ellipsis;">' + rows[i].team + '</td>' +
-              '<td class="text-right font-weight-bold">' + rows[i].points + '</td>' +
-              '</tr>';
-          }
-          html += '<div style="flex: 0 0 10%; max-width: 10%; padding: 0 3px;">' +
-            '<div class="card group-card border-dark mb-2">' +
-            '<div class="card-header text-center bg-dark text-white font-weight-bold">GRP ' + g + '</div>' +
-            '<table class="table table-sm mb-0"><tbody>' + rowsHtml + '</tbody></table>' +
-            '</div></div>';
-        }
-        container.style.display = 'flex';
-        container.innerHTML = html;
-      })
+      .then(function(data) { buildGroups(data, groupNums, containerId); })
       .catch(function() {});
   }
 
-  // ── Bracket Standings laden ────────────────────────────────────
-  function loadBrackets() {
-    fetch('/api/display/' + gameName + '/bracket_standings_json')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var container = document.getElementById('brackets-container');
-        var html = '';
-        ['A', 'B'].forEach(function(bracket) {
-          var teams = data[bracket] || [];
-          var rowsHtml = teams.map(function(t, idx) {
-            var cls = t.eliminated ? 'bracket-out' : 'bracket-still-in';
-            return '<div class="bracket-row ' + cls + '">' +
-              '<span class="mr-2 font-weight-bold">' + (idx + 1) + '.</span>' +
-              t.team +
-              '<span class="float-right text-muted small">' + t.status + '</span>' +
-              '</div>';
-          }).join('');
-          html += '<div class="col-6">' +
-            '<div class="card mb-3">' +
-            '<div class="bracket-header">Bracket ' + bracket + '</div>' +
-            rowsHtml +
-            '</div></div>';
-        });
-        container.innerHTML = html;
-      })
-      .catch(function() {});
-  }
-
-  // ── Countdown ─────────────────────────────────────────────────
   function startCountdown(seconds, spanId, barId, onDone) {
     var left = seconds;
     document.getElementById(spanId).textContent = left;
     document.getElementById(barId).style.width = '100%';
-    clearInterval(countdownInterval);
-    countdownInterval = setInterval(function() {
+    clearInterval(cdTimer);
+    cdTimer = setInterval(function() {
       left--;
       document.getElementById(spanId).textContent = left;
       document.getElementById(barId).style.width = (left / seconds * 100) + '%';
-      if (left <= 0) {
-        clearInterval(countdownInterval);
-        onDone();
-      }
+      if (left <= 0) { clearInterval(cdTimer); onDone(); }
     }, 1000);
   }
 
-  // ── View Gruppen ───────────────────────────────────────────────
-  function showGroups() {
-    document.getElementById('view-groups').style.display = '';
-    document.getElementById('view-brackets').style.display = 'none';
-    clearInterval(pollInterval);
-    loadGroups();
-    pollInterval = setInterval(loadGroups, 5000);
-    startCountdown(60, 'countdown', 'progress-bar', showBrackets);
+  function showA() {
+    document.getElementById('view-a').style.display = '';
+    document.getElementById('view-b').style.display = 'none';
+    clearInterval(pollTimer);
+    loadAndRender([1,2,3,4,5], 'groups-a');
+    pollTimer = setInterval(function() { loadAndRender([1,2,3,4,5], 'groups-a'); }, 5000);
+    startCountdown(35, 'cd-a', 'bar-a', showB);
   }
 
-  // ── View Brackets ──────────────────────────────────────────────
-  function showBrackets() {
-    document.getElementById('view-groups').style.display = 'none';
-    document.getElementById('view-brackets').style.display = '';
-    clearInterval(pollInterval);
-    loadBrackets();
-    pollInterval = setInterval(loadBrackets, 5000);
-    startCountdown(60, 'countdown2', 'progress-bar2', showGroups);
+  function showB() {
+    document.getElementById('view-a').style.display = 'none';
+    document.getElementById('view-b').style.display = '';
+    clearInterval(pollTimer);
+    loadAndRender([6,7,8,9,10], 'groups-b');
+    pollTimer = setInterval(function() { loadAndRender([6,7,8,9,10], 'groups-b'); }, 5000);
+    startCountdown(35, 'cd-b', 'bar-b', showA);
   }
 
-  // Start
-  showGroups();
+  showA();
 </script>
 {% endblock %}
