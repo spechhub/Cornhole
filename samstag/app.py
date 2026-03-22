@@ -2545,6 +2545,26 @@ def group_standings(game_name):
     best_4th_1 = all_fourths[0] if len(all_fourths) > 0 else None
     best_4th_2 = all_fourths[1] if len(all_fourths) > 1 else None
 
+    # DE-Teams berechnen (Top 3 jeder Gruppe + 2 Wildcards)
+    de_teams = set()
+    for g in range(1, 11):
+        sg = sort_group_with_head_to_head(conn, g)
+        real = [t['team'] for t in sg if not t['is_ghost']]
+        de_teams.update(real[:3])
+    for f in all_fourths[:2]:
+        de_teams.add(f['team'])
+
+    # Alle 28 Nicht-DE-Teams nach goals_for sortieren → Top 16 = FC, Rest = PLZ
+    cursor.execute("""
+        SELECT r.team, r.goals_for, r.goal_difference
+        FROM rankings r
+        WHERE r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
+        ORDER BY r.goals_for DESC, r.goal_difference DESC
+    """)
+    non_de_sorted = [r['team'] for r in cursor.fetchall() if r['team'] not in de_teams]
+    fc_teams  = set(non_de_sorted[:16])
+    plz_teams = set(non_de_sorted[16:])
+
     conn.close()
 
     return render_template("admin/group_standings.html",
@@ -2552,7 +2572,10 @@ def group_standings(game_name):
                          groups=groups,
                          best_4th_1=best_4th_1,
                          best_4th_2=best_4th_2,
-                         all_fourths=all_fourths)
+                         all_fourths=all_fourths,
+                         de_teams=de_teams,
+                         fc_teams=fc_teams,
+                         plz_teams=plz_teams)
 
 
 @app.route('/generate_double_elim/<game_name>')
@@ -2567,21 +2590,31 @@ def generate_double_elim(game_name):
         conn.close()
         return render_template("admin/error.html", error_message="Double Elimination wurde bereits generiert!")
 
-    # Top 3 aus allen 10 Gruppen = 30 Teams
-    teams = []
+    # Teams mit Group-Separation Seeding sammeln:
+    # Erst alle Platz-1 der 10 Gruppen, dann alle Platz-2, dann Platz-3
+    # → bei Seeding 1vs32, 2vs31... treffen Gruppen-Teammmates erst spaet aufeinander
+    group_teams = {}  # {group_num: [platz1, platz2, platz3]}
     for g in range(1, 11):
         sorted_g = sort_group_with_head_to_head(conn, g)
         real = [t["team"] for t in sorted_g if not t["is_ghost"]]
-        teams.extend(real[:3])
+        group_teams[g] = real[:3]
 
-    # 2 beste 4. Plaetze global = 32. und 33. Team (aber nur 2 brauchen wir)
+    # Interleaved: alle Platz-1, dann alle Platz-2, dann alle Platz-3
+    teams = []
+    for rank in range(3):          # Platz 1, 2, 3
+        for g in range(1, 11):     # Gruppe 1-10
+            if rank < len(group_teams.get(g, [])):
+                teams.append(group_teams[g][rank])
+
+    # 2 beste 4. Plaetze global als Wildcards (Seed 31+32)
     all_fourths = []
     for g in range(1, 11):
         sorted_g = sort_group_with_head_to_head(conn, g)
         real = [t for t in sorted_g if not t["is_ghost"]]
         if len(real) >= 4:
             f = real[3]
-            all_fourths.append({"team": f["team"], "goals_for": f["goals_for"],
+            all_fourths.append({"team": f["team"], "group_number": g,
+                                "goals_for": f["goals_for"],
                                 "goal_difference": f["goal_difference"]})
     all_fourths.sort(key=lambda x: (-x["goals_for"], -x["goal_difference"]))
     for f in all_fourths[:2]:
@@ -2672,7 +2705,10 @@ def update_double_elim_result(game_name, match_id):
     cursor.execute("UPDATE double_elim_matches SET score1=?,score2=?,winner=?,loser=? WHERE id=?",
                    (score1, score2, winner, loser, match_id))
     conn.commit()
-    process_double_elim_forwarding(conn, match, "double_elim_matches",
+    # Nach dem UPDATE den aktuellen Row neu laden (winner/loser sind jetzt gesetzt)
+    cursor.execute("SELECT * FROM double_elim_matches WHERE id=?", (match_id,))
+    match_updated = cursor.fetchone()
+    process_double_elim_forwarding(conn, match_updated, "double_elim_matches",
                                    WINNER_MAPPING, LOSER_MAPPING, LOSER_WINNER_MAPPING)
     conn.close()
     return redirect(url_for("enter_double_elim_results", game_name=game_name))
@@ -3040,13 +3076,9 @@ def generate_follower_cup(game_name):
         SELECT r.team, r.points, r.goal_difference, r.goals_for
         FROM rankings r
         WHERE r.team NOT IN (
-            SELECT team1 FROM double_elim_matches WHERE round = 1
+            SELECT team1 FROM double_elim_matches WHERE round = 1 AND team1 IS NOT NULL
             UNION
-            SELECT team2 FROM double_elim_matches WHERE round = 1
-            UNION
-            SELECT team1 FROM double_elim_matches WHERE round = 1
-            UNION
-            SELECT team2 FROM double_elim_matches WHERE round = 1
+            SELECT team2 FROM double_elim_matches WHERE round = 1 AND team2 IS NOT NULL
         )
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
         ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
@@ -3288,13 +3320,9 @@ def generate_placement_round(game_name):
         SELECT r.team, r.points, r.goal_difference, r.goals_for
         FROM rankings r
         WHERE r.team NOT IN (
-            SELECT team1 FROM double_elim_matches WHERE round = 1
+            SELECT team1 FROM double_elim_matches WHERE round = 1 AND team1 IS NOT NULL
             UNION
-            SELECT team2 FROM double_elim_matches WHERE round = 1
-            UNION
-            SELECT team1 FROM double_elim_matches WHERE round = 1
-            UNION
-            SELECT team2 FROM double_elim_matches WHERE round = 1
+            SELECT team2 FROM double_elim_matches WHERE round = 1 AND team2 IS NOT NULL
         )
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
         ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC

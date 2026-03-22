@@ -2,38 +2,70 @@
 
 {% block content %}
 <style>
-    .qualified-row    { background-color: #d4edda !important; }
-    .fourth-row       { background-color: #fff3cd !important; }
-    .eliminated-row   { background-color: #f8d7da !important; }
-    .best-fourth-row  { background-color: #cce5ff !important; }
+    .de-row         { background-color: #d4edda !important; }
+    .de-wild-row    { background-color: #cce5ff !important; }
+    .fc-row         { background-color: #fff3cd !important; }
+    .pl-row         { background-color: #f8d7da !important; }
+
+    .zone-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 1px 5px;
+        border-radius: 3px;
+        margin-left: 4px;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .zone-de  { background:#28a745; color:#fff; }
+    .zone-wild{ background:#007bff; color:#fff; }
+    .zone-fc  { background:#fd7e14; color:#fff; }
+    .zone-pl  { background:#dc3545; color:#fff; }
 </style>
 
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <h1>Gruppentabellen <small class="text-muted">{{ game_name }}</small></h1>
-        <div class="d-flex align-items-center">
-            <span class="mr-3 small">
-                <span class="badge" style="background:#d4edda;color:#155724;border:1px solid #c3e6cb">&#10003; Platz 1–3 = DE</span>
-                <span class="badge ml-1" style="background:#cce5ff;color:#004085;border:1px solid #b8daff">&#9733; Bester 4. = DE</span>
-                <span class="badge ml-1" style="background:#fff3cd;color:#856404;border:1px solid #ffeeba">Platz 4</span>
-                <span class="badge ml-1" style="background:#f8d7da;color:#721c24;border:1px solid #f5c6cb">Platz 5–6</span>
-            </span>
-            <form action="{{ url_for('recalculate_rankings', game_name=game_name) }}" method="POST" class="ml-2">
-                <button type="submit" class="btn btn-outline-secondary btn-sm">
-                    <i class="fas fa-sync"></i> Neu berechnen
-                </button>
-            </form>
-        </div>
+        <form action="{{ url_for('recalculate_rankings', game_name=game_name) }}" method="POST">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-sync"></i> Neu berechnen
+            </button>
+        </form>
     </div>
 
-    <div class="alert alert-info py-2 small mb-3">
-        <i class="fas fa-info-circle"></i>
-        <strong>Sortierung:</strong>
-        1. Geworfene Punkte (G+) &nbsp;|&nbsp;
-        2. Tordifferenz (Diff) &nbsp;|&nbsp;
-        3. Direkter Vergleich
-        &nbsp;&nbsp;&nbsp;
-        <strong>DE-Qualifikation:</strong> Top 3 jeder Gruppe + 2 beste 4. Plätze über alle 10 Gruppen = 32 Teams
+    <!-- Legende -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex flex-wrap" style="gap:14px; font-size:0.85rem; align-items:center;">
+                <div>
+                    <span style="display:inline-block;width:14px;height:14px;background:#d4edda;border:1px solid #c3e6cb;border-radius:2px;vertical-align:middle;"></span>
+                    &nbsp;<strong>Platz 1–3</strong>
+                    <span class="zone-label zone-de">DE</span>
+                    Double Elimination
+                </div>
+                <div>
+                    <span style="display:inline-block;width:14px;height:14px;background:#cce5ff;border:1px solid #b8daff;border-radius:2px;vertical-align:middle;"></span>
+                    &nbsp;<strong>Bester 4. ★1/★2</strong>
+                    <span class="zone-label zone-wild">DE ★</span>
+                    Double Elimination (Wildcard)
+                </div>
+                <div>
+                    <span style="display:inline-block;width:14px;height:14px;background:#fff3cd;border:1px solid #ffeeba;border-radius:2px;vertical-align:middle;"></span>
+                    <span class="zone-label zone-fc">FC</span>
+                    Follower Cup (Top 16 der 28 Nicht-DE-Teams nach G+)
+                </div>
+                <div>
+                    <span style="display:inline-block;width:14px;height:14px;background:#f8d7da;border:1px solid #f5c6cb;border-radius:2px;vertical-align:middle;"></span>
+                    <span class="zone-label zone-pl">PLZ</span>
+                    Platzierungsrunde (letzte 12 der 28 Nicht-DE-Teams)
+                </div>
+            </div>
+            <div class="mt-2" style="font-size:0.78rem;color:#555;">
+                <i class="fas fa-info-circle"></i>
+                <strong>Sortierung:</strong> 1. G+ DESC &nbsp;|&nbsp; 2. Diff DESC &nbsp;|&nbsp; 3. Direkter Vergleich
+                &nbsp;&nbsp;&nbsp;
+                <strong>FC/PLZ-Grenze:</strong> basiert auf G+ aller 28 Nicht-DE-Teams (unabhängig vom Gruppenplatz)
+            </div>
+        </div>
     </div>
 
     {% for bracket_label, bracket_color, group_range in [
@@ -41,8 +73,8 @@
         ('Bracket B (Gruppen 6–10)', 'info',   range(6, 11))
     ] %}
     <div class="card mb-4 border-{{ bracket_color }}">
-        <div class="card-header bg-{{ bracket_color }} text-white">
-            <h4 class="mb-0">{{ bracket_label }}</h4>
+        <div class="card-header bg-{{ bracket_color }} text-white py-2">
+            <h5 class="mb-0">{{ bracket_label }}</h5>
         </div>
         <div class="card-body">
             <div class="row">
@@ -51,10 +83,10 @@
                     <div class="card shadow-sm">
                         <div class="card-header py-1 font-weight-bold">Gruppe {{ i }}</div>
                         <div class="card-body p-0">
-                            <table class="table table-sm m-0" style="font-size:0.85rem">
+                            <table class="table table-sm m-0" style="font-size:0.82rem">
                                 <thead class="thead-light">
                                     <tr>
-                                        <th style="width:26px">#</th>
+                                        <th style="width:24px">#</th>
                                         <th>Team</th>
                                         <th class="text-center" title="Spiele">Sp</th>
                                         <th class="text-center" title="Siege">S</th>
@@ -62,21 +94,37 @@
                                         <th class="text-center font-weight-bold" title="Geworfene Punkte">G+</th>
                                         <th class="text-center" title="Erhaltene Punkte">G-</th>
                                         <th class="text-center" title="Differenz">Diff</th>
+                                        <th class="text-center" title="Phase">Phase</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for row in groups.get(i, []) %}
                                     {% set is_best4_1 = (best_4th_1 and row.team == best_4th_1.team) %}
                                     {% set is_best4_2 = (best_4th_2 and row.team == best_4th_2.team) %}
-                                    {% if loop.index <= 3 %}
-                                        {% set row_class = 'qualified-row' %}
+
+                                    {# Phase aus den echten Sets bestimmen – nicht aus loop.index #}
+                                    {% if row.team in de_teams and not is_best4_1 and not is_best4_2 %}
+                                        {% set row_class = 'de-row' %}
+                                        {% set phase_label = 'DE' %}
+                                        {% set phase_class = 'zone-de' %}
                                     {% elif is_best4_1 or is_best4_2 %}
-                                        {% set row_class = 'best-fourth-row' %}
-                                    {% elif loop.index == 4 %}
-                                        {% set row_class = 'fourth-row' %}
+                                        {% set row_class = 'de-wild-row' %}
+                                        {% set phase_label = 'DE ★' %}
+                                        {% set phase_class = 'zone-wild' %}
+                                    {% elif row.team in fc_teams %}
+                                        {% set row_class = 'fc-row' %}
+                                        {% set phase_label = 'FC' %}
+                                        {% set phase_class = 'zone-fc' %}
+                                    {% elif row.team in plz_teams %}
+                                        {% set row_class = 'pl-row' %}
+                                        {% set phase_label = 'PLZ' %}
+                                        {% set phase_class = 'zone-pl' %}
                                     {% else %}
-                                        {% set row_class = 'eliminated-row' %}
+                                        {% set row_class = '' %}
+                                        {% set phase_label = '?' %}
+                                        {% set phase_class = '' %}
                                     {% endif %}
+
                                     <tr class="{{ row_class }}">
                                         <td class="font-weight-bold">{{ loop.index }}</td>
                                         <td>
@@ -84,9 +132,9 @@
                                                 {{ row.team }}
                                             </span>
                                             {% if is_best4_1 %}
-                                                <span class="badge badge-primary ml-1" title="Bester 4. Platz global – DE qualifiziert">&#9733;1</span>
+                                                <span class="badge badge-primary" style="font-size:0.6rem" title="Bester 4. global">★1</span>
                                             {% elif is_best4_2 %}
-                                                <span class="badge badge-primary ml-1" title="Zweitbester 4. Platz global – DE qualifiziert">&#9733;2</span>
+                                                <span class="badge badge-primary" style="font-size:0.6rem" title="Zweitbester 4. global">★2</span>
                                             {% endif %}
                                         </td>
                                         <td class="text-center">{{ row.matches_played }}</td>
@@ -96,6 +144,9 @@
                                         <td class="text-center">{{ row.goals_against }}</td>
                                         <td class="text-center {% if row.goal_difference > 0 %}text-success{% elif row.goal_difference < 0 %}text-danger{% endif %}">
                                             {{ row.goal_difference }}
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="zone-label {{ phase_class }}">{{ phase_label }}</span>
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -110,13 +161,13 @@
     </div>
     {% endfor %}
 
-    <!-- Tabelle: alle 10 Viertplatzierten mit Ranking -->
+    <!-- Vergleich aller 4. Platzierten -->
     <div class="card mb-4">
-        <div class="card-header bg-dark text-white">
-            <h5 class="mb-0">
+        <div class="card-header bg-dark text-white py-2">
+            <h6 class="mb-0">
                 <i class="fas fa-star"></i>
-                Vergleich aller 4. Platzierten – 2 beste qualifizieren sich für Double Elimination
-            </h5>
+                Vergleich aller 4. Platzierten – 2 beste → Double Elimination, Rest → Follower Cup
+            </h6>
         </div>
         <div class="card-body p-0">
             <table class="table table-sm m-0">
@@ -127,17 +178,17 @@
                         <th class="text-center">Gruppe</th>
                         <th class="text-center font-weight-bold">G+</th>
                         <th class="text-center">Diff</th>
-                        <th>Status</th>
+                        <th>Phase</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for f in all_fourths %}
-                    <tr class="{% if loop.index <= 2 %}best-fourth-row{% endif %}">
+                    <tr class="{% if loop.index <= 2 %}de-wild-row{% else %}fc-row{% endif %}">
                         <td class="font-weight-bold">{{ loop.index }}</td>
                         <td>
                             {{ f.team }}
                             {% if loop.index <= 2 %}
-                            <span class="badge badge-primary ml-1">&#9733; DE qualifiziert</span>
+                            <span class="badge badge-primary ml-1" style="font-size:0.65rem">★ Wildcard</span>
                             {% endif %}
                         </td>
                         <td class="text-center">{{ f.group_number }}</td>
@@ -147,9 +198,11 @@
                         </td>
                         <td>
                             {% if loop.index <= 2 %}
-                            <span class="text-primary font-weight-bold">→ Double Elimination</span>
+                            <span class="zone-label zone-wild">DE ★</span>
+                            <span class="ml-1" style="font-size:0.8rem;">→ Double Elimination</span>
                             {% else %}
-                            <span class="text-muted">→ Follower Cup / Platzierung</span>
+                            <span class="zone-label zone-fc">FC</span>
+                            <span class="ml-1" style="font-size:0.8rem;color:#666;">→ Follower Cup</span>
                             {% endif %}
                         </td>
                     </tr>
