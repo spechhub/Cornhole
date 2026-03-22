@@ -28,95 +28,86 @@ os.makedirs(TOURNAMENT_FOLDER, exist_ok=True)
 # ============================================================================
 
 # BRACKET A MAPPINGS (Gruppen 1-5)
-WINNER_MAPPING_A = {
-    # Winner Runde 1 → 2 (16 Matches → 8)
-    (1, 0): (2, 0, 'team1'), (1, 1): (2, 0, 'team2'),
-    (1, 2): (2, 1, 'team1'), (1, 3): (2, 1, 'team2'),
-    (1, 4): (2, 2, 'team1'), (1, 5): (2, 2, 'team2'),
-    (1, 6): (2, 3, 'team1'), (1, 7): (2, 3, 'team2'),
-    (1, 8): (2, 4, 'team1'), (1, 9): (2, 4, 'team2'),
+WINNER_MAPPING = {
+    # WB R1 (16M) → WB R2
+    (1, 0):  (2, 0, 'team1'), (1, 1):  (2, 0, 'team2'),
+    (1, 2):  (2, 1, 'team1'), (1, 3):  (2, 1, 'team2'),
+    (1, 4):  (2, 2, 'team1'), (1, 5):  (2, 2, 'team2'),
+    (1, 6):  (2, 3, 'team1'), (1, 7):  (2, 3, 'team2'),
+    (1, 8):  (2, 4, 'team1'), (1, 9):  (2, 4, 'team2'),
     (1, 10): (2, 5, 'team1'), (1, 11): (2, 5, 'team2'),
     (1, 12): (2, 6, 'team1'), (1, 13): (2, 6, 'team2'),
     (1, 14): (2, 7, 'team1'), (1, 15): (2, 7, 'team2'),
-
-    # Winner Runde 2 → 3 (8 Matches → 4)
+    # WB R2 (8M) → WB R3
     (2, 0): (3, 0, 'team1'), (2, 1): (3, 0, 'team2'),
     (2, 2): (3, 1, 'team1'), (2, 3): (3, 1, 'team2'),
     (2, 4): (3, 2, 'team1'), (2, 5): (3, 2, 'team2'),
     (2, 6): (3, 3, 'team1'), (2, 7): (3, 3, 'team2'),
-
-    # Winner Runde 3 → 4 (4 Matches → 2)
+    # WB R3 (4M) → WB R4
     (3, 0): (4, 0, 'team1'), (3, 1): (4, 0, 'team2'),
     (3, 2): (4, 1, 'team1'), (3, 3): (4, 1, 'team2'),
-
-    # Winner Runde 4 → 5 (Finale)
+    # WB R4 (2M) → WB R5 (Final)
     (4, 0): (5, 0, 'team1'), (4, 1): (5, 0, 'team2'),
 }
 
-LOSER_MAPPING_A = {
-    # WB1 → LB1 (16 Verlierer → 8 LB-Spiele)
-    (1, 0): (1, 0, 'team1'), (1, 1): (1, 0, 'team2'),
-    (1, 2): (1, 1, 'team1'), (1, 3): (1, 1, 'team2'),
-    (1, 4): (1, 2, 'team1'), (1, 5): (1, 2, 'team2'),
-    (1, 6): (1, 3, 'team1'), (1, 7): (1, 3, 'team2'),
-    (1, 8): (1, 4, 'team1'), (1, 9): (1, 4, 'team2'),
+LOSER_MAPPING = {
+    # WB R1 (16V) → LB R1 (8 Spiele, je 2 Verlierer pro Match)
+    (1, 0):  (1, 0, 'team1'), (1, 1):  (1, 0, 'team2'),
+    (1, 2):  (1, 1, 'team1'), (1, 3):  (1, 1, 'team2'),
+    (1, 4):  (1, 2, 'team1'), (1, 5):  (1, 2, 'team2'),
+    (1, 6):  (1, 3, 'team1'), (1, 7):  (1, 3, 'team2'),
+    (1, 8):  (1, 4, 'team1'), (1, 9):  (1, 4, 'team2'),
     (1, 10): (1, 5, 'team1'), (1, 11): (1, 5, 'team2'),
     (1, 12): (1, 6, 'team1'), (1, 13): (1, 6, 'team2'),
     (1, 14): (1, 7, 'team1'), (1, 15): (1, 7, 'team2'),
-
-    # WB2 → LB2 (als team2)
-    (2, 0): (2, 0, 'team2'), (2, 1): (2, 1, 'team2'),
-    (2, 2): (2, 2, 'team2'), (2, 3): (2, 3, 'team2'),
-    (2, 4): (2, 4, 'team2'), (2, 5): (2, 5, 'team2'),
-    (2, 6): (2, 6, 'team2'), (2, 7): (2, 7, 'team2'),
-
-    # WB3 → LB4
-    (3, 0): (4, 0, 'team2'), (3, 1): (4, 1, 'team2'),
-    (3, 2): (4, 2, 'team2'), (3, 3): (4, 3, 'team2'),
-
-    # WB4 → LB6
-    (4, 0): (6, 0, 'team2'), (4, 1): (6, 1, 'team2'),
-
-    # WB-Finale → LB-Finale
-    (5, 0): (8, 0, 'team2'),
+    # WB R2 (8V) → LB R3 als team2
+    (2, 0): (3, 0, 'team2'), (2, 1): (3, 1, 'team2'),
+    (2, 2): (3, 2, 'team2'), (2, 3): (3, 3, 'team2'),
+    (2, 4): (3, 4, 'team2'), (2, 5): (3, 5, 'team2'),
+    (2, 6): (3, 6, 'team2'), (2, 7): (3, 7, 'team2'),
+    # WB R3 (4V) → LB R5 als team2
+    (3, 0): (5, 0, 'team2'), (3, 1): (5, 1, 'team2'),
+    (3, 2): (5, 2, 'team2'), (3, 3): (5, 3, 'team2'),
+    # WB R4 (2V) → LB R7 als team2
+    (4, 0): (7, 0, 'team2'), (4, 1): (7, 1, 'team2'),
+    # WB Final (1V) → LB Final als team2
+    (5, 0): (9, 0, 'team2'),
 }
 
-LOSER_WINNER_MAPPING_A = {
-    # LB1 → LB2 (als team1)
+LOSER_WINNER_MAPPING = {
+    # LB R1 (8S) → LB R2 als team1
     (1, 0): (2, 0, 'team1'), (1, 1): (2, 1, 'team1'),
     (1, 2): (2, 2, 'team1'), (1, 3): (2, 3, 'team1'),
     (1, 4): (2, 4, 'team1'), (1, 5): (2, 5, 'team1'),
     (1, 6): (2, 6, 'team1'), (1, 7): (2, 7, 'team1'),
-
-    # LB2 → LB3
-    (2, 0): (3, 0, 'team1'), (2, 1): (3, 0, 'team2'),
-    (2, 2): (3, 1, 'team1'), (2, 3): (3, 1, 'team2'),
-    (2, 4): (3, 2, 'team1'), (2, 5): (3, 2, 'team2'),
-    (2, 6): (3, 3, 'team1'), (2, 7): (3, 3, 'team2'),
-
-    # LB3 → LB4
+    # LB R2 (8S) → LB R3 als team1
+    (2, 0): (3, 0, 'team1'), (2, 1): (3, 1, 'team1'),
+    (2, 2): (3, 2, 'team1'), (2, 3): (3, 3, 'team1'),
+    (2, 4): (3, 4, 'team1'), (2, 5): (3, 5, 'team1'),
+    (2, 6): (3, 6, 'team1'), (2, 7): (3, 7, 'team1'),
+    # LB R3 (8S) → LB R4 als team1
     (3, 0): (4, 0, 'team1'), (3, 1): (4, 1, 'team1'),
     (3, 2): (4, 2, 'team1'), (3, 3): (4, 3, 'team1'),
-
-    # LB4 → LB5
-    (4, 0): (5, 0, 'team1'), (4, 1): (5, 0, 'team2'),
-    (4, 2): (5, 1, 'team1'), (4, 3): (5, 1, 'team2'),
-
-    # LB5 → LB6
+    (3, 4): (4, 4, 'team1'), (3, 5): (4, 5, 'team1'),
+    (3, 6): (4, 6, 'team1'), (3, 7): (4, 7, 'team1'),
+    # LB R4 (8S) → LB R5 als team1
+    (4, 0): (5, 0, 'team1'), (4, 1): (5, 1, 'team1'),
+    (4, 2): (5, 2, 'team1'), (4, 3): (5, 3, 'team1'),
+    (4, 4): (5, 4, 'team1'), (4, 5): (5, 5, 'team1'),
+    (4, 6): (5, 6, 'team1'), (4, 7): (5, 7, 'team1'),
+    # LB R5 (8S→4M nach WB3 drop) → LB R6 als team1
     (5, 0): (6, 0, 'team1'), (5, 1): (6, 1, 'team1'),
-
-    # LB6 → LB7
-    (6, 0): (7, 0, 'team1'), (6, 1): (7, 0, 'team2'),
-
-    # LB7 → LB-Finale
-    (7, 0): (8, 0, 'team1'),
+    (5, 2): (6, 2, 'team1'), (5, 3): (6, 3, 'team1'),
+    # LB R6 (4S) → LB R7 als team1
+    (6, 0): (7, 0, 'team1'), (6, 1): (7, 1, 'team1'),
+    (6, 2): (7, 2, 'team1'), (6, 3): (7, 3, 'team1'),
+    # LB R7 (4S→2M nach WB4 drop) → LB R8 als team1
+    (7, 0): (8, 0, 'team1'), (7, 1): (8, 1, 'team1'),
+    # LB R8 (2S) → LB R9 (Final) als team1
+    (8, 0): (9, 0, 'team1'),
 }
 
 # BRACKET B MAPPINGS (identisch zu A)
-WINNER_MAPPING_B = WINNER_MAPPING_A.copy()
-LOSER_MAPPING_B = LOSER_MAPPING_A.copy()
-LOSER_WINNER_MAPPING_B = LOSER_WINNER_MAPPING_A.copy()
-
 # SUPER FINALS MAPPINGS
 SUPER_FINALS_QUALIFICATION = {
     ('A', 1): ('HF1', 'team1'),
@@ -209,25 +200,7 @@ def initialize_db(db_path):
     """)
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS double_elim_matches_a (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            match_number INTEGER UNIQUE,
-            round INTEGER NOT NULL,
-            bracket TEXT NOT NULL,
-            match_index INTEGER NOT NULL,
-            team1 TEXT,
-            team2 TEXT,
-            score1 INTEGER DEFAULT NULL,
-            score2 INTEGER DEFAULT NULL,
-            winner TEXT DEFAULT NULL,
-            loser TEXT DEFAULT NULL,
-            court INTEGER DEFAULT NULL,
-            time TEXT DEFAULT NULL
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS double_elim_matches_b (
+        CREATE TABLE IF NOT EXISTS double_elim_matches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             match_number INTEGER UNIQUE,
             round INTEGER NOT NULL,
@@ -343,21 +316,7 @@ def upgrade_database(db_path):
         
         # Alle anderen Tabellen erstellen (falls nicht vorhanden)
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS double_elim_matches_a (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                match_number INTEGER UNIQUE,
-                round INTEGER NOT NULL,
-                bracket TEXT NOT NULL,
-                match_index INTEGER NOT NULL,
-                team1 TEXT, team2 TEXT,
-                score1 INTEGER, score2 INTEGER,
-                winner TEXT, loser TEXT,
-                court INTEGER, time TEXT
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS double_elim_matches_b (
+            CREATE TABLE IF NOT EXISTS double_elim_matches (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 match_number INTEGER UNIQUE,
                 round INTEGER NOT NULL,
@@ -588,14 +547,8 @@ def get_next_match_number(cursor):
     if row and row['max_num']:
         max_numbers.append(row['max_num'])
     
-    # Double Elim A
-    cursor.execute("SELECT MAX(match_number) as max_num FROM double_elim_matches_a")
-    row = cursor.fetchone()
-    if row and row['max_num']:
-        max_numbers.append(row['max_num'])
-    
-    # Double Elim B
-    cursor.execute("SELECT MAX(match_number) as max_num FROM double_elim_matches_b")
+    # Double Elimination
+    cursor.execute("SELECT MAX(match_number) as max_num FROM double_elim_matches")
     row = cursor.fetchone()
     if row and row['max_num']:
         max_numbers.append(row['max_num'])
@@ -668,111 +621,29 @@ def assign_round_robin_match_numbers(conn):
     return match_number  # Nächste verfügbare Nummer
 
 
-def assign_double_elim_match_numbers_a(conn, start_number=151):
-    """
-    Vergibt Spielnummern für Bracket A Double Elimination.
-    Standard: #151-#181
-    
-    Args:
-        conn: SQLite Connection
-        start_number: Startnummer (default: 151)
-    
-    Returns:
-        int: Nächste verfügbare Spielnummer
-    """
+def assign_double_elim_match_numbers(conn, start_number=151):
+    """Spielnummern fuer Double Elimination (32 Teams, 1 Bracket).
+    WB R1-R5 zuerst, dann LB R1-R9."""
     cursor = conn.cursor()
-    
     match_number = start_number
-    
-    # Winner Bracket: Runde 1-4
-    for round_num in range(1, 5):
-        cursor.execute("""
-            SELECT id FROM double_elim_matches_a 
-            WHERE round = ? AND bracket = 'Winners'
-            ORDER BY match_index ASC
-        """, (round_num,))
-        
-        for match in cursor.fetchall():
-            conn.execute("""
-                UPDATE double_elim_matches_a 
-                SET match_number = ?
-                WHERE id = ?
-            """, (match_number, match['id']))
+    for round_num in range(1, 6):
+        cursor.execute(
+            "SELECT id FROM double_elim_matches WHERE round=? AND bracket='Winners' ORDER BY match_index",
+            (round_num,))
+        for m in cursor.fetchall():
+            conn.execute("UPDATE double_elim_matches SET match_number=? WHERE id=?",
+                         (match_number, m['id']))
             match_number += 1
-    
-    # Loser Bracket: Runde 1-6
-    for round_num in range(1, 7):
-        cursor.execute("""
-            SELECT id FROM double_elim_matches_a 
-            WHERE round = ? AND bracket = 'Losers'
-            ORDER BY match_index ASC
-        """, (round_num,))
-        
-        for match in cursor.fetchall():
-            conn.execute("""
-                UPDATE double_elim_matches_a 
-                SET match_number = ?
-                WHERE id = ?
-            """, (match_number, match['id']))
+    for round_num in range(1, 10):
+        cursor.execute(
+            "SELECT id FROM double_elim_matches WHERE round=? AND bracket='Losers' ORDER BY match_index",
+            (round_num,))
+        for m in cursor.fetchall():
+            conn.execute("UPDATE double_elim_matches SET match_number=? WHERE id=?",
+                         (match_number, m['id']))
             match_number += 1
-    
     conn.commit()
-    print(f"✅ Bracket A: {match_number - start_number} Spielnummern vergeben (#{start_number}-#{match_number - 1})")
-    
-    return match_number
-
-
-def assign_double_elim_match_numbers_b(conn, start_number=182):
-    """
-    Vergibt Spielnummern für Bracket B Double Elimination.
-    Standard: #182-#212
-    
-    Args:
-        conn: SQLite Connection
-        start_number: Startnummer (default: 182)
-    
-    Returns:
-        int: Nächste verfügbare Spielnummer
-    """
-    cursor = conn.cursor()
-    
-    match_number = start_number
-    
-    # Winner Bracket: Runde 1-4
-    for round_num in range(1, 5):
-        cursor.execute("""
-            SELECT id FROM double_elim_matches_b 
-            WHERE round = ? AND bracket = 'Winners'
-            ORDER BY match_index ASC
-        """, (round_num,))
-        
-        for match in cursor.fetchall():
-            conn.execute("""
-                UPDATE double_elim_matches_b 
-                SET match_number = ?
-                WHERE id = ?
-            """, (match_number, match['id']))
-            match_number += 1
-    
-    # Loser Bracket: Runde 1-6
-    for round_num in range(1, 7):
-        cursor.execute("""
-            SELECT id FROM double_elim_matches_b 
-            WHERE round = ? AND bracket = 'Losers'
-            ORDER BY match_index ASC
-        """, (round_num,))
-        
-        for match in cursor.fetchall():
-            conn.execute("""
-                UPDATE double_elim_matches_b 
-                SET match_number = ?
-                WHERE id = ?
-            """, (match_number, match['id']))
-            match_number += 1
-    
-    conn.commit()
-    print(f"✅ Bracket B: {match_number - start_number} Spielnummern vergeben (#{start_number}-#{match_number - 1})")
-    
+    print(f"✅ DE: {match_number-start_number} Nummern vergeben (#{start_number}-#{match_number-1})")
     return match_number
 
 
@@ -790,7 +661,7 @@ def assign_super_finals_match_numbers(conn, start_number=213):
     """
     cursor = conn.cursor()
     
-    match_ids = ['HF1', 'HF2', 'THIRD', 'FINAL']
+    match_ids = ['HF1', 'FINAL', 'THIRD']
     match_number = start_number
     
     for match_id in match_ids:
@@ -949,24 +820,15 @@ def assign_all_match_numbers(conn):
         stats['round_robin'] = {'start': 0, 'end': 0, 'count': 0}
     
     # 2. Bracket A Double Elim (#151-#181)
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches_a")
+    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches")
     if cursor.fetchone()['count'] > 0:
         start = next_num
-        next_num = assign_double_elim_match_numbers_a(conn, next_num)
+        next_num = assign_double_elim_match_numbers(conn, next_num)
         stats['bracket_a'] = {'start': start, 'end': next_num - 1, 'count': next_num - start}
     else:
         stats['bracket_a'] = {'start': 0, 'end': 0, 'count': 0}
     
-    # 3. Bracket B Double Elim (#182-#212)
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches_b")
-    if cursor.fetchone()['count'] > 0:
-        start = next_num
-        next_num = assign_double_elim_match_numbers_b(conn, next_num)
-        stats['bracket_b'] = {'start': start, 'end': next_num - 1, 'count': next_num - start}
-    else:
-        stats['bracket_b'] = {'start': 0, 'end': 0, 'count': 0}
-    
-    # 4. Super Finals (#213-#216)
+    # 3. Super Finals (#213-#216)
     cursor.execute("SELECT COUNT(*) as count FROM super_finals_matches")
     if cursor.fetchone()['count'] > 0:
         start = next_num
@@ -1029,8 +891,7 @@ def reset_all_match_numbers(conn):
     cursor = conn.cursor()
     
     cursor.execute("UPDATE matches SET match_number = NULL")
-    cursor.execute("UPDATE double_elim_matches_a SET match_number = NULL")
-    cursor.execute("UPDATE double_elim_matches_b SET match_number = NULL")
+    cursor.execute("UPDATE double_elim_matches SET match_number = NULL")
     cursor.execute("UPDATE super_finals_matches SET match_number = NULL")
     cursor.execute("UPDATE follower_quali_matches SET match_number = NULL")
     cursor.execute("UPDATE follower_cup_matches SET match_number = NULL")
@@ -1059,10 +920,10 @@ INTEGRATION IN app.py:
 3. In generate_double_elim() nach allen Inserts einfügen:
    
    # Nach Bracket A Generierung
-   assign_double_elim_match_numbers_a(conn, 151)
+   assign_double_elim_match_numbers(conn, 151)
    
    # Nach Bracket B Generierung
-   assign_double_elim_match_numbers_b(conn, 182)
+   assign_double_elim_match_numbers(conn, 182)
 
 4. ODER: Einmal am Ende aller Generierungen aufrufen:
    
@@ -1094,8 +955,8 @@ if __name__ == '__main__':
     print("Hauptfunktionen:")
     print("  - assign_all_match_numbers(conn)")
     print("  - assign_round_robin_match_numbers(conn)")
-    print("  - assign_double_elim_match_numbers_a(conn, start)")
-    print("  - assign_double_elim_match_numbers_b(conn, start)")
+    print("  - assign_double_elim_match_numbers(conn, start)")
+    print("  - assign_double_elim_match_numbers(conn, start)")
     print()
     print("Siehe Integrations-Anleitung am Ende der Datei.")
     print("=" * 70)
@@ -1495,16 +1356,15 @@ def calculate_double_elim_times_and_courts(conn, de_start_time_str=None):
 
     # 13:20 WB R1
     t = de_start_time_str
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',1), t, list(range(1,9)))
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',1), t, list(range(9,17)))
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',1), t, list(range(1,17)))
     print(f"   WB R1: {t}")
 
     # 14:10 WB R2 + LB R1
     t2 = add_minutes_to_time(de_start_time_str, 50)
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',2), t2, [1,2,3,4])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',2), t2, [13,14,15,16])
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',1),  t2, [5,6,7,8])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',1),  t2, [9,10,11,12])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',2), t2, [1,2,3,4])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',2), t2, [13,14,15,16])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',1),  t2, [5,6,7,8])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',1),  t2, [9,10,11,12])
     print(f"   WB R2 + LB R1: {t2}")
 
     # 14:35 Platzierung + FC 1/8
@@ -1521,10 +1381,10 @@ def calculate_double_elim_times_and_courts(conn, de_start_time_str=None):
 
     # 15:00 WB VF + LB R2 + FC VF
     t4 = add_minutes_to_time(t3, 25)
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',3), t4, [9,10])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',3), t4, [11,12])
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',2),  t4, [1,2,3,4])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',2),  t4, [5,6,7,8])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',3), t4, [9,10])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',3), t4, [11,12])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',2),  t4, [1,2,3,4])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',2),  t4, [5,6,7,8])
     cursor.execute("SELECT id FROM follower_cup_matches WHERE round='quarter' ORDER BY match_index")
     ids_fcq = [r['id'] for r in cursor.fetchall()]
     if ids_fcq:
@@ -1533,8 +1393,8 @@ def calculate_double_elim_times_and_courts(conn, de_start_time_str=None):
 
     # 15:25 LB R3 + FC HF
     t5 = add_minutes_to_time(t4, 25)
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',3), t5, [5,6])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',3), t5, [7,8])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',3), t5, [5,6])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',3), t5, [7,8])
     cursor.execute("SELECT id FROM follower_cup_matches WHERE round='semi' ORDER BY match_index")
     ids_fcs = [r['id'] for r in cursor.fetchall()]
     if ids_fcs:
@@ -1543,10 +1403,10 @@ def calculate_double_elim_times_and_courts(conn, de_start_time_str=None):
 
     # 15:50 WB HF + LB R4 + FC Final + FC Platz3
     t6 = add_minutes_to_time(t5, 25)
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',4), t6, [11])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',4), t6, [12])
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',4),  t6, [1,2])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',4),  t6, [3,4])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',4), t6, [11])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',4), t6, [12])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',4),  t6, [1,2])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',4),  t6, [3,4])
     cursor.execute("SELECT id FROM follower_cup_matches WHERE round='third'  ORDER BY match_index")
     ids_fc3 = [r['id'] for r in cursor.fetchall()]
     if ids_fc3:
@@ -1559,22 +1419,22 @@ def calculate_double_elim_times_and_courts(conn, de_start_time_str=None):
 
     # 16:15 LB R5
     t7 = add_minutes_to_time(t6, 25)
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',5), t7, [3])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',5), t7, [4])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',5), t7, [3])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',5), t7, [4])
     print(f"   LB R5: {t7}")
 
     # 16:40 WB Final + LB R6
     t8 = add_minutes_to_time(t7, 25)
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Winners',5), t8, [7])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Winners',5), t8, [8])
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',6),  t8, [4])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',6),  t8, [5])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',5), t8, [7])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Winners',5), t8, [8])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',6),  t8, [4])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',6),  t8, [5])
     print(f"   WB Final + LB R6: {t8}")
 
     # 17:05 LB Final1
     t9 = add_minutes_to_time(t8, 25)
-    set_tc('double_elim_matches_a', get_ids('double_elim_matches_a','Losers',7), t9, [4])
-    set_tc('double_elim_matches_b', get_ids('double_elim_matches_b','Losers',7), t9, [5])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',7), t9, [4])
+    set_tc('double_elim_matches', get_ids('double_elim_matches','Losers',7), t9, [5])
     print(f"   LB Final1: {t9}")
 
     conn.commit()
@@ -1587,13 +1447,7 @@ def calculate_double_elim_times(conn, table_name, start_time_str=None):
     """Legacy-Wrapper: ruft calculate_double_elim_times_and_courts auf."""
     calculate_double_elim_times_and_courts(conn, start_time_str)
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT MAX(time) as t FROM (
-            SELECT time FROM double_elim_matches_a WHERE time IS NOT NULL
-            UNION ALL
-            SELECT time FROM double_elim_matches_b WHERE time IS NOT NULL
-        )
-    """)
+    cursor.execute("SELECT MAX(time) as t FROM double_elim_matches WHERE time IS NOT NULL")
     row = cursor.fetchone()
     return row['t'] if row and row['t'] else start_time_str
 
@@ -1612,12 +1466,7 @@ def calculate_super_finals_times(conn, start_time_str=None):
     """
     cursor = conn.cursor()
     if start_time_str is None:
-        cursor.execute("""
-            SELECT MAX(time) as t FROM (
-                SELECT time FROM double_elim_matches_a WHERE time IS NOT NULL
-                UNION ALL SELECT time FROM double_elim_matches_b WHERE time IS NOT NULL
-            )
-        """)
+        cursor.execute("SELECT MAX(time) as t FROM double_elim_matches WHERE time IS NOT NULL")
         row = cursor.fetchone()
         last_de = row['t'] if row and row['t'] else None
         start_time_str = add_minutes_to_time(last_de, 25) if last_de else "17:30"
@@ -1690,17 +1539,12 @@ def calculate_all_match_times(conn):
         stats['round_robin'] = {'start': times['start'], 'end': times['end']}
 
     # 2. Double Elimination + FC + Platzierung (integrierter Zeitplan)
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches_a")
+    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches")
     if cursor.fetchone()['count'] > 0:
         calculate_double_elim_times_and_courts(conn)
-        cursor.execute("SELECT MIN(time) as start FROM double_elim_matches_a WHERE time IS NOT NULL")
+        cursor.execute("SELECT MIN(time) as start FROM double_elim_matches WHERE time IS NOT NULL")
         start_de = cursor.fetchone()['start']
-        cursor.execute("""
-            SELECT MAX(time) as t FROM (
-                SELECT time FROM double_elim_matches_a WHERE time IS NOT NULL
-                UNION ALL SELECT time FROM double_elim_matches_b WHERE time IS NOT NULL
-            )
-        """)
+        cursor.execute("SELECT MAX(time) as t FROM double_elim_matches WHERE time IS NOT NULL")
         end_de = cursor.fetchone()['t']
         stats['double_elim'] = {'start': start_de, 'end': end_de}
 
@@ -1743,8 +1587,7 @@ def reset_all_match_times(conn):
     cursor = conn.cursor()
 
     cursor.execute("UPDATE matches SET time = NULL")
-    cursor.execute("UPDATE double_elim_matches_a SET time = NULL")
-    cursor.execute("UPDATE double_elim_matches_b SET time = NULL")
+    cursor.execute("UPDATE double_elim_matches SET time = NULL")
     cursor.execute("UPDATE super_finals_matches SET time = NULL")
     cursor.execute("UPDATE follower_quali_matches SET time = NULL")
     cursor.execute("UPDATE follower_cup_matches SET time = NULL")
@@ -1779,10 +1622,9 @@ INTEGRATION IN app.py:
 4. In generate_double_elim() nach Bracket-Generierung:
    
    conn.commit()
-   assign_double_elim_match_numbers_a(conn, 151)
-   assign_double_elim_match_numbers_b(conn, 182)
-   calculate_double_elim_times(conn, 'double_elim_matches_a')  # NEU
-   calculate_double_elim_times(conn, 'double_elim_matches_b')  # NEU
+   assign_double_elim_match_numbers(conn, 151)
+   calculate_double_elim_times(conn, 'double_elim_matches')  # NEU
+   calculate_double_elim_times(conn, 'double_elim_matches')  # NEU
 
 5. Neue Route für manuelle Neuberechnung:
    
@@ -1899,6 +1741,46 @@ def recalculate_rankings_internal(conn):
     conn.commit()
 
 
+def sort_group_with_head_to_head(conn, group_num):
+    """Sortiert eine Gruppe: 1. goals_for DESC  2. goal_difference DESC  3. direkter Vergleich"""
+    import functools
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT r.*, t.is_ghost
+        FROM rankings r
+        LEFT JOIN teams t ON r.team = t.name
+        WHERE r.group_number = ?
+    """, (group_num,))
+    teams = list(cursor.fetchall())
+
+    def h2h(team_a, team_b):
+        cursor.execute("""
+            SELECT score1, score2, team1 FROM matches
+            WHERE group_number = ?
+            AND ((team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?))
+            AND score1 IS NOT NULL
+        """, (group_num, team_a, team_b, team_b, team_a))
+        r = cursor.fetchone()
+        if not r: return 0
+        if r['team1'] == team_a:
+            return 3 if r['score1'] > r['score2'] else 0
+        else:
+            return 3 if r['score2'] > r['score1'] else 0
+
+    def compare(t1, t2):
+        if t1['goals_for'] != t2['goals_for']:
+            return -1 if t1['goals_for'] > t2['goals_for'] else 1
+        if t1['goal_difference'] != t2['goal_difference']:
+            return -1 if t1['goal_difference'] > t2['goal_difference'] else 1
+        a = h2h(t1['team'], t2['team'])
+        b = h2h(t2['team'], t1['team'])
+        if a != b:
+            return -1 if a > b else 1
+        return 0
+
+    return sorted(teams, key=functools.cmp_to_key(compare))
+
+
 # ============================================================================
 # HAUPTROUTEN
 # ============================================================================
@@ -1976,8 +1858,7 @@ def cancel_game(game_name):
     cursor = conn.cursor()
     
     cursor.execute("DELETE FROM matches")
-    cursor.execute("DELETE FROM double_elim_matches_a")
-    cursor.execute("DELETE FROM double_elim_matches_b")
+    cursor.execute("DELETE FROM double_elim_matches")
     cursor.execute("DELETE FROM super_finals_matches")
     cursor.execute("DELETE FROM follower_quali_matches")
     cursor.execute("DELETE FROM follower_cup_matches")
@@ -2200,6 +2081,13 @@ Ersetze die bestehenden Funktionen mit den folgenden Versionen:
 """
 
 
+
+
+# ============================================================================
+# PATCH 3: NEUE ROUTE - MANUELLE NEUNUMMERIERUNG
+# ============================================================================
+
+
 @app.route('/generate_matches/<game_name>')
 def generate_matches(game_name):
     """Spielplan für Round Robin generieren - MIT AUTOMATISCHER SPIELNUMMERIERUNG"""
@@ -2292,12 +2180,6 @@ def generate_matches(game_name):
     recalculate_rankings_internal(conn)
     conn.close()
     return redirect(url_for('game_overview', game_name=game_name))
-
-
-# ============================================================================
-# PATCH 3: NEUE ROUTE - MANUELLE NEUNUMMERIERUNG
-# ============================================================================
-
 @app.route('/renumber_all_matches/<game_name>', methods=['POST'])
 def renumber_all_matches(game_name):
     """
@@ -2315,8 +2197,7 @@ def renumber_all_matches(game_name):
         # Zuerst alle Nummern zurücksetzen
         cursor = conn.cursor()
         cursor.execute("UPDATE matches SET match_number = NULL")
-        cursor.execute("UPDATE double_elim_matches_a SET match_number = NULL")
-        cursor.execute("UPDATE double_elim_matches_b SET match_number = NULL")
+        cursor.execute("UPDATE double_elim_matches SET match_number = NULL")
         cursor.execute("UPDATE super_finals_matches SET match_number = NULL")
         cursor.execute("UPDATE follower_quali_matches SET match_number = NULL")
         cursor.execute("UPDATE follower_cup_matches SET match_number = NULL")
@@ -2368,21 +2249,18 @@ def game_overview(game_name):
     cursor.execute("SELECT COUNT(*) as count FROM matches WHERE match_number IS NOT NULL")
     numbered_rr = cursor.fetchone()['count']
     
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches_a WHERE match_number IS NOT NULL")
+    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches WHERE match_number IS NOT NULL")
     numbered_a = cursor.fetchone()['count']
-    
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches_b WHERE match_number IS NOT NULL")
-    numbered_b = cursor.fetchone()['count']
+    numbered_b = numbered_a  # Ein Bracket
     
     cursor.execute("SELECT MAX(match_number) as max_num FROM matches")
     max_rr = cursor.fetchone()['max_num'] or 0
     
     cursor.execute("""
-        SELECT MAX(match_number) as max_num 
+        SELECT MAX(match_number) as max_num
         FROM (
             SELECT match_number FROM matches
-            UNION ALL SELECT match_number FROM double_elim_matches_a
-            UNION ALL SELECT match_number FROM double_elim_matches_b
+            UNION ALL SELECT match_number FROM double_elim_matches
         )
     """)
     max_overall = cursor.fetchone()['max_num'] or 0
@@ -2643,14 +2521,7 @@ def group_standings(game_name):
     
     groups = {}
     for group_num in range(1, 11):
-        cursor.execute("""
-            SELECT r.*, t.is_ghost
-            FROM rankings r
-            LEFT JOIN teams t ON r.team = t.name
-            WHERE r.group_number = ?
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
-        """, (group_num,))
-        groups[group_num] = cursor.fetchall()
+        groups[group_num] = sort_group_with_head_to_head(conn, group_num)
     
     # Beste 4. Platzierte Bracket A - KORRIGIERT
     cursor.execute("""
@@ -2697,221 +2568,125 @@ def group_standings(game_name):
 
 @app.route('/generate_double_elim/<game_name>')
 def generate_double_elim(game_name):
-    """Beide Double Elimination Brackets generieren"""
+    """Double Elimination: 1 Bracket, 32 Teams.
+    Top 3 aus allen 10 Gruppen (30) + 2 beste 4. global = 32. Seeding: 1vs32...16vs17."""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches_a")
-    if cursor.fetchone()['count'] > 0:
+    cursor.execute("SELECT COUNT(*) as count FROM double_elim_matches")
+    if cursor.fetchone()["count"] > 0:
         conn.close()
-        return render_template("admin/error.html", 
-                             error_message="Brackets wurden bereits generiert!")
-    
-    bracket_a_teams = get_qualified_teams_for_bracket(conn, 1, 5)
-    bracket_b_teams = get_qualified_teams_for_bracket(conn, 6, 10)
-    
-    if len(bracket_a_teams) < 16 or len(bracket_b_teams) < 16:
+        return render_template("admin/error.html", error_message="Double Elimination wurde bereits generiert!")
+
+    # Top 3 aus allen 10 Gruppen = 30 Teams
+    teams = []
+    for g in range(1, 11):
+        sorted_g = sort_group_with_head_to_head(conn, g)
+        real = [t["team"] for t in sorted_g if not t["is_ghost"]]
+        teams.extend(real[:3])
+
+    # 2 beste 4. Plaetze global = 32. und 33. Team (aber nur 2 brauchen wir)
+    all_fourths = []
+    for g in range(1, 11):
+        sorted_g = sort_group_with_head_to_head(conn, g)
+        real = [t for t in sorted_g if not t["is_ghost"]]
+        if len(real) >= 4:
+            f = real[3]
+            all_fourths.append({"team": f["team"], "goals_for": f["goals_for"],
+                                "goal_difference": f["goal_difference"]})
+    all_fourths.sort(key=lambda x: (-x["goals_for"], -x["goal_difference"]))
+    for f in all_fourths[:2]:
+        if f["team"] not in teams:
+            teams.append(f["team"])
+
+    teams = teams[:32]
+    if len(teams) < 32:
         conn.close()
-        return render_template("admin/error.html", 
-                             error_message=f"Nicht genug qualifizierte Teams! A: {len(bracket_a_teams)}, B: {len(bracket_b_teams)}")
-    
-    match_number = 151
-    
-    # Bracket A Winner Runde 1
-    for i in range(8):
-        cursor.execute("""
-            INSERT INTO double_elim_matches_a 
-            (round, bracket, match_index, team1, team2)
-            VALUES (1, 'Winners', ?, ?, ?)
-        """, (i, bracket_a_teams[i], bracket_a_teams[15-i]))
-    
-    # Bracket A Loser Runde 1
-    for i in range(4):
-        cursor.execute("""
-            INSERT INTO double_elim_matches_a 
-            (round, bracket, match_index, team1, team2)
-            VALUES (1, 'Losers', ?, NULL, NULL)
-        """, (i,))
-    
-    # Weitere Runden Bracket A
-    for round_num in range(2, 5):
-        num_matches = 8 // (2 ** (round_num - 1))
-        for i in range(num_matches):
-            cursor.execute("""
-                INSERT INTO double_elim_matches_a 
-                (round, bracket, match_index, team1, team2)
-                VALUES (?, 'Winners', ?, NULL, NULL)
-            """, (round_num, i))
-    
-    for round_num in range(2, 7):
-        num_matches = max(1, 8 // (2 ** (round_num - 1)))
-        for i in range(num_matches):
-            cursor.execute("""
-                INSERT INTO double_elim_matches_a 
-                (round, bracket, match_index, team1, team2)
-                VALUES (?, 'Losers', ?, NULL, NULL)
-            """, (round_num, i))
-    
-    # Bracket B (identisch)
-    for i in range(8):
-        cursor.execute("""
-            INSERT INTO double_elim_matches_b 
-            (round, bracket, match_index, team1, team2)
-            VALUES (1, 'Winners', ?, ?, ?)
-        """, (i, bracket_b_teams[i], bracket_b_teams[15-i]))
-    
-    for i in range(4):
-        cursor.execute("""
-            INSERT INTO double_elim_matches_b 
-            (round, bracket, match_index, team1, team2)
-            VALUES (1, 'Losers', ?, NULL, NULL)
-        """, (i,))
-    
-    for round_num in range(2, 5):
-        num_matches = 8 // (2 ** (round_num - 1))
-        for i in range(num_matches):
-            cursor.execute("""
-                INSERT INTO double_elim_matches_b 
-                (round, bracket, match_index, team1, team2)
-                VALUES (?, 'Winners', ?, NULL, NULL)
-            """, (round_num, i))
-    
-    for round_num in range(2, 7):
-        num_matches = max(1, 8 // (2 ** (round_num - 1)))
-        for i in range(num_matches):
-            cursor.execute("""
-                INSERT INTO double_elim_matches_b 
-                (round, bracket, match_index, team1, team2)
-                VALUES (?, 'Losers', ?, NULL, NULL)
-            """, (round_num, i))
-    
+        return render_template("admin/error.html",
+                             error_message=f"Nicht genug Teams: {len(teams)} statt 32")
+
+    # WB R1: 16 Matches, Seeding 1vs32, 2vs31 ...
+    for i in range(16):
+        cursor.execute(
+            "INSERT INTO double_elim_matches (round,bracket,match_index,team1,team2) VALUES (1,'Winners',?,?,?)",
+            (i, teams[i], teams[31-i]))
+
+    # WB R2-R5
+    for rnd, nm in [(2,8),(3,4),(4,2),(5,1)]:
+        for i in range(nm):
+            cursor.execute(
+                "INSERT INTO double_elim_matches (round,bracket,match_index,team1,team2) VALUES (?,'Winners',?,NULL,NULL)",
+                (rnd, i))
+
+    # LB R1-R9
+    for rnd, nm in [(1,8),(2,8),(3,8),(4,8),(5,4),(6,4),(7,4),(8,2),(9,1)]:
+        for i in range(nm):
+            cursor.execute(
+                "INSERT INTO double_elim_matches (round,bracket,match_index,team1,team2) VALUES (?,'Losers',?,NULL,NULL)",
+                (rnd, i))
+
     conn.commit()
     cursor.execute("SELECT MAX(match_number) as max_num FROM matches")
-    next_number = (cursor.fetchone()['max_num'] or 0) + 1
-
-    print("\n🔢 Vergebe Spielnummern...")
-    next_number = assign_double_elim_match_numbers_a(conn, next_number)
-    assign_double_elim_match_numbers_b(conn, next_number)
-
-    # Zeitplan + Feldzuteilung nach fixem Nachmittagsplan
-    print("\n⏰ Berechne Spielzeiten und Felder...")
+    next_number = (cursor.fetchone()["max_num"] or 0) + 1
+    assign_double_elim_match_numbers(conn, next_number)
     calculate_double_elim_times_and_courts(conn)
-
     conn.close()
-    
-    return redirect(url_for('double_elim_bracket', game_name=game_name))
+    return redirect(url_for("double_elim_bracket", game_name=game_name))
 
 
 @app.route('/double_elim_bracket/<game_name>')
 def double_elim_bracket(game_name):
-    """Beide Double Elimination Brackets anzeigen"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT * FROM double_elim_matches_a 
-        ORDER BY round, bracket DESC, match_index
-    """)
-    matches_a = cursor.fetchall()
-    
-    cursor.execute("""
-        SELECT * FROM double_elim_matches_b 
-        ORDER BY round, bracket DESC, match_index
-    """)
-    matches_b = cursor.fetchall()
-    
+    cursor.execute("SELECT * FROM double_elim_matches ORDER BY round, bracket DESC, match_index")
+    matches = cursor.fetchall()
     conn.close()
-    
     return render_template("admin/double_elim_bracket.html",
-                         game_name=game_name,
-                         matches_a=matches_a,
-                         matches_b=matches_b)
+                         game_name=game_name, matches=matches)
 
 
 @app.route('/enter_double_elim_results/<game_name>')
 def enter_double_elim_results(game_name):
-    """Double Elimination Ergebnisse eintragen"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    
     cursor.execute("""
-        SELECT 'A' as bracket_id, * FROM double_elim_matches_a 
+        SELECT * FROM double_elim_matches
         WHERE team1 IS NOT NULL AND team2 IS NOT NULL
         ORDER BY round, bracket DESC, match_index
     """)
-    matches_a = cursor.fetchall()
-    
-    cursor.execute("""
-        SELECT 'B' as bracket_id, * FROM double_elim_matches_b 
-        WHERE team1 IS NOT NULL AND team2 IS NOT NULL
-        ORDER BY round, bracket DESC, match_index
-    """)
-    matches_b = cursor.fetchall()
-    
+    matches = cursor.fetchall()
     conn.close()
-    
     return render_template("admin/enter_double_elim_results.html",
-                         game_name=game_name,
-                         matches_a=matches_a,
-                         matches_b=matches_b)
+                         game_name=game_name, matches=matches)
 
 
-@app.route('/update_double_elim_result/<game_name>/<bracket_id>/<int:match_id>', methods=['POST'])
-def update_double_elim_result(game_name, bracket_id, match_id):
-    """Double Elimination Ergebnis speichern"""
-    score1 = int(request.form['score1'])
-    score2 = int(request.form['score2'])
-    
+@app.route('/update_double_elim_result/<game_name>/<int:match_id>', methods=['POST'])
+def update_double_elim_result(game_name, match_id):
+    score1 = int(request.form["score1"])
+    score2 = int(request.form["score2"])
     if score1 > 42 or score2 > 42 or score1 < 0 or score2 < 0:
-        return render_template("admin/error.html", 
-                             error_message="Punktzahl muss zwischen 0 und 42 liegen!")
-    
+        return render_template("admin/error.html", error_message="Punktzahl 0-42!")
     if score1 == score2:
-        return render_template("admin/error.html", 
-                             error_message="Unentschieden nicht erlaubt!")
-    
+        return render_template("admin/error.html", error_message="Kein Unentschieden!")
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    
-    table = f"double_elim_matches_{bracket_id.lower()}"
-    
-    cursor.execute(f"SELECT * FROM {table} WHERE id = ?", (match_id,))
+    cursor.execute("SELECT * FROM double_elim_matches WHERE id=?", (match_id,))
     match = cursor.fetchone()
-    
     if not match:
         conn.close()
-        return redirect(url_for('enter_double_elim_results', game_name=game_name))
-    
-    winner = match['team1'] if score1 > score2 else match['team2']
-    loser = match['team2'] if score1 > score2 else match['team1']
-    
-    cursor.execute(f"""
-        UPDATE {table}
-        SET score1 = ?, score2 = ?, winner = ?, loser = ?
-        WHERE id = ?
-    """, (score1, score2, winner, loser, match_id))
-    
+        return redirect(url_for("enter_double_elim_results", game_name=game_name))
+    winner = match["team1"] if score1 > score2 else match["team2"]
+    loser  = match["team2"] if score1 > score2 else match["team1"]
+    cursor.execute("UPDATE double_elim_matches SET score1=?,score2=?,winner=?,loser=? WHERE id=?",
+                   (score1, score2, winner, loser, match_id))
     conn.commit()
-    
-    # Weiterleitung
-    if bracket_id == 'A':
-        process_double_elim_forwarding(conn, match, table, WINNER_MAPPING_A, 
-                                       LOSER_MAPPING_A, LOSER_WINNER_MAPPING_A)
-    else:
-        process_double_elim_forwarding(conn, match, table, WINNER_MAPPING_B, 
-                                       LOSER_MAPPING_B, LOSER_WINNER_MAPPING_B)
-    
+    process_double_elim_forwarding(conn, match, "double_elim_matches",
+                                   WINNER_MAPPING, LOSER_MAPPING, LOSER_WINNER_MAPPING)
     conn.close()
-    
-    return redirect(url_for('enter_double_elim_results', game_name=game_name))
+    return redirect(url_for("enter_double_elim_results", game_name=game_name))
 
 
 # ============================================================================
@@ -2920,96 +2695,40 @@ def update_double_elim_result(game_name, bracket_id, match_id):
 
 @app.route('/generate_super_finals/<game_name>')
 def generate_super_finals(game_name):
-    """Super Finals aus Bracket A & B generieren"""
+    """Super Finals aus dem DE-Bracket: WB-Final-Sieger vs. LB-Final-Sieger."""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    
     cursor.execute("SELECT COUNT(*) as count FROM super_finals_matches")
-    if cursor.fetchone()['count'] > 0:
+    if cursor.fetchone()["count"] > 0:
         conn.close()
-        return render_template("admin/error.html", 
-                             error_message="Super Finals wurden bereits generiert!")
-    
-    # Bracket A Finalisten
-    cursor.execute("""
-        SELECT winner FROM double_elim_matches_a 
-        WHERE round = 4 AND bracket = 'Winners' AND match_index = 0
-        AND winner IS NOT NULL
-    """)
+        return render_template("admin/error.html", error_message="Super Finals bereits generiert!")
+
+    # WB Final Sieger (Runde 5, Winners)
+    cursor.execute("SELECT winner FROM double_elim_matches WHERE round=5 AND bracket='Winners' AND winner IS NOT NULL LIMIT 1")
     row = cursor.fetchone()
-    winner_a = row['winner'] if row else None
-    
-    cursor.execute("""
-        SELECT winner FROM double_elim_matches_a 
-        WHERE round = 6 AND bracket = 'Losers' 
-        AND winner IS NOT NULL
-        ORDER BY id DESC LIMIT 1
-    """)
+    wb_winner = row["winner"] if row else None
+
+    # LB Final Sieger (Runde 9, Losers)
+    cursor.execute("SELECT winner FROM double_elim_matches WHERE round=9 AND bracket='Losers' AND winner IS NOT NULL LIMIT 1")
     row = cursor.fetchone()
-    second_a = row['winner'] if row else None
-    
-    # Bracket B Finalisten
-    cursor.execute("""
-        SELECT winner FROM double_elim_matches_b 
-        WHERE round = 4 AND bracket = 'Winners' AND match_index = 0
-        AND winner IS NOT NULL
-    """)
-    row = cursor.fetchone()
-    winner_b = row['winner'] if row else None
-    
-    cursor.execute("""
-        SELECT winner FROM double_elim_matches_b 
-        WHERE round = 6 AND bracket = 'Losers' 
-        AND winner IS NOT NULL
-        ORDER BY id DESC LIMIT 1
-    """)
-    row = cursor.fetchone()
-    second_b = row['winner'] if row else None
-    
-    if not all([winner_a, second_a, winner_b, second_b]):
+    lb_winner = row["winner"] if row else None
+
+    if not wb_winner or not lb_winner:
         conn.close()
-        return render_template("admin/error.html", 
-                             error_message=f"Nicht alle Bracket-Finalisten stehen fest! A1:{winner_a}, A2:{second_a}, B1:{winner_b}, B2:{second_b}")
-    
-    match_number = 213
-    
-    # Halbfinale 1: Sieger A vs 2. Platz B
-    cursor.execute("""
-        INSERT INTO super_finals_matches 
-        (match_number, match_id, team1, team2)
-        VALUES (?, 'HF1', ?, ?)
-    """, (match_number, winner_a, second_b))
-    match_number += 1
-    
-    # Halbfinale 2: Sieger B vs 2. Platz A
-    cursor.execute("""
-        INSERT INTO super_finals_matches 
-        (match_number, match_id, team1, team2)
-        VALUES (?, 'HF2', ?, ?)
-    """, (match_number, winner_b, second_a))
-    match_number += 1
-    
-    # Finale
-    cursor.execute("""
-        INSERT INTO super_finals_matches 
-        (match_number, match_id, team1, team2)
-        VALUES (?, 'FINAL', NULL, NULL)
-    """, (match_number,))
-    match_number += 1
-    
-    # Spiel um Platz 3
-    cursor.execute("""
-        INSERT INTO super_finals_matches 
-        (match_number, match_id, team1, team2)
-        VALUES (?, 'THIRD', NULL, NULL)
-    """, (match_number,))
-    
+        return render_template("admin/error.html",
+                             error_message=f"Finalisten fehlen: WB={wb_winner}, LB={lb_winner}")
+
+    # HF1: WB-Sieger vs. LB-Sieger
+    cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'HF1',?,?)",
+                   (213, wb_winner, lb_winner))
+    # FINAL + THIRD (Teams kommen nach HF1)
+    cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'FINAL',NULL,NULL)", (214,))
+    cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'THIRD',NULL,NULL)", (215,))
+
     conn.commit()
     conn.close()
-    
-    return redirect(url_for('super_finals_overview', game_name=game_name))
+    return redirect(url_for("super_finals_overview", game_name=game_name))
 
 
 @app.route('/super_finals_overview/<game_name>')
@@ -3105,11 +2824,10 @@ def save_super_finals_result(game_name, match_id):
     match_id_str = match['match_id']
     
     if match_id_str == 'HF1':
-        cursor.execute("UPDATE super_finals_matches SET team1 = ? WHERE match_id = 'FINAL'", (winner,))
-        cursor.execute("UPDATE super_finals_matches SET team1 = ? WHERE match_id = 'THIRD'", (loser,))
-    elif match_id_str == 'HF2':
-        cursor.execute("UPDATE super_finals_matches SET team2 = ? WHERE match_id = 'FINAL'", (winner,))
-        cursor.execute("UPDATE super_finals_matches SET team2 = ? WHERE match_id = 'THIRD'", (loser,))
+        cursor.execute("UPDATE super_finals_matches SET team1=? WHERE match_id='FINAL'", (winner,))
+        cursor.execute("UPDATE super_finals_matches SET team2=? WHERE match_id='FINAL'", (loser,))
+        cursor.execute("UPDATE super_finals_matches SET team1=? WHERE match_id='THIRD'", (loser,))
+        cursor.execute("UPDATE super_finals_matches SET team2=? WHERE match_id='THIRD'", (winner,))
     
     conn.commit()
     conn.close()
@@ -3315,30 +3033,31 @@ def save_follower_quali_result(game_name, match_id):
 
 @app.route('/generate_follower_cup/<game_name>')
 def generate_follower_cup(game_name):
-    """Follower Cup generieren: Top 16 der 28 Nicht-DE-Teams nach RR-Punkten."""
+    """Follower Cup Hauptturnier generieren"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-
+    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-
+    
     cursor.execute("SELECT COUNT(*) as count FROM follower_cup_matches")
     if cursor.fetchone()['count'] > 0:
         conn.close()
-        return render_template("admin/error.html",
+        return render_template("admin/error.html", 
                              error_message="Follower Cup wurde bereits generiert!")
-
-    # Top 16 der 28 Nicht-DE-Teams nach RR-Punkten
+    
+    # Die 28 Teams die NICHT im Double Elimination sind,
+    # sortiert nach RR-Punkten → Top 16 → Follower Cup (Plätze 33–48)
     cursor.execute("""
         SELECT r.team, r.points, r.goal_difference, r.goals_for
         FROM rankings r
         WHERE r.team NOT IN (
-            SELECT team1 FROM double_elim_matches_a WHERE round = 1
+            SELECT team1 FROM double_elim_matches WHERE round = 1
             UNION
-            SELECT team2 FROM double_elim_matches_a WHERE round = 1
+            SELECT team2 FROM double_elim_matches WHERE round = 1
             UNION
-            SELECT team1 FROM double_elim_matches_b WHERE round = 1
+            SELECT team1 FROM double_elim_matches WHERE round = 1
             UNION
-            SELECT team2 FROM double_elim_matches_b WHERE round = 1
+            SELECT team2 FROM double_elim_matches WHERE round = 1
         )
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
         ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
@@ -3350,65 +3069,59 @@ def generate_follower_cup(game_name):
         conn.close()
         return render_template("admin/error.html",
                              error_message=f"Nicht genug Teams! Nur {len(all_teams)} statt 16 (Double Elimination noch nicht generiert?)")
-
-    match_number = 225
+    
+    match_number = 230
     court = 1
-
-    # 1/8-Finale (Seeding: 1vs16, 2vs15, ...)
+    
+    # 1/8-Finale
     for i in range(8):
         cursor.execute("""
-            INSERT INTO follower_cup_matches
+            INSERT INTO follower_cup_matches 
             (match_number, round, match_index, team1, team2, court)
             VALUES (?, 'eighth', ?, ?, ?, ?)
         """, (match_number, i, all_teams[i], all_teams[15-i], court))
         match_number += 1
         court = (court % 15) + 1
-
+    
     # 1/4-Finale
     for i in range(4):
         cursor.execute("""
-            INSERT INTO follower_cup_matches
+            INSERT INTO follower_cup_matches 
             (match_number, round, match_index, team1, team2, court)
             VALUES (?, 'quarter', ?, NULL, NULL, ?)
         """, (match_number, i, court))
         match_number += 1
         court = (court % 15) + 1
-
+    
     # Halbfinale
     for i in range(2):
         cursor.execute("""
-            INSERT INTO follower_cup_matches
+            INSERT INTO follower_cup_matches 
             (match_number, round, match_index, team1, team2, court)
             VALUES (?, 'semi', ?, NULL, NULL, ?)
         """, (match_number, i, court))
         match_number += 1
         court = (court % 15) + 1
-
+    
     # Finale
     cursor.execute("""
-        INSERT INTO follower_cup_matches
+        INSERT INTO follower_cup_matches 
         (match_number, round, match_index, team1, team2, court)
         VALUES (?, 'final', 0, NULL, NULL, ?)
     """, (match_number, court))
     match_number += 1
     court = (court % 15) + 1
-
+    
     # Platz 3
     cursor.execute("""
-        INSERT INTO follower_cup_matches
+        INSERT INTO follower_cup_matches 
         (match_number, round, match_index, team1, team2, court)
         VALUES (?, 'third', 0, NULL, NULL, ?)
     """, (match_number, court))
-
+    
     conn.commit()
-
-    # Spielnummern ab #225 vergeben
-    assign_follower_cup_match_numbers(conn, 225)
-
-    # Zeiten + Felder fuer alle Nachmittagsphasen setzen
-    calculate_double_elim_times_and_courts(conn)
-
     conn.close()
+    
     return redirect(url_for('follower_cup_overview', game_name=game_name))
 
 
@@ -3586,13 +3299,13 @@ def generate_placement_round(game_name):
         SELECT r.team, r.points, r.goal_difference, r.goals_for
         FROM rankings r
         WHERE r.team NOT IN (
-            SELECT team1 FROM double_elim_matches_a WHERE round = 1
+            SELECT team1 FROM double_elim_matches WHERE round = 1
             UNION
-            SELECT team2 FROM double_elim_matches_a WHERE round = 1
+            SELECT team2 FROM double_elim_matches WHERE round = 1
             UNION
-            SELECT team1 FROM double_elim_matches_b WHERE round = 1
+            SELECT team1 FROM double_elim_matches WHERE round = 1
             UNION
-            SELECT team2 FROM double_elim_matches_b WHERE round = 1
+            SELECT team2 FROM double_elim_matches WHERE round = 1
         )
         AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
         ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
@@ -3792,14 +3505,7 @@ def display_groups(game_name):
     
     groups = {}
     for group_num in range(1, 11):
-        cursor.execute("""
-            SELECT r.*, t.is_ghost
-            FROM rankings r
-            LEFT JOIN teams t ON r.team = t.name
-            WHERE r.group_number = ?
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
-        """, (group_num,))
-        groups[group_num] = cursor.fetchall()
+        groups[group_num] = sort_group_with_head_to_head(conn, group_num)
     
     conn.close()
     
@@ -3847,7 +3553,7 @@ def api_bracket_standings_json(game_name):
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
     result = {}
-    for bracket, table in [('A', 'double_elim_matches_a'), ('B', 'double_elim_matches_b')]:
+    for bracket, table in [('A', 'double_elim_matches'), ('B', 'double_elim_matches')]:
         cursor.execute(f"""
             SELECT DISTINCT team1 as team FROM {table} WHERE team1 IS NOT NULL AND team1 != ''
             UNION
@@ -3950,13 +3656,13 @@ def display_brackets(game_name):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT * FROM double_elim_matches_a 
+        SELECT * FROM double_elim_matches 
         ORDER BY round, bracket DESC, match_index
     """)
     matches_a = cursor.fetchall()
     
     cursor.execute("""
-        SELECT * FROM double_elim_matches_b 
+        SELECT * FROM double_elim_matches 
         ORDER BY round, bracket DESC, match_index
     """)
     matches_b = cursor.fetchall()
@@ -4445,7 +4151,7 @@ def export_complete(game_name):
     writer.writerow(['BRACKET A - DOUBLE ELIMINATION'])
     writer.writerow(['Spiel#', 'Runde', 'Bracket', 'Team 1', 'Score 1', 'Score 2', 'Team 2', 'Gewinner'])
     
-    cursor.execute("SELECT * FROM double_elim_matches_a ORDER BY round, bracket DESC, match_index")
+    cursor.execute("SELECT * FROM double_elim_matches ORDER BY round, bracket DESC, match_index")
     for match in cursor.fetchall():
         writer.writerow([
             match['match_number'] or '',
@@ -4463,7 +4169,7 @@ def export_complete(game_name):
     writer.writerow(['BRACKET B - DOUBLE ELIMINATION'])
     writer.writerow(['Spiel#', 'Runde', 'Bracket', 'Team 1', 'Score 1', 'Score 2', 'Team 2', 'Gewinner'])
     
-    cursor.execute("SELECT * FROM double_elim_matches_b ORDER BY round, bracket DESC, match_index")
+    cursor.execute("SELECT * FROM double_elim_matches ORDER BY round, bracket DESC, match_index")
     for match in cursor.fetchall():
         writer.writerow([
             match['match_number'] or '',
@@ -4500,7 +4206,7 @@ def debug_bracket(game_name, bracket_id):
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
     
-    table = f"double_elim_matches_{bracket_id.lower()}"
+    table = "double_elim_matches"  # Einzige DE-Tabelle
     
     cursor.execute(f"SELECT * FROM {table} ORDER BY round, bracket DESC, match_index")
     matches = cursor.fetchall()
@@ -4618,202 +4324,43 @@ def debug_follower_cup(game_name):
 
 @app.route('/final_rankings/<game_name>')
 def final_rankings(game_name):
-    """Finale Gesamtplatzierung aller 60 Teams"""
+    """Finale Gesamtplatzierung"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-
+    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-
+    
     rankings = []
-    seen_teams = set()
-
-    # ── Plätze 1-4: Super Finals ──────────────────────────────────────────
-    cursor.execute("SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'FINAL'")
+    
+    # Platz 1-4: Super Finals
+    cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id = 'FINAL'")
+    row = cursor.fetchone()
+    if row and row['winner']:
+        rankings.append({'place': 1, 'team': row['winner'], 'phase': 'Super Finals Sieger'})
+    
+    cursor.execute("""
+        SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'FINAL'
+    """)
     row = cursor.fetchone()
     if row and row['winner']:
         loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
-        rankings.append({'place': 1, 'team': row['winner'], 'phase': 'Super Final Sieger'})
-        rankings.append({'place': 2, 'team': loser,         'phase': 'Super Final Finalist'})
-        seen_teams.update([row['winner'], loser])
-
-    cursor.execute("SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'THIRD'")
+        rankings.append({'place': 2, 'team': loser, 'phase': 'Super Finals Finalist'})
+    
+    cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id = 'THIRD'")
+    row = cursor.fetchone()
+    if row and row['winner']:
+        rankings.append({'place': 3, 'team': row['winner'], 'phase': 'Spiel um Platz 3'})
+    
+    cursor.execute("""
+        SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'THIRD'
+    """)
     row = cursor.fetchone()
     if row and row['winner']:
         loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
-        rankings.append({'place': 3, 'team': row['winner'], 'phase': 'Platz 3'})
-        rankings.append({'place': 4, 'team': loser,         'phase': 'Platz 4'})
-        seen_teams.update([row['winner'], loser])
-
-    # ── Plätze 5-32: Double Elimination ──────────────────────────────────
-    # Verlierer nach ihrer letzten Runde gruppieren (hoehere Runde = bessere Platzierung)
-    # Pro Bracket: WB R5 Verlierer, LB R7 Verlierer, LB R6, LB R5, LB R4, LB R3, LB R2, LB R1
-    de_rounds = [
-        ('Winners', 5, 'WB Final Verlierer'),
-        ('Losers',  7, 'LB Final Verlierer'),
-        ('Losers',  6, 'LB R6 Verlierer'),
-        ('Losers',  5, 'LB R5 Verlierer'),
-        ('Losers',  4, 'LB R4 Verlierer'),
-        ('Losers',  3, 'LB R3 Verlierer'),
-        ('Losers',  2, 'LB R2 Verlierer'),
-        ('Losers',  1, 'LB R1 Verlierer'),
-    ]
-
-    de_place = 5
-    for bracket, rnd, phase_label in de_rounds:
-        teams_in_round = []
-        for table in ['double_elim_matches_a', 'double_elim_matches_b']:
-            next_rnd = rnd + 1
-            cursor.execute(f"""
-                SELECT dm.loser,
-                       COALESCE(r.points, 0)          AS pts,
-                       COALESCE(r.goal_difference, 0)  AS gd,
-                       COALESCE(r.goals_for, 0)        AS gf
-                FROM {table} dm
-                LEFT JOIN rankings r ON r.team = dm.loser
-                WHERE dm.bracket = ? AND dm.round = ?
-                AND dm.loser IS NOT NULL
-                AND dm.loser NOT IN (
-                    SELECT COALESCE(team1,'') FROM {table} WHERE bracket=? AND round=?
-                    UNION
-                    SELECT COALESCE(team2,'') FROM {table} WHERE bracket=? AND round=?
-                )
-            """, (bracket, rnd, bracket, next_rnd, bracket, next_rnd))
-            for row in cursor.fetchall():
-                if row['loser'] and row['loser'] not in seen_teams:
-                    teams_in_round.append({
-                        'team': row['loser'],
-                        'pts': row['pts'], 'gd': row['gd'], 'gf': row['gf']
-                    })
-
-        teams_in_round.sort(key=lambda x: (-x['pts'], -x['gd'], -x['gf']))
-        for t in teams_in_round:
-            if t['team'] not in seen_teams:
-                rankings.append({'place': de_place, 'team': t['team'], 'phase': f'DE – {phase_label}'})
-                seen_teams.add(t['team'])
-                de_place += 1
-
-    # ── Plätze 33-48: Follower Cup ────────────────────────────────────────
-    # Finale Sieger/Verlierer
-    cursor.execute("SELECT team1, team2, winner FROM follower_cup_matches WHERE round='final'")
-    row = cursor.fetchone()
-    if row and row['winner']:
-        loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
-        if row['winner'] not in seen_teams:
-            rankings.append({'place': 33, 'team': row['winner'], 'phase': 'FC Sieger'})
-            seen_teams.add(row['winner'])
-        if loser and loser not in seen_teams:
-            rankings.append({'place': 34, 'team': loser, 'phase': 'FC Finalist'})
-            seen_teams.add(loser)
-
-    # Platz 3 Sieger/Verlierer
-    cursor.execute("SELECT team1, team2, winner FROM follower_cup_matches WHERE round='third'")
-    row = cursor.fetchone()
-    if row and row['winner']:
-        loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
-        if row['winner'] not in seen_teams:
-            rankings.append({'place': 35, 'team': row['winner'], 'phase': 'FC Platz 3'})
-            seen_teams.add(row['winner'])
-        if loser and loser not in seen_teams:
-            rankings.append({'place': 36, 'team': loser, 'phase': 'FC Platz 4'})
-            seen_teams.add(loser)
-
-    # Halbfinale Verlierer (Plätze 37-40), nach RR sortiert
-    cursor.execute("""
-        SELECT dm.loser, COALESCE(r.points,0) as pts, COALESCE(r.goal_difference,0) as gd
-        FROM follower_cup_matches dm
-        LEFT JOIN rankings r ON r.team = dm.loser
-        WHERE dm.round='semi' AND dm.loser IS NOT NULL
-        ORDER BY r.points DESC, r.goal_difference DESC
-    """)
-    fc_place = 37
-    for row in cursor.fetchall():
-        if row['loser'] and row['loser'] not in seen_teams:
-            rankings.append({'place': fc_place, 'team': row['loser'], 'phase': 'FC HF Verlierer'})
-            seen_teams.add(row['loser'])
-            fc_place += 1
-
-    # VF Verlierer (Plätze 41-44)
-    cursor.execute("""
-        SELECT dm.loser, COALESCE(r.points,0) as pts, COALESCE(r.goal_difference,0) as gd
-        FROM follower_cup_matches dm
-        LEFT JOIN rankings r ON r.team = dm.loser
-        WHERE dm.round='quarter' AND dm.loser IS NOT NULL
-        ORDER BY r.points DESC, r.goal_difference DESC
-    """)
-    fc_place = 41
-    for row in cursor.fetchall():
-        if row['loser'] and row['loser'] not in seen_teams:
-            rankings.append({'place': fc_place, 'team': row['loser'], 'phase': 'FC VF Verlierer'})
-            seen_teams.add(row['loser'])
-            fc_place += 1
-
-    # 1/8 Verlierer (Plätze 45-48)
-    cursor.execute("""
-        SELECT dm.loser, COALESCE(r.points,0) as pts, COALESCE(r.goal_difference,0) as gd
-        FROM follower_cup_matches dm
-        LEFT JOIN rankings r ON r.team = dm.loser
-        WHERE dm.round='eighth' AND dm.loser IS NOT NULL
-        ORDER BY r.points DESC, r.goal_difference DESC
-    """)
-    fc_place = 45
-    for row in cursor.fetchall():
-        if row['loser'] and row['loser'] not in seen_teams:
-            rankings.append({'place': fc_place, 'team': row['loser'], 'phase': 'FC 1/8 Verlierer'})
-            seen_teams.add(row['loser'])
-            fc_place += 1
-
-    # ── Plätze 49-60: Platzierungsrunde ──────────────────────────────────
-    # Sieger bekommen die ungeraden Plätze (49, 51, 53...), Verlierer die geraden (50, 52...)
-    # Innerhalb Sieger/Verlierer: nach RR-Punkten sortiert
-    cursor.execute("""
-        SELECT pm.team1, pm.team2, pm.winner,
-               r1.points AS pts1, r1.goal_difference AS gd1, r1.goals_for AS gf1,
-               r2.points AS pts2, r2.goal_difference AS gd2, r2.goals_for AS gf2
-        FROM placement_matches pm
-        LEFT JOIN rankings r1 ON r1.team = pm.team1
-        LEFT JOIN rankings r2 ON r2.team = pm.team2
-        ORDER BY pm.match_number
-    """)
-    pl_matches = cursor.fetchall()
-
-    winners_pl, losers_pl = [], []
-    for m in pl_matches:
-        if m['winner']:
-            is_t1 = (m['winner'] == m['team1'])
-            w = {'team': m['winner'],
-                 'pts': (m['pts1'] if is_t1 else m['pts2']) or 0,
-                 'gd':  (m['gd1']  if is_t1 else m['gd2'])  or 0,
-                 'gf':  (m['gf1']  if is_t1 else m['gf2'])  or 0}
-            loser = m['team1'] if not is_t1 else m['team2']
-            l = {'team': loser,
-                 'pts': (m['pts2'] if is_t1 else m['pts1']) or 0,
-                 'gd':  (m['gd2']  if is_t1 else m['gd1'])  or 0,
-                 'gf':  (m['gf2']  if is_t1 else m['gf1'])  or 0}
-            winners_pl.append(w)
-            losers_pl.append(l)
-        else:
-            for t, pts, gd, gf in [(m['team1'], m['pts1'], m['gd1'], m['gf1']),
-                                    (m['team2'], m['pts2'], m['gd2'], m['gf2'])]:
-                if t and t not in seen_teams:
-                    winners_pl.append({'team': t, 'pts': pts or 0, 'gd': gd or 0, 'gf': gf or 0})
-
-    winners_pl.sort(key=lambda x: (-x['pts'], -x['gd'], -x['gf']))
-    losers_pl.sort( key=lambda x: (-x['pts'], -x['gd'], -x['gf']))
-
-    pl_place = 49
-    for t in winners_pl:
-        if t['team'] and t['team'] not in seen_teams:
-            rankings.append({'place': pl_place, 'team': t['team'], 'phase': 'Platzierungsrunde Sieger'})
-            seen_teams.add(t['team'])
-            pl_place += 1
-    for t in losers_pl:
-        if t['team'] and t['team'] not in seen_teams:
-            rankings.append({'place': pl_place, 'team': t['team'], 'phase': 'Platzierungsrunde Verlierer'})
-            seen_teams.add(t['team'])
-            pl_place += 1
-
+        rankings.append({'place': 4, 'team': loser, 'phase': 'Spiel um Platz 3'})
+    
     conn.close()
-
+    
     return render_template("admin/final_rankings.html",
                          game_name=game_name,
                          rankings=rankings)
