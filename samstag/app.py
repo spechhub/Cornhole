@@ -1736,6 +1736,75 @@ def recalculate_rankings_internal(conn):
     conn.commit()
 
 
+def get_phase_assignment(conn):
+    """
+    Berechnet die Phasenzuteilung für alle Teams:
+    - DE: P1-3 jeder Gruppe (30) + 2 beste Viertplatzierte (2) = 32
+    - FC: 8 restliche Viertplatzierte + Top 8 der 5./6. Platzierten = 16
+    - PLZ: letzte 12 der 5./6. Platzierten = 12
+
+    Sortierkriterium überall: goals_for DESC, goal_difference DESC
+
+    Returns: (de_teams, fc_teams, plz_teams, best2_fourths, rest8_fourths)
+    """
+    import functools
+    cursor = conn.cursor()
+
+    def sort_grp(g):
+        cursor.execute("""
+            SELECT r.*, t.is_ghost FROM rankings r
+            LEFT JOIN teams t ON r.team = t.name
+            WHERE r.group_number = ?
+        """, (g,))
+        teams = list(cursor.fetchall())
+        def cmp(t1, t2):
+            if t1['goals_for'] != t2['goals_for']:
+                return -1 if t1['goals_for'] > t2['goals_for'] else 1
+            if t1['goal_difference'] != t2['goal_difference']:
+                return -1 if t1['goal_difference'] > t2['goal_difference'] else 1
+            return 0
+        return sorted(teams, key=functools.cmp_to_key(cmp))
+
+    de_teams = set()
+    fourths = []
+    fives_sixes = []
+
+    for g in range(1, 11):
+        sg = sort_grp(g)
+        real = [t for t in sg if not t['is_ghost']]
+        # P1-3 → DE
+        for t in real[:3]:
+            de_teams.add(t['team'])
+        # P4 → Wildcard-Pool
+        if len(real) >= 4:
+            f = real[3]
+            fourths.append({'team': f['team'], 'group': g,
+                            'goals_for': f['goals_for'],
+                            'goal_difference': f['goal_difference']})
+        # P5+P6 → FC/PLZ Pool
+        for t in real[4:6]:
+            fives_sixes.append({'team': t['team'],
+                                'goals_for': t['goals_for'],
+                                'goal_difference': t['goal_difference']})
+
+    # 2 beste Viertplatzierte → DE
+    fourths.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
+    best2 = fourths[:2]
+    rest8 = fourths[2:]
+    for f in best2:
+        de_teams.add(f['team'])
+
+    # 5./6. Platzierte nach goals_for sortieren
+    fives_sixes.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
+    fc_from_5_6  = set(t['team'] for t in fives_sixes[:8])
+    plz_teams    = set(t['team'] for t in fives_sixes[8:])
+
+    # FC = 8 restliche Viertplatzierten + Top 8 der 5./6.
+    fc_teams = set(f['team'] for f in rest8) | fc_from_5_6
+
+    return de_teams, fc_teams, plz_teams, best2, rest8
+
+
 def sort_group_with_head_to_head(conn, group_num):
     """Sortiert eine Gruppe: 1. goals_for DESC  2. goal_difference DESC  3. direkter Vergleich"""
     import functools
@@ -2512,53 +2581,18 @@ def group_standings(game_name):
         return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
     
     conn = get_db_connection(db_path)
-    cursor = conn.cursor()
     
     groups = {}
     for group_num in range(1, 11):
         groups[group_num] = sort_group_with_head_to_head(conn, group_num)
-    
-    # 2 beste 4. Plaetze ueber ALLE 10 Gruppen (neue Logik: 1 Bracket, 32 Teams)
-    all_fourths = []
-    for g in range(1, 11):
-        sorted_g = sort_group_with_head_to_head(conn, g)
-        real = [t for t in sorted_g if not t['is_ghost']]
-        if len(real) >= 4:
-            fourth = real[3]
-            all_fourths.append({
-                'team':            fourth['team'],
-                'group_number':    g,
-                'goals_for':       fourth['goals_for'],
-                'goal_difference': fourth['goal_difference'],
-                'wins':            fourth['wins'],
-                'losses':          fourth['losses'],
-                'matches_played':  fourth['matches_played'],
-            })
 
-    # Sortierung: goals_for DESC, goal_difference DESC
+    de_teams, fc_teams, plz_teams, best2, rest8 = get_phase_assignment(conn)
+
+    # Für Template: best_4th_1 / best_4th_2 = die 2 DE-Wildcards
+    all_fourths = rest8 + best2  # alle Viertplatzierten für Wildcard-Tabelle
     all_fourths.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
-    best_4th_1 = all_fourths[0] if len(all_fourths) > 0 else None
-    best_4th_2 = all_fourths[1] if len(all_fourths) > 1 else None
-
-    # DE-Teams berechnen (Top 3 jeder Gruppe + 2 Wildcards)
-    de_teams = set()
-    for g in range(1, 11):
-        sg = sort_group_with_head_to_head(conn, g)
-        real = [t['team'] for t in sg if not t['is_ghost']]
-        de_teams.update(real[:3])
-    for f in all_fourths[:2]:
-        de_teams.add(f['team'])
-
-    # Alle 28 Nicht-DE-Teams nach goals_for sortieren → Top 16 = FC, Rest = PLZ
-    cursor.execute("""
-        SELECT r.team, r.goals_for, r.goal_difference
-        FROM rankings r
-        WHERE r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.goals_for DESC, r.goal_difference DESC
-    """)
-    non_de_sorted = [r['team'] for r in cursor.fetchall() if r['team'] not in de_teams]
-    fc_teams  = set(non_de_sorted[:16])
-    plz_teams = set(non_de_sorted[16:])
+    best_4th_1 = best2[0] if len(best2) > 0 else None
+    best_4th_2 = best2[1] if len(best2) > 1 else None
 
     conn.close()
 
@@ -2576,7 +2610,8 @@ def group_standings(game_name):
 @app.route('/generate_double_elim/<game_name>')
 def generate_double_elim(game_name):
     """Double Elimination: 1 Bracket, 32 Teams.
-    Top 3 aus allen 10 Gruppen (30) + 2 beste 4. global = 32. Seeding: 1vs32...16vs17."""
+    P1-3 jeder Gruppe (30) + 2 beste Viertplatzierte (goals_for) = 32.
+    Seeding: Group-Separation (alle P1, alle P2, alle P3, dann 2 Wildcards)."""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
@@ -2585,34 +2620,23 @@ def generate_double_elim(game_name):
         conn.close()
         return render_template("admin/error.html", error_message="Double Elimination wurde bereits generiert!")
 
-    # Teams mit Group-Separation Seeding sammeln:
-    # Erst alle Platz-1 der 10 Gruppen, dann alle Platz-2, dann Platz-3
-    # → bei Seeding 1vs32, 2vs31... treffen Gruppen-Teammmates erst spaet aufeinander
-    group_teams = {}  # {group_num: [platz1, platz2, platz3]}
+    de_teams, fc_teams, plz_teams, best2, rest8 = get_phase_assignment(conn)
+
+    # Group-Separation Seeding: alle P1, alle P2, alle P3 (interleaved)
+    group_teams = {}
     for g in range(1, 11):
         sorted_g = sort_group_with_head_to_head(conn, g)
         real = [t["team"] for t in sorted_g if not t["is_ghost"]]
         group_teams[g] = real[:3]
 
-    # Interleaved: alle Platz-1, dann alle Platz-2, dann alle Platz-3
     teams = []
-    for rank in range(3):          # Platz 1, 2, 3
-        for g in range(1, 11):     # Gruppe 1-10
+    for rank in range(3):
+        for g in range(1, 11):
             if rank < len(group_teams.get(g, [])):
                 teams.append(group_teams[g][rank])
 
-    # 2 beste 4. Plaetze global als Wildcards (Seed 31+32)
-    all_fourths = []
-    for g in range(1, 11):
-        sorted_g = sort_group_with_head_to_head(conn, g)
-        real = [t for t in sorted_g if not t["is_ghost"]]
-        if len(real) >= 4:
-            f = real[3]
-            all_fourths.append({"team": f["team"], "group_number": g,
-                                "goals_for": f["goals_for"],
-                                "goal_difference": f["goal_difference"]})
-    all_fourths.sort(key=lambda x: (-x["goals_for"], -x["goal_difference"]))
-    for f in all_fourths[:2]:
+    # 2 beste Viertplatzierte als Seed 31+32
+    for f in best2:
         if f["team"] not in teams:
             teams.append(f["team"])
 
@@ -2685,9 +2709,9 @@ def update_double_elim_result(game_name, match_id):
     score1 = int(request.form["score1"])
     score2 = int(request.form["score2"])
     if score1 > 42 or score2 > 42 or score1 < 0 or score2 < 0:
-        return render_template("admin/error.html", error_message="Punktzahl 0-42!")
+        return jsonify({"error": "Punktzahl 0-42!"}), 400
     if score1 == score2:
-        return render_template("admin/error.html", error_message="Kein Unentschieden!")
+        return jsonify({"error": "Kein Unentschieden!"}), 400
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
@@ -2695,19 +2719,54 @@ def update_double_elim_result(game_name, match_id):
     match = cursor.fetchone()
     if not match:
         conn.close()
-        return redirect(url_for("enter_double_elim_results", game_name=game_name))
+        return jsonify({"error": "Match nicht gefunden"}), 404
     winner = match["team1"] if score1 > score2 else match["team2"]
     loser  = match["team2"] if score1 > score2 else match["team1"]
     cursor.execute("UPDATE double_elim_matches SET score1=?,score2=?,winner=?,loser=? WHERE id=?",
                    (score1, score2, winner, loser, match_id))
     conn.commit()
-    # Nach dem UPDATE den aktuellen Row neu laden (winner/loser sind jetzt gesetzt)
     cursor.execute("SELECT * FROM double_elim_matches WHERE id=?", (match_id,))
     match_updated = cursor.fetchone()
     process_double_elim_forwarding(conn, match_updated, "double_elim_matches",
                                    WINNER_MAPPING, LOSER_MAPPING, LOSER_WINNER_MAPPING)
+    # Alle aktuellen Matches zurückgeben damit Frontend sofort updaten kann
+    cursor.execute("""
+        SELECT id, round, bracket, match_index, match_number,
+               team1, team2, score1, score2, winner, loser, court, time
+        FROM double_elim_matches
+        WHERE team1 IS NOT NULL AND team2 IS NOT NULL
+        ORDER BY round, bracket DESC, match_index
+    """)
+    all_matches = [dict(r) for r in cursor.fetchall()]
+    # Auch neu erschienene Matches (team1/team2 gerade gesetzt durch forwarding)
+    cursor.execute("""
+        SELECT id, round, bracket, match_index, match_number,
+               team1, team2, score1, score2, winner, loser, court, time
+        FROM double_elim_matches
+        ORDER BY round, bracket DESC, match_index
+    """)
+    all_matches_full = [dict(r) for r in cursor.fetchall()]
     conn.close()
-    return redirect(url_for("enter_double_elim_results", game_name=game_name))
+    return jsonify({"success": True, "matches": all_matches_full})
+
+
+@app.route('/api/de_matches/<game_name>')
+def api_de_matches(game_name):
+    """JSON API: Alle DE-Matches mit aktuellem Stand"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return jsonify([])
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, round, bracket, match_index, match_number,
+               team1, team2, score1, score2, winner, loser, court, time
+        FROM double_elim_matches
+        ORDER BY round, bracket DESC, match_index
+    """)
+    matches = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return jsonify(matches)
 
 
 # ============================================================================
@@ -2730,15 +2789,21 @@ def generate_super_finals(game_name):
     row = cursor.fetchone()
     wb_winner = row["winner"] if row else None
 
-    # LB Final Sieger (Runde 9, Losers)
-    cursor.execute("SELECT winner FROM double_elim_matches WHERE round=9 AND bracket='Losers' AND winner IS NOT NULL LIMIT 1")
-    row = cursor.fetchone()
-    lb_winner = row["winner"] if row else None
+    # LB Final Sieger: R9 versuchen, dann R8 (bei 32-Teams ist R8 das echte LB-Final)
+    lb_winner = None
+    for rnd in [9, 8]:
+        cursor.execute(
+            "SELECT winner FROM double_elim_matches WHERE round=? AND bracket='Losers' AND winner IS NOT NULL LIMIT 1",
+            (rnd,))
+        row = cursor.fetchone()
+        if row and row["winner"]:
+            lb_winner = row["winner"]
+            break
 
     if not wb_winner or not lb_winner:
         conn.close()
         return render_template("admin/error.html",
-                             error_message=f"Finalisten fehlen: WB={wb_winner}, LB={lb_winner}")
+            error_message=f"Finalisten fehlen: WB={wb_winner}, LB={lb_winner}. Bitte zuerst alle DE-Finals spielen.")
 
     # HF1: WB-Sieger vs. LB-Sieger
     cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'HF1',?,?)",
@@ -3054,7 +3119,8 @@ def save_follower_quali_result(game_name, match_id):
 
 @app.route('/generate_follower_cup/<game_name>')
 def generate_follower_cup(game_name):
-    """Follower Cup Hauptturnier generieren"""
+    """Follower Cup Hauptturnier generieren.
+    16 Teams: 8 restliche Viertplatzierte + Top 8 der 5./6. Platzierten (nach goals_for)."""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     
     conn = get_db_connection(db_path)
@@ -3065,27 +3131,34 @@ def generate_follower_cup(game_name):
         conn.close()
         return render_template("admin/error.html", 
                              error_message="Follower Cup wurde bereits generiert!")
-    
-    # Die 28 Teams die NICHT im Double Elimination sind,
-    # sortiert nach RR-Punkten → Top 16 → Follower Cup (Plätze 33–48)
+
+    # Schutz: DE muss generiert sein
+    cursor.execute("SELECT COUNT(*) as c FROM double_elim_matches WHERE round=1 AND team1 IS NOT NULL")
+    if cursor.fetchone()['c'] == 0:
+        conn.close()
+        return render_template("admin/error.html",
+            error_message="Double Elimination noch nicht generiert! Bitte zuerst DE generieren.")
+
+    # FC Teams via zentrale Phasenzuteilung
+    de_teams, fc_teams, plz_teams, best2, rest8 = get_phase_assignment(conn)
+
+    # FC Teams nach goals_for sortieren für Seeding
     cursor.execute("""
-        SELECT r.team, r.points, r.goal_difference, r.goals_for
-        FROM rankings r
-        WHERE r.team NOT IN (
-            SELECT team1 FROM double_elim_matches WHERE round = 1 AND team1 IS NOT NULL
-            UNION
-            SELECT team2 FROM double_elim_matches WHERE round = 1 AND team2 IS NOT NULL
-        )
-        AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        SELECT team, goals_for, goal_difference FROM rankings
+        WHERE team NOT IN (SELECT name FROM teams WHERE is_ghost=1)
     """)
-    remaining_teams = cursor.fetchall()
-    all_teams = [row['team'] for row in remaining_teams[:16]]
+    all_rankings = {r['team']: (r['goals_for'], r['goal_difference']) for r in cursor.fetchall()}
+
+    fc_sorted = sorted(
+        [t for t in fc_teams],
+        key=lambda t: (-all_rankings.get(t,(0,0))[0], -all_rankings.get(t,(0,0))[1])
+    )
+    all_teams = fc_sorted[:16]
 
     if len(all_teams) < 16:
         conn.close()
         return render_template("admin/error.html",
-                             error_message=f"Nicht genug Teams! Nur {len(all_teams)} statt 16 (Double Elimination noch nicht generiert?)")
+            error_message=f"Nicht genug Teams für Follower Cup: {len(all_teams)} statt 16")
     
     match_number = 230
     court = 1
@@ -3312,26 +3385,53 @@ def reset_follower_cup(game_name):
 
 @app.route('/generate_placement_round/<game_name>')
 def generate_placement_round(game_name):
-    """Platzierungsrunde für Teams 37-60 generieren"""
+    """Platzierungsrunde für Teams 49–60 generieren.
+    Letzte 12 der 5./6. Platzierten nach goals_for."""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
     
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    
+
+    # Schutz: DE muss generiert sein
+    cursor.execute("SELECT COUNT(*) as c FROM double_elim_matches WHERE round=1 AND team1 IS NOT NULL")
+    if cursor.fetchone()['c'] == 0:
+        conn.close()
+        return render_template("admin/error.html",
+            error_message="Double Elimination noch nicht generiert! Bitte zuerst DE generieren.")
+
+    # Schutz: FC muss generiert sein
+    cursor.execute("SELECT COUNT(*) as c FROM follower_cup_matches WHERE round='eighth' AND team1 IS NOT NULL")
+    if cursor.fetchone()['c'] == 0:
+        conn.close()
+        return render_template("admin/error.html",
+            error_message="Follower Cup noch nicht generiert! Bitte zuerst Follower Cup generieren.")
+
+    # Schutz: PLZ darf noch nicht existieren
+    cursor.execute("SELECT COUNT(*) as c FROM placement_matches")
+    if cursor.fetchone()['c'] > 0:
+        conn.close()
+        return render_template("admin/error.html",
+            error_message="Platzierungsrunde wurde bereits generiert!")
+
+    # PLZ Teams via zentrale Phasenzuteilung
+    de_teams, fc_teams, plz_teams, best2, rest8 = get_phase_assignment(conn)
+
+    # PLZ Teams nach goals_for sortieren
     cursor.execute("""
-        SELECT r.team, r.points, r.goal_difference, r.goals_for
-        FROM rankings r
-        WHERE r.team NOT IN (
-            SELECT team1 FROM double_elim_matches WHERE round = 1 AND team1 IS NOT NULL
-            UNION
-            SELECT team2 FROM double_elim_matches WHERE round = 1 AND team2 IS NOT NULL
-        )
-        AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        SELECT team, goals_for, goal_difference FROM rankings
+        WHERE team NOT IN (SELECT name FROM teams WHERE is_ghost=1)
     """)
-    remaining = cursor.fetchall()
-    # Letzten 12 der 28 Nicht-DE-Teams → Platzierungsrunde (Plätze 49–60)
-    placement_teams = [row['team'] for row in remaining[16:]]
+    all_rankings = {r['team']: (r['goals_for'], r['goal_difference']) for r in cursor.fetchall()}
+
+    placement_teams = sorted(
+        [t for t in plz_teams],
+        key=lambda t: (-all_rankings.get(t,(0,0))[0], -all_rankings.get(t,(0,0))[1])
+    )[:12]
+
+    if len(placement_teams) < 2:
+        conn.close()
+        return render_template("admin/error.html",
+            error_message=f"Nicht genug Teams für Platzierungsrunde: nur {len(placement_teams)} Teams gefunden.")
     
     match_number = 246
     court = 1
@@ -3564,39 +3664,9 @@ def api_groups_json(game_name):
     if not os.path.exists(db_path):
         return jsonify({})
     conn = get_db_connection(db_path)
-    cursor = conn.cursor()
 
-    # DE-Teams berechnen
-    all_fourths = []
-    for g in range(1, 11):
-        sg = sort_group_with_head_to_head(conn, g)
-        real = [t for t in sg if not t['is_ghost']]
-        if len(real) >= 4:
-            f = real[3]
-            all_fourths.append({'team': f['team'], 'goals_for': f['goals_for'],
-                                 'goal_difference': f['goal_difference']})
-    all_fourths.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
-    wild1 = all_fourths[0]['team'] if len(all_fourths) > 0 else None
-    wild2 = all_fourths[1]['team'] if len(all_fourths) > 1 else None
-
-    de_teams = set()
-    for g in range(1, 11):
-        sg = sort_group_with_head_to_head(conn, g)
-        real = [t['team'] for t in sg if not t['is_ghost']]
-        de_teams.update(real[:3])
-    if wild1: de_teams.add(wild1)
-    if wild2: de_teams.add(wild2)
-
-    # FC/PLZ: alle 28 Nicht-DE nach goals_for sortieren
-    cursor.execute("""
-        SELECT r.team, r.goals_for, r.goal_difference
-        FROM rankings r
-        WHERE r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
-        ORDER BY r.goals_for DESC, r.goal_difference DESC
-    """)
-    non_de_sorted = [r['team'] for r in cursor.fetchall() if r['team'] not in de_teams]
-    fc_teams  = set(non_de_sorted[:16])
-    plz_teams = set(non_de_sorted[16:])
+    de_teams, fc_teams, plz_teams, best2, rest8 = get_phase_assignment(conn)
+    wild_teams = set(f['team'] for f in best2)
 
     groups = {}
     for group_num in range(1, 11):
@@ -3606,10 +3676,10 @@ def api_groups_json(game_name):
             if row['is_ghost']:
                 continue
             t = row['team']
-            if t in de_teams and t != wild1 and t != wild2:
-                phase = 'DE'
-            elif t == wild1 or t == wild2:
+            if t in wild_teams:
                 phase = 'DE*'
+            elif t in de_teams:
+                phase = 'DE'
             elif t in fc_teams:
                 phase = 'FC'
             else:
@@ -4554,6 +4624,182 @@ def spielplan_pdf(game_name):
         as_attachment=True,
         download_name=f"{game_name}_spielplan.pdf"
     )
+
+
+# ============================================================================
+# TEAM-SPIELPLÄNE PDF
+# ============================================================================
+
+@app.route('/team_schedules_pdf/<game_name>')
+def team_schedules_pdf(game_name):
+    """Individuelle Spielpläne für alle 60 Teams als PDF — 2 Teams pro A4-Seite"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
+
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, group_number FROM teams WHERE is_ghost=0 ORDER BY group_number, name")
+    teams = cursor.fetchall()
+    cursor.execute("SELECT match_number, round, team1, team2, field, time, score1, score2 FROM matches ORDER BY match_number")
+    all_matches = cursor.fetchall()
+    conn.close()
+
+    # Matches pro Team indexieren
+    team_matches = {t['name']: [] for t in teams}
+    for m in all_matches:
+        for side, opp, s1, s2 in [(m['team1'], m['team2'], m['score1'], m['score2']),
+                                   (m['team2'], m['team1'], m['score2'], m['score1'])]:
+            if side in team_matches:
+                team_matches[side].append({
+                    'match_number': m['match_number'],
+                    'time':  m['time'],
+                    'field': m['field'],
+                    'opponent': opp,
+                    'score1': s1, 'score2': s2
+                })
+    for name in team_matches:
+        team_matches[name].sort(key=lambda x: x['match_number'])
+
+    buf = io.BytesIO()
+    W, H = A4
+    mg   = 10*mm
+    HALF = H / 2          # Seitenmitte = Trennlinie
+    SLOT = HALF - 4*mm    # Verfügbare Höhe pro Slot (etwas Abstand zur Trennlinie)
+
+    COL_HEADER  = colors.HexColor('#1e3a5f')
+    COL_GROUP   = colors.HexColor('#2d5a9e')
+    COL_ROW_ODD = colors.HexColor('#f0f4fb')
+    COL_WIN     = colors.HexColor('#d4edda')
+    COL_LOSS    = colors.HexColor('#f8d7da')
+    COL_ACCENT  = colors.HexColor('#e8f0fe')
+
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+
+    def draw_team_slot(team, idx, top_y):
+        """Zeichnet einen Teamplan in einem Slot (top_y = obere Kante des Slots)."""
+        name    = team['name']
+        group   = team['group_number']
+        matches = team_matches.get(name, [])
+
+        hdr_h  = 16*mm
+        thdr_h = 7*mm
+        row_h  = 8*mm
+
+        # ── Header ──────────────────────────────────────────────────────────
+        c.setFillColor(COL_HEADER)
+        c.rect(mg, top_y - hdr_h, W - 2*mg, hdr_h, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont('Helvetica-Bold', 14)
+        c.drawString(mg + 4*mm, top_y - 10*mm, name)
+        c.setFont('Helvetica', 8)
+        c.drawString(mg + 4*mm, top_y - 14*mm, f'Gruppe {group}  —  Round Robin Spielplan')
+        c.setFont('Helvetica', 7)
+        c.drawRightString(W - mg - 2*mm, top_y - 8*mm, game_name)
+        c.drawRightString(W - mg - 2*mm, top_y - 13*mm, f'{idx+1}/{len(teams)}')
+
+        # ── Spalten ──────────────────────────────────────────────────────────
+        col_x = [mg, mg+15*mm, mg+32*mm, mg+50*mm, mg+98*mm]
+
+        # ── Tabellen-Header ──────────────────────────────────────────────────
+        tbl_top = top_y - hdr_h - thdr_h
+        c.setFillColor(COL_GROUP)
+        c.rect(mg, tbl_top, W - 2*mg, thdr_h, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont('Helvetica-Bold', 7)
+        for lbl, cx in zip(['#', 'Zeit', 'Feld', 'Gegner', 'Resultat'], col_x):
+            c.drawString(cx + 1.5*mm, tbl_top + 2*mm, lbl)
+
+        y = tbl_top - row_h
+
+        for mi, m in enumerate(matches):
+            has = m['score1'] is not None and m['score2'] is not None
+            if has:
+                bg = COL_WIN if m['score1'] > m['score2'] else COL_LOSS
+            else:
+                bg = COL_ROW_ODD if mi % 2 == 0 else colors.white
+
+            c.setFillColor(bg)
+            c.rect(mg, y, W - 2*mg, row_h, fill=1, stroke=0)
+            c.setStrokeColor(colors.HexColor('#dddddd'))
+            c.setLineWidth(0.3)
+            c.line(mg, y, W - mg, y)
+
+            c.setFillColor(colors.black)
+            c.setFont('Helvetica-Bold', 8)
+            c.drawString(col_x[0] + 1.5*mm, y + 2.5*mm, f"#{m['match_number']}")
+            c.setFont('Helvetica', 8)
+            c.drawString(col_x[1] + 1.5*mm, y + 2.5*mm, m['time'] or '—')
+            c.drawString(col_x[2] + 1.5*mm, y + 2.5*mm, f"Feld {m['field']}" if m['field'] else '—')
+            opp = (m['opponent'] or '—')[:30]
+            c.setFont('Helvetica-Bold', 8)
+            c.drawString(col_x[3] + 1.5*mm, y + 2.5*mm, opp)
+
+            if has:
+                res = f"{m['score1']} : {m['score2']}  {'SIEG' if m['score1']>m['score2'] else 'NL'}"
+                clr = colors.HexColor('#155724') if m['score1']>m['score2'] else colors.HexColor('#721c24')
+                c.setFillColor(clr)
+                c.setFont('Helvetica-Bold', 8)
+                c.drawString(col_x[4] + 1.5*mm, y + 2.5*mm, res)
+                c.setFillColor(colors.black)
+            else:
+                c.setFillColor(colors.HexColor('#aaaaaa'))
+                c.setFont('Helvetica', 7)
+                c.drawString(col_x[4] + 1.5*mm, y + 2.5*mm, '—')
+                c.setFillColor(colors.black)
+
+            y -= row_h
+
+        # ── Zusammenfassung ──────────────────────────────────────────────────
+        total  = len(matches)
+        played = sum(1 for m in matches if m['score1'] is not None)
+        wins   = sum(1 for m in matches if m['score1'] is not None and m['score1'] > m['score2'])
+        c.setFillColor(COL_ACCENT)
+        c.rect(mg, y, W - 2*mg, 7*mm, fill=1, stroke=0)
+        c.setFillColor(COL_HEADER)
+        c.setFont('Helvetica-Bold', 7)
+        c.drawString(mg + 3*mm, y + 2.5*mm,
+                     f'Spiele: {total}  |  Gespielt: {played}  |  Siege: {wins}  |  NL: {played-wins}')
+
+        # ── Rahmen ───────────────────────────────────────────────────────────
+        bottom = y
+        used_h = top_y - bottom
+        c.setStrokeColor(COL_HEADER)
+        c.setLineWidth(0.8)
+        c.rect(mg, bottom, W - 2*mg, used_h, fill=0, stroke=1)
+
+    # ── Seiten aufbauen: je 2 Teams pro Seite ────────────────────────────────
+    for i in range(0, len(teams), 2):
+        # Oberer Slot: Team i (oben auf der Seite)
+        draw_team_slot(teams[i], i, H - mg)
+
+        # Unterer Slot: Team i+1 (falls vorhanden)
+        if i + 1 < len(teams):
+            draw_team_slot(teams[i+1], i+1, HALF - 4*mm)
+
+        # ── Trennlinie in der Mitte ──────────────────────────────────────────
+        c.setStrokeColor(colors.HexColor('#888888'))
+        c.setLineWidth(0.8)
+        c.setDash(4, 4)
+        c.line(mg, HALF, W - mg, HALF)
+        c.setDash()  # zurücksetzen
+
+        # Schere-Symbol in der Mitte
+        c.setFillColor(colors.HexColor('#888888'))
+        c.setFont('Helvetica', 7)
+        c.drawCentredString(W / 2, HALF + 1*mm, '✂')
+
+        c.showPage()
+
+    c.save()
+    buf.seek(0)
+    return send_file(buf, mimetype='application/pdf', as_attachment=True,
+                     download_name=f"{game_name}_team_spielplaene.pdf")
 
 
 # ============================================================================
