@@ -19,19 +19,55 @@
   .mc-score { font-weight:700; font-size:0.8rem; min-width:16px; text-align:right; }
   .mc-pending { background:#fff8e1; }
   .mc-done    { background:#f0fff4; }
-
   .rnd-hdr { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
              color:#fff; padding:3px 6px; border-radius:3px; margin-bottom:4px; text-align:center; }
   .rnd-wb  { background:#1a6b3a; }
   .rnd-lb  { background:#7a3000; }
   .rnd-fc  { background:#7a5200; }
   .rnd-plz { background:#6b1a1a; }
-
   .bracket-scroll { overflow-x:auto; padding-bottom:8px; }
   .bracket-cols   { display:flex; gap:5px; min-width:max-content; }
-  .bc-sm   { min-width:135px; max-width:145px; }  /* WB 1/16 Hälften */
-  .bc-md   { min-width:150px; max-width:165px; }  /* normal */
-  .bc-wide { min-width:160px; max-width:175px; }  /* FC */
+  .bc-sm   { min-width:135px; max-width:145px; }
+  .bc-md   { min-width:150px; max-width:165px; }
+  .bc-wide { min-width:160px; max-width:175px; }
+
+  /* ── Podium ── */
+  .podium-section { text-align:center; padding:10px 0; }
+  .podium-section h4 { font-size:0.85rem; text-transform:uppercase; letter-spacing:2px; color:#888; margin-bottom:10px; }
+  .podium-wrap { display:flex; justify-content:center; align-items:flex-end; gap:12px; }
+  .podium-item { text-align:center; }
+  .podium-box  { border-radius:6px 6px 0 0; display:flex; align-items:center; justify-content:center;
+                 font-weight:bold; color:white; padding:6px 4px; }
+  .podium-name { font-size:0.75rem; font-weight:bold; margin-top:4px; max-width:110px;
+                 word-wrap:break-word; color:#eee; }
+  .podium-label{ font-size:0.6rem; color:#666; margin-top:2px; }
+  .p1-box { background:#B8860B; width:120px; height:80px; font-size:1.8rem; }
+  .p2-box { background:#777; width:100px; height:60px; font-size:1.4rem; }
+  .p3-box { background:#7a4000; width:90px; height:45px; font-size:1.1rem; }
+  .divider-v { width:1px; background:#333; margin:0 16px; align-self:stretch; }
+
+  /* ── Schlussrangliste ── */
+  .schluss-wrap { display:flex; gap:12px; height:calc(100vh - 110px); }
+  .schluss-col  { flex:1; overflow:hidden; }
+  .schluss-col h5 { font-size:0.7rem; text-transform:uppercase; letter-spacing:1px;
+                    color:#888; margin-bottom:4px; padding-left:4px; }
+  .rank-row { display:flex; align-items:center; padding:2px 6px;
+              border-bottom:1px solid #1e1e1e; font-size:0.72rem; }
+  .rank-num  { min-width:28px; font-weight:bold; font-size:0.7rem; }
+  .rank-team { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rank-goals{ min-width:30px; text-align:right; font-size:0.65rem; color:#666; }
+  .r-gold  { background:#1a1600; } .r-gold .rank-num  { color:#FFD700; }
+                                   .r-gold .rank-team { color:#FFD700; font-weight:bold; }
+  .r-silv  { background:#141414; } .r-silv .rank-num  { color:#C0C0C0; }
+                                   .r-silv .rank-team { color:#C0C0C0; font-weight:bold; }
+  .r-bron  { background:#120a00; } .r-bron .rank-num  { color:#CD7F32; }
+                                   .r-bron .rank-team { color:#CD7F32; font-weight:bold; }
+  .r-de    { background:#0a120a; } .r-de   .rank-team { color:#aed6ae; }
+  .r-fc    { background:#120e00; } .r-fc   .rank-team { color:#d6c47a; }
+  .r-plz   { background:#120000; } .r-plz  .rank-team { color:#d6a0a0; }
+  .rank-num.de-num  { color:#4a9a4a; }
+  .rank-num.fc-num  { color:#aa8800; }
+  .rank-num.plz-num { color:#aa4444; }
 </style>
 
 <!-- Header -->
@@ -41,123 +77,142 @@
     <h2 id="view-title" class="display-title mb-0">Winner Bracket</h2>
   </div>
   <div class="timer-box">
-    Weiter in <span id="cd">40</span>s
+    Weiter in <span id="cd">20</span>s
     <div class="progress mt-1" style="width:100px;height:5px;">
       <div id="bar" class="progress-bar bg-success" style="width:100%"></div>
     </div>
   </div>
 </div>
 
+<!-- Normal-Modus Views -->
 <div id="view-wb"><div class="bracket-scroll"><div id="cols-wb" class="bracket-cols"></div></div></div>
 <div id="view-lb" style="display:none;"><div class="bracket-scroll"><div id="cols-lb" class="bracket-cols"></div></div></div>
 <div id="view-fc" style="display:none;"><div class="bracket-scroll"><div id="cols-fc" class="bracket-cols"></div></div></div>
 <div id="view-plz" style="display:none;"><div id="cols-plz" class="row"></div></div>
 
+<!-- Sieger-Modus: Podium (DE + FC nebeneinander) -->
+<div id="view-podium" style="display:none;">
+  <div class="d-flex align-items-start justify-content-center" style="gap:20px; padding-top:10px;">
+    <!-- DE Podium -->
+    <div class="podium-section flex-fill">
+      <h4>🏆 Double Elimination</h4>
+      <div id="de-podium" class="podium-wrap"></div>
+    </div>
+    <div class="divider-v"></div>
+    <!-- FC Podium -->
+    <div class="podium-section flex-fill">
+      <h4>🥈 Follower Cup</h4>
+      <div id="fc-podium" class="podium-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Sieger-Modus: Schlussrangliste -->
+<div id="view-schluss" style="display:none;">
+  <div class="schluss-wrap">
+    <div class="schluss-col">
+      <h5>Plätze 1 – 30</h5>
+      <div id="rank-left"></div>
+    </div>
+    <div class="schluss-col">
+      <h5>Plätze 31 – 60</h5>
+      <div id="rank-right"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 const gameName = "{{ game_name }}";
-let cdTimer = null, pollTimer = null;
+const BRACKET_URL = '/api/display/' + gameName + '/brackets_full_json';
+const RANKING_URL = '/api/display/' + gameName + '/final_rankings_json';
 
 const WB_NAMES = {1:'1/16 (1-8)',2:'1/8-Finale',3:'Viertelfinale',4:'Halbfinale',5:'WB Final'};
-const WB_NAMES2= {1:'1/16 (9-16)'};
 const LB_NAMES = {1:'LB R1',2:'LB R2',3:'LB R3',4:'LB R4',5:'LB R5',6:'LB R6',7:'LB R7',8:'LB R8',9:'LB Final'};
 const FC_NAMES = {eighth:'1/8-Finale',quarter:'Viertelfinale',semi:'Halbfinale',final:'Final',third:'Platz 3'};
 
-function load(cb) {
-  fetch('/api/display/' + gameName + '/brackets_full_json')
-    .then(r => r.json()).then(d => { if(cb) cb(d); }).catch(() => {});
-}
+let cdTimer = null;
+let curIdx = 0;
+let VIEWS = [];
+let winnerMode = false;
 
+// ── Hilfsfunktionen ───────────────────────────────────────────────────────
 function tn(t) {
-  if(!t) return 'TBD';
-  return t.length > 15 ? t.substring(0,14)+'…' : t;
+  if (!t) return 'TBD';
+  return t.length > 16 ? t.substring(0,15)+'…' : t;
 }
 
 function matchCard(m) {
   var played  = m.winner != null;
   var pending = m.team1 && m.team2 && !played;
   var cls = 'mc' + (played ? ' mc-done' : (pending ? ' mc-pending' : ''));
-
   function row(team, score, isWin) {
     if (!team) return '<div class="mc-team tbd"><span>TBD</span><span class="mc-score">—</span></div>';
     var c = 'mc-team' + (played ? (isWin ? ' winner' : ' loser') : '');
     var s = score != null ? score : '';
     return '<div class="'+c+'"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:108px;">'+tn(team)+'</span><span class="mc-score">'+s+'</span></div>';
   }
-
-  var head = '<div class="mc-head">'
-    +'<span class="mn">#'+(m.match_number||'—')+'</span>'
+  var head = '<div class="mc-head"><span class="mn">#'+(m.match_number||'—')+'</span>'
     +'<span class="mt">'+(m.time||'')+'</span>'
-    +'<span class="mf">'+(m.court?'F'+m.court:'')+'</span>'
-    +'</div>';
-
+    +'<span class="mf">'+(m.court?'F'+m.court:'')+'</span></div>';
   return '<div class="'+cls+'">'+head
     +row(m.team1, m.score1, played && m.winner===m.team1)
     +row(m.team2, m.score2, played && m.winner===m.team2)
     +'</div>';
 }
 
-// ── WB: R1 in 2 Spalten à 8, Rest je 1 Spalte ──────────────
+// ── Bracket Builder ──────────────────────────────────────────────────────
 function buildWB(wb) {
   var byRound = {};
   wb.forEach(m => { if(!byRound[m.round]) byRound[m.round]=[]; byRound[m.round].push(m); });
-  var rounds = Object.keys(byRound).map(Number).sort((a,b)=>a-b);
   var html = '';
-  rounds.forEach(r => {
-    var matches = byRound[r];
+  Object.keys(byRound).map(Number).sort((a,b)=>a-b).forEach(r => {
+    var ms = byRound[r];
     if (r === 1) {
-      // Zwei Hälften nebeneinander
-      var half = Math.ceil(matches.length / 2);
-      [matches.slice(0,half), matches.slice(half)].forEach((grp, gi) => {
-        var lbl = gi===0 ? '1/16 (1–8)' : '1/16 (9–16)';
-        html += '<div class="bc-sm">'
-          +'<div class="rnd-hdr rnd-wb">'+lbl+'</div>';
-        grp.forEach(m => { html += matchCard(m); });
+      var h = Math.ceil(ms.length/2);
+      [ms.slice(0,h), ms.slice(h)].forEach((g,gi) => {
+        html += '<div class="bc-sm"><div class="rnd-hdr rnd-wb">'+(gi===0?'1/16 (1–8)':'1/16 (9–16)')+'</div>';
+        g.forEach(m => html += matchCard(m));
         html += '</div>';
       });
     } else {
-      var lbl = WB_NAMES[r] || ('R'+r);
-      html += '<div class="bc-md">'
-        +'<div class="rnd-hdr rnd-wb">'+lbl+'</div>';
-      matches.forEach(m => { html += matchCard(m); });
+      html += '<div class="bc-md"><div class="rnd-hdr rnd-wb">'+(WB_NAMES[r]||'R'+r)+'</div>';
+      ms.forEach(m => html += matchCard(m));
       html += '</div>';
     }
   });
   document.getElementById('cols-wb').innerHTML = html;
 }
 
-// ── LB: alle Runden anzeigen, scrollbar ─────────────────────
 function buildLB(lb) {
   var byRound = {};
-  lb.forEach(m => { if(!byRound[m.round]) byRound[m.round]=[]; byRound[m.round].push(m); });
-  var rounds = Object.keys(byRound).map(Number).sort((a,b)=>a-b);
+  lb.forEach(m => {
+    if (!m.team1 && !m.team2) return;
+    if (!m.team2 && m.round >= 8) return; // R9 Dummy skip
+    if(!byRound[m.round]) byRound[m.round]=[];
+    byRound[m.round].push(m);
+  });
   var html = '';
-  rounds.forEach(r => {
-    var lbl = LB_NAMES[r] || ('LB R'+r);
-    html += '<div class="bc-md">'
-      +'<div class="rnd-hdr rnd-lb">'+lbl+'</div>';
-    byRound[r].forEach(m => { html += matchCard(m); });
+  Object.keys(byRound).map(Number).sort((a,b)=>a-b).forEach(r => {
+    html += '<div class="bc-md"><div class="rnd-hdr rnd-lb">'+(LB_NAMES[r]||'LB R'+r)+'</div>';
+    byRound[r].forEach(m => html += matchCard(m));
     html += '</div>';
   });
   document.getElementById('cols-lb').innerHTML = html;
 }
 
-// ── FC: alle Runden in Spalten ──────────────────────────────
 function buildFC(fc) {
   var byRound = {};
   fc.forEach(m => { if(!byRound[m.round]) byRound[m.round]=[]; byRound[m.round].push(m); });
-  var order = ['eighth','quarter','semi','final','third'];
   var html = '';
-  order.forEach(r => {
+  ['eighth','quarter','semi','final','third'].forEach(r => {
     if (!byRound[r]) return;
-    html += '<div class="bc-wide">'
-      +'<div class="rnd-hdr rnd-fc">'+(FC_NAMES[r]||r)+'</div>';
-    byRound[r].forEach(m => { html += matchCard(m); });
+    html += '<div class="bc-wide"><div class="rnd-hdr rnd-fc">'+(FC_NAMES[r]||r)+'</div>';
+    byRound[r].forEach(m => html += matchCard(m));
     html += '</div>';
   });
   document.getElementById('cols-fc').innerHTML = html;
 }
 
-// ── PLZ ─────────────────────────────────────────────────────
 function buildPLZ(plz) {
   var html = '';
   plz.forEach(m => {
@@ -168,65 +223,192 @@ function buildPLZ(plz) {
   document.getElementById('cols-plz').innerHTML = html;
 }
 
-function render(d) {
-  buildWB(d.wb);
-  buildLB(d.lb);
-  buildFC(d.fc);
-  buildPLZ(d.plz);
+// ── Podium ────────────────────────────────────────────────────────────────
+function buildPodium(rankings, fc_top3) {
+  // DE Podium: P1, P2, P3
+  var de3 = rankings.filter(r => r.place <= 3);
+  var deHtml = '';
+  var deOrder = [
+    {p:2, cls:'p2-box', emoji:'🥈'},
+    {p:1, cls:'p1-box', emoji:'🥇'},
+    {p:3, cls:'p3-box', emoji:'🥉'},
+  ];
+  deOrder.forEach(o => {
+    var r = de3.find(x => x.place === o.p);
+    if (!r) return;
+    deHtml += '<div class="podium-item">'
+      +'<div class="podium-box '+o.cls+'">'+o.emoji+'</div>'
+      +'<div class="podium-name">'+r.team+'</div>'
+      +'<div class="podium-label">Platz '+r.place+'</div>'
+      +'</div>';
+  });
+  document.getElementById('de-podium').innerHTML = deHtml || '<p class="text-muted">Noch nicht gespielt</p>';
+
+  // FC Podium
+  var fcHtml = '';
+  var fcOrder = [
+    {p:34, emoji:'🥈'},
+    {p:33, emoji:'🥇'},
+    {p:35, emoji:'🥉'},
+  ];
+  var fcBoxH = {33:'p1-box', 34:'p2-box', 35:'p3-box'};
+  fcOrder.forEach(o => {
+    var r = fc_top3.find(x => x.place === o.p);
+    if (!r) return;
+    fcHtml += '<div class="podium-item">'
+      +'<div class="podium-box '+fcBoxH[o.p]+'">'+o.emoji+'</div>'
+      +'<div class="podium-name">'+r.team+'</div>'
+      +'<div class="podium-label">'+r.label+'</div>'
+      +'</div>';
+  });
+  document.getElementById('fc-podium').innerHTML = fcHtml || '<p class="text-muted">Noch nicht gespielt</p>';
 }
 
-var VIEWS = [];
-function buildViewList(d) {
-  VIEWS = ['wb','lb'];
-  if (d.fc  && d.fc.length  && !d.fc_done)  VIEWS.push('fc');
-  if (d.plz && d.plz.length && !d.plz_done) VIEWS.push('plz');
+// ── Schlussrangliste ──────────────────────────────────────────────────────
+function buildSchluss(rankings) {
+  function rowClass(p) {
+    if (p === 1) return 'rank-row r-gold';
+    if (p === 2) return 'rank-row r-silv';
+    if (p === 3) return 'rank-row r-bron';
+    if (p <= 32) return 'rank-row r-de';
+    if (p <= 48) return 'rank-row r-fc';
+    return 'rank-row r-plz';
+  }
+  function numClass(p) {
+    if (p <= 3)  return '';
+    if (p <= 32) return 'de-num';
+    if (p <= 48) return 'fc-num';
+    return 'plz-num';
+  }
+  function medal(p) {
+    if (p===1) return '🥇';
+    if (p===2) return '🥈';
+    if (p===3) return '🥉';
+    return p;
+  }
+
+  var left = '', right = '';
+  rankings.forEach(r => {
+    var row = '<div class="'+rowClass(r.place)+'">'
+      +'<span class="rank-num '+numClass(r.place)+'">'+medal(r.place)+'</span>'
+      +'<span class="rank-team">'+r.team+'</span>'
+      +'<span class="rank-goals">'+r.total_goals+'</span>'
+      +'</div>';
+    if (r.place <= 30) left += row;
+    else right += row;
+  });
+  document.getElementById('rank-left').innerHTML  = left;
+  document.getElementById('rank-right').innerHTML = right;
 }
 
-const VIEW_TITLES = {wb:'Winner Bracket',lb:'Loser Bracket',fc:'Follower Cup',plz:'Platzierungsrunde'};
-const VIEW_LABELS = {wb:'Double Elimination',lb:'Double Elimination',fc:'KO-Phase',plz:'Platzierungen'};
-const VIEW_BARS   = {wb:'bg-success',lb:'bg-warning',fc:'bg-info',plz:'bg-danger'};
-var curIdx = 0;
+// ── View-Steuerung ────────────────────────────────────────────────────────
+const ALL_VIEWS = ['wb','lb','fc','plz'];
+const VIEW_TITLES = {wb:'Winner Bracket',lb:'Loser Bracket',fc:'Follower Cup',plz:'Platzierungsrunde',podium:'Podium',schluss:'Schlussrangliste'};
+const VIEW_LABELS = {wb:'Double Elimination',lb:'Double Elimination',fc:'KO-Phase',plz:'Platzierungen',podium:'Turniersieger',schluss:'Abschluss'};
+const VIEW_BARS   = {wb:'bg-success',lb:'bg-warning',fc:'bg-info',plz:'bg-danger',podium:'bg-warning',schluss:'bg-secondary'};
 
-function showView(idx) {
-  ['wb','lb','fc','plz'].forEach(v => document.getElementById('view-'+v).style.display='none');
-  var v = VIEWS[idx];
-  document.getElementById('view-'+v).style.display='';
-  document.getElementById('view-title').textContent = VIEW_TITLES[v];
-  document.getElementById('view-label').textContent = VIEW_LABELS[v];
-  document.getElementById('bar').className = 'progress-bar '+(VIEW_BARS[v]||'bg-warning');
+function hideAll() {
+  ['wb','lb','fc','plz','podium','schluss'].forEach(v => {
+    document.getElementById('view-'+v).style.display = 'none';
+  });
 }
 
-function startCD(sec, onDone) {
+function showView(id, sec) {
+  hideAll();
+  document.getElementById('view-'+id).style.display = '';
+  document.getElementById('view-title').textContent  = VIEW_TITLES[id] || id;
+  document.getElementById('view-label').textContent  = VIEW_LABELS[id] || '';
+  document.getElementById('bar').className = 'progress-bar ' + (VIEW_BARS[id] || 'bg-secondary');
+  startCD(sec || 20);
+}
+
+function startCD(sec) {
+  clearInterval(cdTimer);
   var left = sec;
   document.getElementById('cd').textContent = left;
   document.getElementById('bar').style.width = '100%';
-  clearInterval(cdTimer);
   cdTimer = setInterval(() => {
     left--;
     document.getElementById('cd').textContent = left;
     document.getElementById('bar').style.width = (left/sec*100)+'%';
-    if (left <= 0) { clearInterval(cdTimer); onDone(); }
+    if (left <= 0) { clearInterval(cdTimer); advance(); }
   }, 1000);
 }
 
-function nextView() {
-  curIdx = (curIdx+1) % VIEWS.length;
-  showView(curIdx);
-  startCD(40, nextView);
+function buildNormalViews(d) {
+  VIEWS = ['wb','lb'];
+  if (d.fc  && d.fc.length)  VIEWS.push('fc');
+  if (d.plz && d.plz.length) VIEWS.push('plz');
 }
 
-load(d => {
-  buildViewList(d);
-  render(d);
-  showView(0);
-  startCD(40, nextView);
-  pollTimer = setInterval(() => {
-    load(d => {
-      buildViewList(d);
-      render(d);
-      if (curIdx >= VIEWS.length) curIdx = 0;
+function advance() {
+  if (winnerMode) {
+    // Alterniere: podium (30s) → schluss (20s) → podium → ...
+    var cur = document.getElementById('view-podium').style.display !== 'none' ? 'podium' : 'schluss';
+    if (cur === 'podium') {
+      showView('schluss', 20);
+    } else {
+      showView('podium', 30);
+    }
+  } else {
+    curIdx = (curIdx + 1) % VIEWS.length;
+    showView(VIEWS[curIdx], 20);
+  }
+}
+
+// ── Poll ──────────────────────────────────────────────────────────────────
+function poll() {
+  // Bracket-Daten
+  fetch(BRACKET_URL).then(r => r.json()).then(d => {
+    buildWB(d.wb || []);
+    buildLB(d.lb || []);
+    buildFC(d.fc || []);
+    buildPLZ(d.plz || []);
+    if (!winnerMode) buildNormalViews(d);
+  }).catch(() => {});
+
+  // Ranking-Daten (für Sieger-Check)
+  fetch(RANKING_URL).then(r => r.json()).then(d => {
+    if (d.winner && !winnerMode) {
+      // Turniersieger steht fest → Sieger-Modus
+      winnerMode = true;
+      clearInterval(cdTimer);
+      buildPodium(d.rankings || [], d.fc_top3 || []);
+      buildSchluss(d.rankings || []);
+      showView('podium', 30);
+    } else if (winnerMode) {
+      // Aktualisieren im Sieger-Modus
+      buildPodium(d.rankings || [], d.fc_top3 || []);
+      buildSchluss(d.rankings || []);
+    }
+  }).catch(() => {});
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────
+fetch(RANKING_URL).then(r => r.json()).then(d => {
+  if (d.winner) {
+    winnerMode = true;
+    buildPodium(d.rankings || [], d.fc_top3 || []);
+    buildSchluss(d.rankings || []);
+    fetch(BRACKET_URL).then(r=>r.json()).then(bd => {
+      buildWB(bd.wb||[]); buildLB(bd.lb||[]); buildFC(bd.fc||[]); buildPLZ(bd.plz||[]);
     });
-  }, 4000);
+    showView('podium', 30);
+  } else {
+    fetch(BRACKET_URL).then(r => r.json()).then(d => {
+      buildWB(d.wb||[]); buildLB(d.lb||[]); buildFC(d.fc||[]); buildPLZ(d.plz||[]);
+      buildNormalViews(d);
+      showView(VIEWS[0], 20);
+    });
+  }
+}).catch(() => {
+  fetch(BRACKET_URL).then(r => r.json()).then(d => {
+    buildWB(d.wb||[]); buildLB(d.lb||[]); buildFC(d.fc||[]); buildPLZ(d.plz||[]);
+    buildNormalViews(d);
+    showView(VIEWS[0], 20);
+  });
 });
+
+setInterval(poll, 5000);
 </script>
 {% endblock %}

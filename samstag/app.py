@@ -2805,16 +2805,12 @@ def generate_super_finals(game_name):
         return render_template("admin/error.html",
             error_message=f"Finalisten fehlen: WB={wb_winner}, LB={lb_winner}. Bitte zuerst alle DE-Finals spielen.")
 
-    # Match 1 (HF1): WB-Sieger vs LB-Sieger
-    # Regeln Double Elimination Super Finals:
-    # - WB-Sieger hat 0 Niederlagen → darf noch 1x verlieren
-    # - LB-Sieger hat 1 Niederlage → verliert er = ausgeschieden
-    # → Wenn WB gewinnt: Turnier fertig (1 Spiel)
-    # → Wenn LB gewinnt: Bracket Reset → nochmal FINAL (beide je 1 NL)
+    # HF1: WB-Sieger vs. LB-Sieger
     cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'HF1',?,?)",
                    (213, wb_winner, lb_winner))
-    # FINAL: nur gespielt wenn LB-Sieger in HF1 gewinnt (Bracket Reset)
+    # FINAL + THIRD (Teams kommen nach HF1)
     cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'FINAL',NULL,NULL)", (214,))
+    cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'THIRD',NULL,NULL)", (215,))
 
     conn.commit()
     conn.close()
@@ -2914,16 +2910,10 @@ def save_super_finals_result(game_name, match_id):
     match_id_str = match['match_id']
     
     if match_id_str == 'HF1':
-        # WB-Sieger ist immer team1 in HF1
-        # Wenn LB-Sieger (team2) gewinnt → Bracket Reset → FINAL spielen
-        # Wenn WB-Sieger (team1) gewinnt → Turnier fertig, kein FINAL nötig
-        hf1_team1 = match['team1']  # WB-Sieger
-        hf1_team2 = match['team2']  # LB-Sieger
-        if winner == hf1_team2:
-            # LB hat gewonnen → Bracket Reset, FINAL = gleiche Teams nochmal
-            cursor.execute("UPDATE super_finals_matches SET team1=?,team2=? WHERE match_id='FINAL'",
-                           (hf1_team1, hf1_team2))
-        # Wenn WB gewonnen: FINAL bleibt leer (nicht gespielt)
+        cursor.execute("UPDATE super_finals_matches SET team1=? WHERE match_id='FINAL'", (winner,))
+        cursor.execute("UPDATE super_finals_matches SET team2=? WHERE match_id='FINAL'", (loser,))
+        cursor.execute("UPDATE super_finals_matches SET team1=? WHERE match_id='THIRD'", (loser,))
+        cursor.execute("UPDATE super_finals_matches SET team2=? WHERE match_id='THIRD'", (winner,))
     
     conn.commit()
     conn.close()
@@ -4812,6 +4802,44 @@ def team_schedules_pdf(game_name):
                      download_name=f"{game_name}_team_spielplaene.pdf")
 
 
+@app.route('/api/display/<game_name>/final_rankings_json')
+def api_display_final_rankings(game_name):
+    """JSON API: Schlussrangliste + Turniersieger fuer Display"""
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    if not os.path.exists(db_path):
+        return jsonify({})
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+
+    # Turniersieger ermitteln
+    winner = None
+    for mid in ['FINAL', 'HF1']:
+        cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id=? AND winner IS NOT NULL", (mid,))
+        r = cursor.fetchone()
+        if r and r['winner']:
+            winner = r['winner']
+            break
+
+    # Schlussrangliste
+    rankings = _compute_final_rankings(conn)
+
+    # FC Top 3
+    fc_top3 = []
+    cursor.execute("SELECT * FROM follower_cup_matches WHERE round='final' LIMIT 1")
+    fc_f = cursor.fetchone()
+    if fc_f and fc_f['winner']:
+        fc_l = fc_f['team2'] if fc_f['winner'] == fc_f['team1'] else fc_f['team1']
+        fc_top3.append({'place': 33, 'team': fc_f['winner'], 'label': 'FC Sieger'})
+        fc_top3.append({'place': 34, 'team': fc_l,          'label': 'FC Finalist'})
+    cursor.execute("SELECT * FROM follower_cup_matches WHERE round='third' LIMIT 1")
+    fc_3 = cursor.fetchone()
+    if fc_3 and fc_3['winner']:
+        fc_top3.append({'place': 35, 'team': fc_3['winner'], 'label': 'FC Platz 3'})
+
+    conn.close()
+    return jsonify({'winner': winner, 'rankings': rankings, 'fc_top3': fc_top3})
+
+
 # ============================================================================
 # EXPORT-FUNKTIONEN
 # ============================================================================
@@ -5329,11 +5357,12 @@ def final_rankings_pdf(game_name):
             c.drawCentredString(W/2, H-mg-16*mm, f'Seite {page_num}')
 
     # Spaltenbreiten
-    col_place = 15*mm
-    col_team  = 90*mm
-    col_phase = 55*mm
-    col_goals = 20*mm
-    col_diff  = 18*mm
+    # A4 verfügbar: 210 - 2*12 = 186mm
+    col_place = 12*mm
+    col_team  = 72*mm
+    col_phase = 52*mm
+    col_goals = 18*mm
+    col_diff  = 16*mm
     row_h = 7*mm
     table_x = mg
     header_h = 18*mm

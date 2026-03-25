@@ -2,130 +2,108 @@
 
 {% block content %}
 <div class="container">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-0">Super Finals — Ergebnisse eintragen</h2>
-            <small class="text-muted">{{ game_name }}</small>
+    <h1 class="mb-4">
+        Ergebnisse eintragen
+        <small class="text-muted">Super Finals</small>
+    </h1>
+
+    {% if matches %}
+        <div class="row">
+            {% for match in matches %}
+                {% if match.match_id != 'THIRD' %}
+                    <div class="col-12 mb-3">
+                        <div class="card shadow-sm border-primary">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <span>
+                                    <strong>
+                                        {% if match.match_id == 'HF1' %}
+                                            Halbfinale 1
+                                        {% elif match.match_id == 'HF2' %}
+                                            Halbfinale 2
+                                        {% elif match.match_id == 'FINAL' %}
+                                            Finale
+                                        {% else %}
+                                            Match {{ match.match_id }}
+                                        {% endif %}
+                                    </strong>
+                                </span>
+                                <span class="badge bg-light text-dark">
+                                    ID: {{ match.match_id }}
+                                </span>
+                            </div>
+
+                            <div class="card-body">
+                                <form method="POST" action="{{ url_for('save_super_finals_result', game_name=game_name, match_id=match.id) }}">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-5 text-md-end mb-2 mb-md-0">
+                                            <label for="score1_{{ match.id }}" class="form-label mb-1">
+                                                <strong>{{ match.team1 }}</strong>
+                                            </label>
+                                        </div>
+
+                                        <div class="col-md-2 d-flex justify-content-center align-items-center mb-2 mb-md-0">
+                                            <input
+                                                type="number"
+                                                class="form-control text-center"
+                                                id="score1_{{ match.id }}"
+                                                name="score1"
+                                                min="0"
+                                                max="42"
+                                                value="{{ match.score1 if match.score1 is not none else '' }}"
+                                                required
+                                            >
+                                            <span class="mx-2 fw-bold">:</span>
+                                            <input
+                                                type="number"
+                                                class="form-control text-center"
+                                                id="score2_{{ match.id }}"
+                                                name="score2"
+                                                min="0"
+                                                max="42"
+                                                value="{{ match.score2 if match.score2 is not none else '' }}"
+                                                required
+                                            >
+                                        </div>
+
+                                        <div class="col-md-5 text-md-start">
+                                            <label for="score2_{{ match.id }}" class="form-label mb-1">
+                                                <strong>{{ match.team2 }}</strong>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {% if match.winner %}
+                                        <div class="alert alert-success mt-3 mb-3 py-2">
+                                            Gewinner: <strong>{{ match.winner }}</strong>
+                                        </div>
+                                    {% endif %}
+
+                                    <div class="mt-3 d-flex gap-2">
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="fas fa-save"></i> Ergebnis speichern
+                                        </button>
+
+                                        <a href="{{ url_for('super_finals_overview', game_name=game_name) }}" class="btn btn-secondary">
+                                            Zur Übersicht
+                                        </a>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
         </div>
-        <a href="{{ url_for('super_finals_overview', game_name=game_name) }}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left"></i> Übersicht
+    {% else %}
+        <div class="alert alert-info">
+            Noch keine Super-Finals-Matches mit zwei Teams vorhanden.
+        </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{{ url_for('game_overview', game_name=game_name) }}" class="btn btn-outline-secondary">
+            ← Zurück zur Spielübersicht
         </a>
     </div>
-
-    <div class="alert alert-info py-2 mb-3">
-        <i class="fas fa-info-circle"></i>
-        <strong>Gewinnt WB-Sieger:</strong> Turnier fertig. &nbsp;
-        <strong>Gewinnt LB-Sieger:</strong> Bracket Reset → Grand Final wird freigeschaltet.
-    </div>
-
-    {% if not matches %}
-    <div class="alert alert-warning">Noch keine Matches bereit.</div>
-    {% else %}
-
-    {% for match in matches %}
-    {% if match.match_id == 'THIRD' %}{% continue %}{% endif %}
-    <div class="card mb-3 shadow-sm" id="sf-card-{{ match.id }}"
-         style="border-left: 5px solid {% if match.match_id == 'HF1' %}#1e3a5f{% else %}#b8860b{% endif %};">
-        <div class="card-header font-weight-bold py-2"
-             style="background:{% if match.match_id == 'HF1' %}#1e3a5f{% else %}#b8860b{% endif %}; color:white;">
-            {% if match.match_id == 'HF1' %}
-            <i class="fas fa-trophy"></i> Finale — WB Sieger vs LB Sieger
-            {% else %}
-            <i class="fas fa-medal"></i> Grand Final (Bracket Reset)
-            {% endif %}
-            <span class="float-right small">#{{ match.match_number }}</span>
-        </div>
-        <div class="card-body py-3">
-            {% if match.team1 and match.team2 %}
-            <div class="d-flex justify-content-center align-items-center">
-                <div class="text-right mr-3" style="width:170px">
-                    <strong class="h5 {% if match.winner == match.team1 %}text-success{% endif %}">
-                        {{ match.team1 }}
-                    </strong>
-                    {% if match.match_id == 'HF1' %}<br><small class="text-muted">WB Sieger</small>{% endif %}
-                </div>
-                <input type="number" class="form-control sf-score1 mx-1 text-center"
-                    data-match-id="{{ match.id }}"
-                    data-url="{{ url_for('save_super_finals_result', game_name=game_name, match_id=match.id) }}"
-                    value="{{ match.score1 if match.score1 is not none else '' }}"
-                    min="0" max="42" style="width:65px; font-size:1.2rem;"
-                    {% if match.winner %}disabled{% endif %}>
-                <span class="h4 mx-2">:</span>
-                <input type="number" class="form-control sf-score2 mx-1 text-center"
-                    value="{{ match.score2 if match.score2 is not none else '' }}"
-                    min="0" max="42" style="width:65px; font-size:1.2rem;"
-                    {% if match.winner %}disabled{% endif %}>
-                <div class="text-left ml-3" style="width:170px">
-                    <strong class="h5 {% if match.winner == match.team2 %}text-success{% endif %}">
-                        {{ match.team2 }}
-                    </strong>
-                    {% if match.match_id == 'HF1' %}<br><small class="text-muted">LB Sieger</small>{% endif %}
-                </div>
-                {% if not match.winner %}
-                <button type="button" class="btn btn-success ml-3 sf-save-btn"
-                    data-match-id="{{ match.id }}"
-                    data-url="{{ url_for('save_super_finals_result', game_name=game_name, match_id=match.id) }}">
-                    <i class="fas fa-save"></i> Speichern
-                </button>
-                {% else %}
-                <span class="badge badge-success ml-3" style="font-size:0.9rem;">
-                    &#10003; {{ match.winner }}
-                </span>
-                {% endif %}
-            </div>
-            {% elif match.match_id == 'FINAL' and not match.team1 %}
-            <p class="text-center text-success mb-0">
-                <i class="fas fa-check-circle"></i>
-                WB Sieger hat gewonnen — kein Grand Final nötig.
-            </p>
-            {% else %}
-            <p class="text-center text-muted mb-0">
-                <i class="fas fa-hourglass-half"></i>
-                Wartet auf Ergebnis aus dem Finale…
-            </p>
-            {% endif %}
-        </div>
-    </div>
-    {% endfor %}
-
-    {% endif %}
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    function flash(btn, cls, icon, ms) {
-        if (!btn) return;
-        btn.disabled = false;
-        btn.classList.remove('btn-success','btn-primary','btn-warning','btn-danger');
-        btn.classList.add(cls);
-        btn.innerHTML = '<i class="fas ' + icon + '"></i>';
-        setTimeout(function() {
-            btn.classList.remove(cls);
-            btn.classList.add('btn-success');
-            btn.innerHTML = '<i class="fas fa-save"></i> Speichern';
-            btn.disabled = false;
-        }, ms);
-    }
-
-    document.querySelectorAll('.sf-save-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var card = document.getElementById('sf-card-' + btn.dataset.matchId);
-            var s1 = card.querySelector('.sf-score1').value;
-            var s2 = card.querySelector('.sf-score2').value;
-            if (s1 === '' || s2 === '' || parseInt(s1) === parseInt(s2)) {
-                flash(btn, 'btn-warning', 'fa-exclamation', 1500);
-                return;
-            }
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            var fd = new FormData();
-            fd.append('score1', s1);
-            fd.append('score2', s2);
-            fetch(btn.dataset.url, { method: 'POST', body: fd })
-            .then(function() { window.location.reload(); })
-            .catch(function() { flash(btn, 'btn-danger', 'fa-times', 2000); });
-        });
-    });
-});
-</script>
 {% endblock %}
