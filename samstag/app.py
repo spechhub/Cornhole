@@ -2805,12 +2805,16 @@ def generate_super_finals(game_name):
         return render_template("admin/error.html",
             error_message=f"Finalisten fehlen: WB={wb_winner}, LB={lb_winner}. Bitte zuerst alle DE-Finals spielen.")
 
-    # HF1: WB-Sieger vs. LB-Sieger
+    # Match 1 (HF1): WB-Sieger vs LB-Sieger
+    # Regeln Double Elimination Super Finals:
+    # - WB-Sieger hat 0 Niederlagen → darf noch 1x verlieren
+    # - LB-Sieger hat 1 Niederlage → verliert er = ausgeschieden
+    # → Wenn WB gewinnt: Turnier fertig (1 Spiel)
+    # → Wenn LB gewinnt: Bracket Reset → nochmal FINAL (beide je 1 NL)
     cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'HF1',?,?)",
                    (213, wb_winner, lb_winner))
-    # FINAL + THIRD (Teams kommen nach HF1)
+    # FINAL: nur gespielt wenn LB-Sieger in HF1 gewinnt (Bracket Reset)
     cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'FINAL',NULL,NULL)", (214,))
-    cursor.execute("INSERT INTO super_finals_matches (match_number,match_id,team1,team2) VALUES (?,'THIRD',NULL,NULL)", (215,))
 
     conn.commit()
     conn.close()
@@ -2910,10 +2914,16 @@ def save_super_finals_result(game_name, match_id):
     match_id_str = match['match_id']
     
     if match_id_str == 'HF1':
-        cursor.execute("UPDATE super_finals_matches SET team1=? WHERE match_id='FINAL'", (winner,))
-        cursor.execute("UPDATE super_finals_matches SET team2=? WHERE match_id='FINAL'", (loser,))
-        cursor.execute("UPDATE super_finals_matches SET team1=? WHERE match_id='THIRD'", (loser,))
-        cursor.execute("UPDATE super_finals_matches SET team2=? WHERE match_id='THIRD'", (winner,))
+        # WB-Sieger ist immer team1 in HF1
+        # Wenn LB-Sieger (team2) gewinnt → Bracket Reset → FINAL spielen
+        # Wenn WB-Sieger (team1) gewinnt → Turnier fertig, kein FINAL nötig
+        hf1_team1 = match['team1']  # WB-Sieger
+        hf1_team2 = match['team2']  # LB-Sieger
+        if winner == hf1_team2:
+            # LB hat gewonnen → Bracket Reset, FINAL = gleiche Teams nochmal
+            cursor.execute("UPDATE super_finals_matches SET team1=?,team2=? WHERE match_id='FINAL'",
+                           (hf1_team1, hf1_team2))
+        # Wenn WB gewonnen: FINAL bleibt leer (nicht gespielt)
     
     conn.commit()
     conn.close()

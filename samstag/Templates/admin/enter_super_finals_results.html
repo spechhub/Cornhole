@@ -1,0 +1,131 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">Super Finals — Ergebnisse eintragen</h2>
+            <small class="text-muted">{{ game_name }}</small>
+        </div>
+        <a href="{{ url_for('super_finals_overview', game_name=game_name) }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Übersicht
+        </a>
+    </div>
+
+    <div class="alert alert-info py-2 mb-3">
+        <i class="fas fa-info-circle"></i>
+        <strong>Gewinnt WB-Sieger:</strong> Turnier fertig. &nbsp;
+        <strong>Gewinnt LB-Sieger:</strong> Bracket Reset → Grand Final wird freigeschaltet.
+    </div>
+
+    {% if not matches %}
+    <div class="alert alert-warning">Noch keine Matches bereit.</div>
+    {% else %}
+
+    {% for match in matches %}
+    {% if match.match_id == 'THIRD' %}{% continue %}{% endif %}
+    <div class="card mb-3 shadow-sm" id="sf-card-{{ match.id }}"
+         style="border-left: 5px solid {% if match.match_id == 'HF1' %}#1e3a5f{% else %}#b8860b{% endif %};">
+        <div class="card-header font-weight-bold py-2"
+             style="background:{% if match.match_id == 'HF1' %}#1e3a5f{% else %}#b8860b{% endif %}; color:white;">
+            {% if match.match_id == 'HF1' %}
+            <i class="fas fa-trophy"></i> Finale — WB Sieger vs LB Sieger
+            {% else %}
+            <i class="fas fa-medal"></i> Grand Final (Bracket Reset)
+            {% endif %}
+            <span class="float-right small">#{{ match.match_number }}</span>
+        </div>
+        <div class="card-body py-3">
+            {% if match.team1 and match.team2 %}
+            <div class="d-flex justify-content-center align-items-center">
+                <div class="text-right mr-3" style="width:170px">
+                    <strong class="h5 {% if match.winner == match.team1 %}text-success{% endif %}">
+                        {{ match.team1 }}
+                    </strong>
+                    {% if match.match_id == 'HF1' %}<br><small class="text-muted">WB Sieger</small>{% endif %}
+                </div>
+                <input type="number" class="form-control sf-score1 mx-1 text-center"
+                    data-match-id="{{ match.id }}"
+                    data-url="{{ url_for('save_super_finals_result', game_name=game_name, match_id=match.id) }}"
+                    value="{{ match.score1 if match.score1 is not none else '' }}"
+                    min="0" max="42" style="width:65px; font-size:1.2rem;"
+                    {% if match.winner %}disabled{% endif %}>
+                <span class="h4 mx-2">:</span>
+                <input type="number" class="form-control sf-score2 mx-1 text-center"
+                    value="{{ match.score2 if match.score2 is not none else '' }}"
+                    min="0" max="42" style="width:65px; font-size:1.2rem;"
+                    {% if match.winner %}disabled{% endif %}>
+                <div class="text-left ml-3" style="width:170px">
+                    <strong class="h5 {% if match.winner == match.team2 %}text-success{% endif %}">
+                        {{ match.team2 }}
+                    </strong>
+                    {% if match.match_id == 'HF1' %}<br><small class="text-muted">LB Sieger</small>{% endif %}
+                </div>
+                {% if not match.winner %}
+                <button type="button" class="btn btn-success ml-3 sf-save-btn"
+                    data-match-id="{{ match.id }}"
+                    data-url="{{ url_for('save_super_finals_result', game_name=game_name, match_id=match.id) }}">
+                    <i class="fas fa-save"></i> Speichern
+                </button>
+                {% else %}
+                <span class="badge badge-success ml-3" style="font-size:0.9rem;">
+                    &#10003; {{ match.winner }}
+                </span>
+                {% endif %}
+            </div>
+            {% elif match.match_id == 'FINAL' and not match.team1 %}
+            <p class="text-center text-success mb-0">
+                <i class="fas fa-check-circle"></i>
+                WB Sieger hat gewonnen — kein Grand Final nötig.
+            </p>
+            {% else %}
+            <p class="text-center text-muted mb-0">
+                <i class="fas fa-hourglass-half"></i>
+                Wartet auf Ergebnis aus dem Finale…
+            </p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    function flash(btn, cls, icon, ms) {
+        if (!btn) return;
+        btn.disabled = false;
+        btn.classList.remove('btn-success','btn-primary','btn-warning','btn-danger');
+        btn.classList.add(cls);
+        btn.innerHTML = '<i class="fas ' + icon + '"></i>';
+        setTimeout(function() {
+            btn.classList.remove(cls);
+            btn.classList.add('btn-success');
+            btn.innerHTML = '<i class="fas fa-save"></i> Speichern';
+            btn.disabled = false;
+        }, ms);
+    }
+
+    document.querySelectorAll('.sf-save-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var card = document.getElementById('sf-card-' + btn.dataset.matchId);
+            var s1 = card.querySelector('.sf-score1').value;
+            var s2 = card.querySelector('.sf-score2').value;
+            if (s1 === '' || s2 === '' || parseInt(s1) === parseInt(s2)) {
+                flash(btn, 'btn-warning', 'fa-exclamation', 1500);
+                return;
+            }
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            var fd = new FormData();
+            fd.append('score1', s1);
+            fd.append('score2', s2);
+            fetch(btn.dataset.url, { method: 'POST', body: fd })
+            .then(function() { window.location.reload(); })
+            .catch(function() { flash(btn, 'btn-danger', 'fa-times', 2000); });
+        });
+    });
+});
+</script>
+{% endblock %}
