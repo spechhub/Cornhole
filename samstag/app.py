@@ -286,6 +286,12 @@ def initialize_db(db_path):
     )
     """)
 
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS wildcard_override (
+        id INTEGER PRIMARY KEY,
+        wildcard2_team TEXT NOT NULL
+    )
+    """)
     conn.commit()
     conn.close()
     print(f"✅ Datenbank initialisiert: {db_path}")
@@ -1789,6 +1795,19 @@ def get_phase_assignment(conn):
 
     # 2 beste Viertplatzierte → DE
     fourths.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
+
+    # Manueller Override bei Gleichstand
+    try:
+        override_row = conn.execute("SELECT wildcard2_team FROM wildcard_override LIMIT 1").fetchone()
+    except Exception:
+        override_row = None
+
+    if override_row and override_row[0]:
+        override_team = override_row[0]
+        idx = next((i for i, f in enumerate(fourths) if f['team'] == override_team), None)
+        if idx is not None and idx != 1:
+            fourths[1], fourths[idx] = fourths[idx], fourths[1]
+
     best2 = fourths[:2]
     rest8 = fourths[2:]
     for f in best2:
@@ -2150,6 +2169,25 @@ Ersetze die bestehenden Funktionen mit den folgenden Versionen:
 # ============================================================================
 # PATCH 3: NEUE ROUTE - MANUELLE NEUNUMMERIERUNG
 # ============================================================================
+
+
+@app.route('/set_wildcard_override/<game_name>', methods=['POST'])
+def set_wildcard_override(game_name):
+    team = request.form.get('wildcard2_team', '').strip()
+    if not team:
+        return redirect(url_for('group_standings', game_name=game_name))
+    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    conn = get_db_connection(db_path)
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS wildcard_override (id INTEGER PRIMARY KEY, wildcard2_team TEXT NOT NULL)")
+        conn.execute("DELETE FROM wildcard_override")
+        conn.execute("INSERT INTO wildcard_override (id, wildcard2_team) VALUES (1, ?)", (team,))
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+    return redirect(url_for('group_standings', game_name=game_name))
 
 
 @app.route('/generate_matches/<game_name>')
@@ -2594,10 +2632,31 @@ def group_standings(game_name):
     best_4th_1 = best2[0] if len(best2) > 0 else None
     best_4th_2 = best2[1] if len(best2) > 1 else None
 
+    # Gleichstand-Prüfung: Platz 2 und 3 der Viertplatzierten identisch?
+    wildcard_tie = False
+    wildcard_tie_teams = []
+    if len(all_fourths) >= 3:
+        p2 = all_fourths[1]
+        p3 = all_fourths[2]
+        if p2['goals_for'] == p3['goals_for'] and p2['goal_difference'] == p3['goal_difference']:
+            wildcard_tie = True
+            wildcard_tie_teams = [p2, p3]
+
+    # Aktuellen Override laden
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS wildcard_override (id INTEGER PRIMARY KEY, wildcard2_team TEXT NOT NULL)")
+        override_row = conn.execute("SELECT wildcard2_team FROM wildcard_override LIMIT 1").fetchone()
+        current_override = override_row[0] if override_row else None
+    except Exception:
+        current_override = None
+
     conn.close()
 
     return render_template("admin/group_standings.html",
                          game_name=game_name,
+                         wildcard_tie=wildcard_tie,
+                         wildcard_tie_teams=wildcard_tie_teams,
+                         current_override=current_override,
                          groups=groups,
                          best_4th_1=best_4th_1,
                          best_4th_2=best_4th_2,
@@ -5192,14 +5251,15 @@ def _compute_final_rankings(conn):
         add(35, fc_3['winner'], 'FC Platz 3')
         add(36, fc_3l, 'FC Platz 4')
 
-    cursor.execute("SELECT loser FROM follower_cup_matches WHERE round='semi' AND loser IS NOT NULL")
-    add_sorted(37, [r['loser'] for r in cursor.fetchall()], 'FC Halbfinale')
+    def fc_losers(rnd):
+        cursor.execute(
+            "SELECT team1, team2, winner FROM follower_cup_matches WHERE round=? AND winner IS NOT NULL",
+            (rnd,))
+        return [r['team2'] if r['winner']==r['team1'] else r['team1'] for r in cursor.fetchall()]
 
-    cursor.execute("SELECT loser FROM follower_cup_matches WHERE round='quarter' AND loser IS NOT NULL")
-    add_sorted(39, [r['loser'] for r in cursor.fetchall()], 'FC Viertelfinale')
-
-    cursor.execute("SELECT loser FROM follower_cup_matches WHERE round='eighth' AND loser IS NOT NULL")
-    add_sorted(43, [r['loser'] for r in cursor.fetchall()], 'FC 1/8-Finale')
+    add_sorted(37, fc_losers('semi'),    'FC Halbfinale')
+    add_sorted(39, fc_losers('quarter'), 'FC Viertelfinale')
+    add_sorted(43, fc_losers('eighth'),  'FC 1/8-Finale')
 
     # ── P49-60: Platzierungsrunde ─────────────────────────────────────────────
     cursor.execute("SELECT * FROM placement_matches WHERE winner IS NOT NULL ORDER BY placement")
