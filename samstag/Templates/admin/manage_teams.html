@@ -1,83 +1,207 @@
 {% extends "admin/base.html" %}
 {% block title %}Teams — {{ game_name }}{% endblock %}
 {% block content %}
+
 <div class="page-header">
   <div class="container-fluid px-4">
     <h1><i class="bi bi-people me-2"></i>Teams verwalten</h1>
-    <div class="subtitle">{{ game_name }} &mdash; {{ teams|length }} Teams registriert</div>
+    <div class="subtitle">{{ game_name }} &mdash; {{ total_teams }}/60 Teams registriert</div>
   </div>
 </div>
+
 <div class="container-fluid px-4 fade-in">
+
+  <!-- Flash-Meldungen -->
+  {% if flash_msg %}
+  <div class="alert alert-success alert-dismissible d-flex align-items-center gap-2 mb-3" role="alert">
+    <i class="bi bi-check-circle-fill"></i>
+    <span>{{ flash_msg }}</span>
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+  </div>
+  {% endif %}
+  {% if flash_err %}
+  <div class="alert alert-danger alert-dismissible d-flex align-items-center gap-2 mb-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span>{{ flash_err }}</span>
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+  </div>
+  {% endif %}
+
+  <!-- KPI-Zeile -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card cat-1-border text-center py-3">
+        <div class="kpi-number">{{ total_teams }}</div>
+        <div class="text-muted" style="font-size:.8rem;">Teams total</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card cat-3-border text-center py-3">
+        <div class="kpi-number" style="color:var(--success);">{{ total_teams - ghost_count }}</div>
+        <div class="text-muted" style="font-size:.8rem;">Echte Teams</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card cat-2-border text-center py-3">
+        <div class="kpi-number" style="color:var(--text-muted);">{{ ghost_count }}</div>
+        <div class="text-muted" style="font-size:.8rem;">Ghost-Teams</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card text-center py-3" style="border-left:4px solid {% if missing_teams == 0 %}var(--success){% else %}var(--warning){% endif %}">
+        <div class="kpi-number" style="color:{% if missing_teams == 0 %}var(--success){% else %}#F59E0B{% endif %};">{{ missing_teams }}</div>
+        <div class="text-muted" style="font-size:.8rem;">Fehlende Plätze</div>
+      </div>
+    </div>
+  </div>
+
   <div class="row g-4">
+    <!-- Linke Spalte: Aktionen -->
     <div class="col-md-4">
+
+      <!-- Team hinzufügen -->
       <div class="card mb-3">
         <div class="card-header"><strong><i class="bi bi-person-plus me-2 text-primary"></i>Team hinzufügen</strong></div>
         <div class="card-body">
           <form method="POST" action="{{ url_for('add_team', game_name=game_name) }}">
             <div class="mb-3">
-              <label class="form-label">Teamname</label>
-              <input type="text" name="team_name" class="form-control" placeholder="Teamname eingeben" required>
+              <label class="form-label fw-semibold">Teamname</label>
+              <input type="text" name="team_name" class="form-control" placeholder="z.B. Thunderbolts" required maxlength="50">
             </div>
             <div class="mb-3">
-              <label class="form-label">Gruppe (1–10)</label>
-              <input type="number" name="group_number" class="form-control" min="1" max="10" required>
+              <label class="form-label fw-semibold">Gruppe (1–10)</label>
+              <select name="group_number" class="form-select" required>
+                <option value="" disabled selected>Gruppe wählen…</option>
+                {% for g in range(1, 11) %}
+                <option value="{{ g }}">Gruppe {{ g }}
+                  ({{ groups.get(g, [])|length }}/6)
+                </option>
+                {% endfor %}
+              </select>
             </div>
-            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1"></i>Hinzufügen</button>
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-plus-lg me-1"></i>Hinzufügen
+            </button>
           </form>
         </div>
       </div>
-      <div class="card">
+
+      <!-- CSV Import -->
+      <div class="card mb-3">
         <div class="card-header"><strong><i class="bi bi-upload me-2 text-success"></i>CSV Import</strong></div>
         <div class="card-body">
           <form method="POST" action="{{ url_for('add_team', game_name=game_name) }}" enctype="multipart/form-data">
-            <div class="mb-3">
-              <label class="form-label">CSV-Datei</label>
-              <input type="file" name="csv_file" class="form-control" accept=".csv">
+            <div class="mb-2">
+              <label class="form-label fw-semibold">CSV-Datei</label>
+              <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+              <div class="form-text">Spalten: <code>Teamname</code>, <code>Gruppe</code></div>
             </div>
-            <button type="submit" class="btn btn-success w-100"><i class="bi bi-upload me-1"></i>Importieren</button>
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-success flex-grow-1">
+                <i class="bi bi-upload me-1"></i>Importieren
+              </button>
+              <a href="{{ url_for('csv_template', game_name=game_name) }}" class="btn btn-outline-secondary" title="CSV-Vorlage herunterladen">
+                <i class="bi bi-download"></i>
+              </a>
+            </div>
+            <div class="mt-1" style="font-size:.75rem;color:var(--text-muted);">
+              <i class="bi bi-arrow-down-circle me-1"></i>
+              <a href="{{ url_for('csv_template', game_name=game_name) }}" class="text-decoration-none">CSV-Vorlage herunterladen</a>
+            </div>
           </form>
         </div>
       </div>
+
+      <!-- Ghost Teams -->
+      {% if missing_teams > 0 %}
+      <div class="card mb-3" style="border-left:4px solid #F59E0B;">
+        <div class="card-header"><strong><i class="bi bi-person-dash me-2" style="color:#F59E0B;"></i>Ghost-Teams</strong></div>
+        <div class="card-body">
+          <p class="text-muted mb-3" style="font-size:.85rem;">
+            Es fehlen noch <strong>{{ missing_teams }}</strong> Teams. Ghost-Teams füllen die leeren Plätze automatisch auf — sie verlieren immer 0:42.
+          </p>
+          <form method="POST" action="{{ url_for('generate_ghost_teams', game_name=game_name) }}">
+            <button type="submit" class="btn w-100" style="background:#F59E0B;color:#000;font-weight:600;">
+              <i class="bi bi-robot me-1"></i>{{ missing_teams }} Ghost-Teams erstellen
+            </button>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert" style="background:#F0FDF4;border:1px solid #BBF7D0;color:#15803D;">
+        <i class="bi bi-check-circle-fill me-2"></i>Alle 60 Plätze sind besetzt — bereit für den Spielplan!
+      </div>
+      {% endif %}
+
     </div>
+
+    <!-- Rechte Spalte: Teamliste -->
     <div class="col-md-8">
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
           <strong><i class="bi bi-list-ul me-2"></i>Alle Teams</strong>
-          <span class="badge bg-primary rounded-pill">{{ teams|length }} / 60</span>
+          <div class="d-flex align-items-center gap-2">
+            <input type="text" id="teamSearch" class="form-control form-control-sm" placeholder="Suchen…" style="width:150px;" oninput="filterTeams(this.value)">
+            <span class="badge bg-primary rounded-pill">{{ total_teams }}/60</span>
+          </div>
         </div>
         <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead><tr>
-                <th>#</th><th>Teamname</th><th>Gruppe</th><th>Ghost</th><th></th>
-              </tr></thead>
+          <div class="table-responsive" style="max-height:600px;overflow-y:auto;">
+            <table class="table table-hover table-sm mb-0" id="teamTable">
+              <thead class="sticky-top" style="background:var(--card-bg);">
+                <tr>
+                  <th style="width:35px;">#</th>
+                  <th>Teamname</th>
+                  <th style="width:90px;">Gruppe</th>
+                  <th style="width:70px;">Typ</th>
+                  <th style="width:90px;"></th>
+                </tr>
+              </thead>
               <tbody>
                 {% for team in teams %}
-                <tr>
-                  <td class="text-muted" style="font-size:.8rem;">{{ loop.index }}</td>
+                <tr class="team-row" data-name="{{ team.name|lower }}" data-group="{{ team.group_number }}">
+                  <td class="text-muted" style="font-size:.75rem;">{{ loop.index }}</td>
                   <td>
                     {% if team.is_ghost %}
-                    <span class="placeholder-entry">{{ team.name }}</span>
-                    <span class="placeholder-badge ms-1">Ghost</span>
+                    <span style="color:var(--text-muted);font-style:italic;">{{ team.name }}</span>
                     {% else %}
                     <strong>{{ team.name }}</strong>
                     {% endif %}
                   </td>
-                  <td><span class="dark-badge">GRP {{ team.group_number }}</span></td>
+                  <td>
+                    <span class="dark-badge">GRP {{ team.group_number }}</span>
+                  </td>
                   <td>
                     {% if team.is_ghost %}
-                    <span class="badge" style="background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning);">Ghost</span>
+                    <span class="badge" style="background:rgba(245,158,11,.15);color:#F59E0B;border:1px solid #F59E0B;font-size:.65rem;">Ghost</span>
+                    {% else %}
+                    <span class="badge" style="background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;font-size:.65rem;">Team</span>
                     {% endif %}
                   </td>
-                  <td class="text-end">
+                  <td class="text-end pe-2">
+                    <!-- Edit Modal Trigger -->
+                    <button class="btn btn-sm btn-outline-secondary me-1"
+                            onclick="openEdit({{ team.id }}, '{{ team.name|replace("'", "\\'") }}', {{ team.group_number }})"
+                            title="Bearbeiten">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <!-- Löschen -->
                     <form method="POST" action="{{ url_for('delete_team', game_name=game_name, team_id=team.id) }}"
-                          onsubmit="return confirm('Team löschen?');" style="display:inline;">
-                      <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                          onsubmit="return confirm('Team &quot;{{ team.name }}&quot; wirklich löschen?');"
+                          style="display:inline;">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Löschen">
+                        <i class="bi bi-trash"></i>
+                      </button>
                     </form>
                   </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" class="text-center text-muted py-4">Noch keine Teams vorhanden.</td></tr>
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-5">
+                    <i class="bi bi-people" style="font-size:2rem;opacity:.3;"></i>
+                    <div class="mt-2">Noch keine Teams vorhanden.</div>
+                  </td>
+                </tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -87,4 +211,55 @@
     </div>
   </div>
 </div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-pencil me-2"></i>Team bearbeiten</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editForm" method="POST">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Teamname</label>
+            <input type="text" name="new_name" id="editName" class="form-control" required maxlength="50">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Gruppe</label>
+            <select name="new_group" id="editGroup" class="form-select" required>
+              {% for g in range(1, 11) %}
+              <option value="{{ g }}">Gruppe {{ g }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openEdit(id, name, group) {
+  document.getElementById('editForm').action = '/edit_team/{{ game_name }}/' + id;
+  document.getElementById('editName').value = name;
+  document.getElementById('editGroup').value = group;
+  new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+function filterTeams(q) {
+  q = q.toLowerCase().trim();
+  document.querySelectorAll('.team-row').forEach(row => {
+    const name  = row.dataset.name || '';
+    const group = 'gruppe ' + (row.dataset.group || '');
+    row.style.display = (!q || name.includes(q) || group.includes(q)) ? '' : 'none';
+  });
+}
+</script>
+
 {% endblock %}
