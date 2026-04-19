@@ -1,121 +1,42 @@
 {% extends "admin/base.html" %}
-
+{% block title %}Schlussrangliste — {{ game_name }}{% endblock %}
 {% block content %}
-<div class="container-fluid px-3">
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <h2 class="mb-0">🏆 Schlussrangliste</h2>
-      <small class="text-muted">{{ game_name }}</small>
-    </div>
-    <div>
-      <a href="{{ url_for('final_rankings_pdf', game_name=game_name) }}"
-         class="btn btn-danger me-2" target="_blank">
-        <i class="fas fa-file-pdf"></i> PDF exportieren
-      </a>
-      <a href="{{ url_for('game_overview', game_name=game_name) }}"
-         class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left"></i> Zurück
-      </a>
-    </div>
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1><i class="bi bi-award me-2"></i>Schlussrangliste</h1>
+    <div class="subtitle">{{ game_name }} &mdash; Finale Platzierungen</div>
   </div>
-
-  <div class="row">
-    <!-- Rangliste -->
-    <div class="col-lg-8 mb-4">
-      <div class="card shadow-sm">
-        <div class="card-header py-2" style="background:#1e3a5f; color:white;">
-          <strong>Schlussrangliste — Platz 1–{{ rankings|length }}</strong>
-        </div>
-        <div class="card-body p-0">
-          <table class="table table-sm table-hover mb-0">
-            <thead style="background:#2d5a9e; color:white; font-size:0.8rem;">
-              <tr>
-                <th style="width:50px" class="text-center">Platz</th>
-                <th>Team</th>
-                <th>Phase</th>
-                <th class="text-end">Punkte</th>
-                <th class="text-end">Diff</th>
-              </tr>
-            </thead>
-            <tbody style="font-size:0.85rem;">
-              {% for r in rankings %}
-              {% if r.place == 1 %}
-              <tr style="background:#fffbe6; font-weight:bold;">
-                <td class="text-center">
-                  <span class="badge" style="background:#FFD700; color:#333;">🥇 1</span>
-                </td>
-              {% elif r.place == 2 %}
-              <tr style="background:#f5f5f5; font-weight:bold;">
-                <td class="text-center">
-                  <span class="badge" style="background:#C0C0C0; color:#333;">🥈 2</span>
-                </td>
-              {% elif r.place == 3 %}
-              <tr style="background:#fdf0e0; font-weight:bold;">
-                <td class="text-center">
-                  <span class="badge" style="background:#CD7F32; color:white;">🥉 3</span>
-                </td>
-              {% elif r.place <= 32 %}
-              <tr style="background:#f0f7f0;">
-                <td class="text-center">
-                  <span class="badge" style="background:#1a6b3a; color:white;">{{ r.place }}</span>
-                </td>
-              {% elif r.place <= 48 %}
-              <tr style="background:#fdf5e6;">
-                <td class="text-center">
-                  <span class="badge" style="background:#7a5200; color:white;">{{ r.place }}</span>
-                </td>
-              {% else %}
-              <tr style="background:#fdf0f0;">
-                <td class="text-center">
-                  <span class="badge" style="background:#7a1a1a; color:white;">{{ r.place }}</span>
-                </td>
-              {% endif %}
-                <td><strong>{{ r.team }}</strong></td>
-                <td class="text-muted" style="font-size:0.78rem;">{{ r.phase }}</td>
-                <td class="text-end">{{ r.total_goals }}</td>
-                <td class="text-end {% if r.goal_diff > 0 %}text-success{% elif r.goal_diff < 0 %}text-danger{% endif %}">
-                  {{ '+' if r.goal_diff > 0 else '' }}{{ r.goal_diff }}
-                </td>
-              </tr>
-              {% else %}
-              <!-- phase divider -->
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Legende -->
-      <div class="d-flex gap-3 mt-2 flex-wrap" style="font-size:0.78rem;">
-        <span><span class="badge" style="background:#1a6b3a;">■</span> Double Elimination (P1–32)</span>
-        <span><span class="badge" style="background:#7a5200;">■</span> Follower Cup (P33–48)</span>
-        <span><span class="badge" style="background:#7a1a1a;">■</span> Platzierungsrunde (P49–60)</span>
-      </div>
+</div>
+<div class="container-fluid px-4 fade-in">
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Gesamtrangliste</strong>
+      <a href="{{ url_for('export_rankings', game_name=game_name) }}" target="_blank" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+      </a>
     </div>
-
-    <!-- Turnier-Fakten -->
-    <div class="col-lg-4 mb-4">
-      <div class="card shadow-sm">
-        <div class="card-header py-2" style="background:#1e3a5f; color:white;">
-          <strong>📊 Turnier-Statistiken</strong>
-        </div>
-        <div class="card-body p-2">
-          {% if facts %}
-          {% for f in facts %}
-          <div class="mb-2 p-2 rounded" style="background:#f8faff; border-left:3px solid #2d5a9e;">
-            <div style="font-size:0.72rem; color:#555; font-weight:bold;">{{ f.label }}</div>
-            <div style="font-size:0.88rem; color:#1e3a5f;">{{ f.value }}</div>
-          </div>
-          {% endfor %}
-          {% else %}
-          <p class="text-muted text-center mt-3">
-            <i class="fas fa-info-circle"></i><br>
-            Noch keine Spielergebnisse vorhanden.
-          </p>
-          {% endif %}
-        </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Platz</th><th>Team</th><th>Punkte</th><th>Info</th></tr></thead>
+          <tbody>
+            {% for r in rankings %}
+            <tr>
+              <td>
+                <span class="rank-badge {% if loop.index == 1 %}badge-cat1{% elif loop.index == 2 %}badge-cat2{% elif loop.index == 3 %}badge-cat3{% else %}badge-cat2{% endif %}"
+                      style="font-family:'Bebas Neue',cursive;">
+                  {{ loop.index }}
+                </span>
+              </td>
+              <td><strong>{{ r.team }}</strong></td>
+              <td style="font-family:'Bebas Neue',cursive;font-size:1.1rem;">{{ r.total_points or '–' }}</td>
+              <td class="text-muted" style="font-size:.85rem;">{{ r.info or '' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-center text-muted py-5">Noch keine Daten vorhanden.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>

@@ -1,106 +1,74 @@
 {% extends "admin/base.html" %}
-
+{% block title %}Ergebnisse — {{ game_name }}{% endblock %}
 {% block content %}
-<div class="container">
-    <h1 class="mb-4">Ergebnisse eintragen <small class="text-muted">Round Robin</small></h1>
-
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <div class="btn-group" role="group">
-                <button type="button" class="btn btn-outline-secondary filter-btn active"
-                    data-filter="all">Alle</button>
-                <button type="button" class="btn btn-outline-secondary filter-btn" data-filter="open">Offene</button>
-                <button type="button" class="btn btn-outline-secondary filter-btn"
-                    data-filter="completed">Beendete</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="matchesFilterContainer">
-        {% for match in matches %}
-        <div class="card match-card {% if match.score1 is not none %}status-completed{% else %}status-open{% endif %}">
-            <div class="row align-items-center">
-                <div class="col-md-2 text-center text-muted">
-                    <small>Spiel #{{ match.match_number if match.match_number else match.id }}</small><br>
-                    <span class="badge badge-info">Runde {{ match.round }}</span><br>
-                    <small>Gr. {{ match.group_number }} / Feld {{ match.field }}</small>
-                </div>
-
-                <div class="col-md-7">
-                    <form action="{{ url_for('save_result', game_name=game_name, match_id=match.id) }}" method="POST"
-                        class="d-flex justify-content-center align-items-center">
-                        <div class="text-right mr-2" style="width: 150px;">
-                            <strong>{{ match.team1 }}</strong>
-                        </div>
-
-                        <input type="number" name="score1" class="form-control score-input mx-1"
-                            value="{{ match.score1 if match.score1 is not none else '' }}" min="0" max="42" required {%
-                            if match.score1 is not none %}readonly{% endif %}>
-                        :
-                        <input type="number" name="score2" class="form-control score-input mx-1"
-                            value="{{ match.score2 if match.score2 is not none else '' }}" min="0" max="42" required {%
-                            if match.score2 is not none %}readonly{% endif %}>
-
-                        <div class="text-left ml-2" style="width: 150px;">
-                            <strong>{{ match.team2 }}</strong>
-                        </div>
-
-                        <div class="ml-3">
-                            {% if match.score1 is none %}
-                            <button type="submit" class="btn btn-success btn-sm">
-                                <i class="fas fa-save"></i>
-                            </button>
-                            {% endif %}
-                        </div>
-                    </form>
-                </div>
-
-                <div class="col-md-3 text-right">
-                    {% if match.score1 is not none %}
-                    <form action="{{ url_for('delete_result', game_name=game_name, match_id=match.id) }}" method="POST"
-                        class="d-inline" onsubmit="return confirm('Ergebnis wirklich löschen?');">
-                        <button type="submit" class="btn btn-outline-danger btn-sm">
-                            <i class="fas fa-trash"></i> Reset
-                        </button>
-                    </form>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1><i class="bi bi-pencil-square me-2"></i>Ergebnisse Round Robin</h1>
+    <div class="subtitle">{{ game_name }} &mdash; Spielergebnisse eintragen</div>
+  </div>
 </div>
+<div class="container-fluid px-4 fade-in">
 
-{% block extra_js %}
-<script>
-    $(document).ready(function () {
-        $(".filter-btn").click(function () {
-            $(".filter-btn").removeClass("active");
-            $(this).addClass("active");
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <span class="text-muted" style="font-size:.85rem;">Runde:</span>
+        {% for r in rounds %}
+        <a href="?round={{ r }}"
+           class="btn btn-sm {% if current_round == r %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ r }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
 
-            var filter = $(this).data("filter");
-
-            if (filter === "all") {
-                $(".match-card").show();
-            } else if (filter === "open") {
-                $(".status-completed").hide();
-                $(".status-open").show();
-            } else if (filter === "completed") {
-                $(".status-open").hide();
-                $(".status-completed").show();
-            }
-        });
-
-        // Make inputs editable on double click if they are readonly
-        $(".score-input[readonly]").dblclick(function () {
-            if (confirm("Ergebnis bearbeiten?")) {
-                var form = $(this).closest("form");
-                form.find("input").prop("readonly", false);
-                form.find("button[type='submit']").remove(); // Remove existing submit if any
-                form.find(".ml-3").append('<button type="submit" class="btn btn-warning btn-sm"><i class="fas fa-save"></i></button>');
-            }
-        });
-    });
-</script>
-{% endblock %}
+  <div class="card">
+    <div class="card-header">
+      <strong>Runde {{ current_round }}</strong>
+      <span class="text-muted ms-2" style="font-size:.85rem;">Ergebnis speichert automatisch bei Eingabe</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr>
+            <th>#</th><th>Zeit</th><th>Feld</th><th>Gruppe</th>
+            <th>Team 1</th><th class="text-center">Score 1</th>
+            <th class="text-center">Score 2</th><th>Team 2</th><th></th>
+          </tr></thead>
+          <tbody>
+            {% for m in matches %}
+            <tr {% if m.score1 is not none %}class="table-success"{% endif %}>
+              <td><span class="dark-badge">{{ m.match_number or '–' }}</span></td>
+              <td><strong>{{ m.time or '–' }}</strong></td>
+              <td>{{ m.field or '–' }}</td>
+              <td><span class="badge badge-cat1">Grp {{ m.group_number }}</span></td>
+              <td>{{ m.team1 }}</td>
+              <td class="text-center">
+                <form method="POST" action="{{ url_for('save_result', game_name=game_name, match_id=m.id) }}" id="f{{ m.id }}">
+                  <input type="number" name="score1" class="num-input"
+                         value="{{ m.score1 if m.score1 is not none else '' }}" min="0">
+              </td>
+              <td class="text-center">
+                  <input type="number" name="score2" class="num-input"
+                         value="{{ m.score2 if m.score2 is not none else '' }}" min="0">
+                  <button type="submit" class="btn btn-sm btn-success ms-1"><i class="bi bi-check"></i></button>
+                </form>
+              </td>
+              <td>{{ m.team2 }}</td>
+              <td>
+                {% if m.score1 is not none %}
+                <form method="POST" action="{{ url_for('delete_result', game_name=game_name, match_id=m.id) }}" style="display:inline;">
+                  <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="text-center text-muted py-4">Keine Spiele in dieser Runde.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

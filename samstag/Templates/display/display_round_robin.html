@@ -1,163 +1,195 @@
 {% extends "display/base.html" %}
 
 {% block content %}
-<style>
-  .display-title { font-size: 1.4rem; font-weight: bold; }
-  .timer-box { font-size: 0.8rem; color: #aaa; text-align: right; min-width: 130px; }
 
-  .group-card { font-size: 0.8rem; }
-  .group-card .card-header { font-size: 0.82rem; padding: 4px 8px; }
-  .group-card td, .group-card th { padding: 3px 5px; white-space: nowrap; }
-  .group-card thead th { font-size: 0.72rem; color: #666; border-bottom: 1px solid #ddd; background:#f8f9fa; }
-
-  .row-de   { background: #d4edda; }
-  .row-wild { background: #cce5ff; }
-  .row-fc   { background: #fff3cd; }
-  .row-plz  { background: #f8d7da; }
-
-  .phase-badge {
-    display: inline-block;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 3px;
-    color: #fff;
-  }
-  .phase-de   { background: #28a745; }
-  .phase-wild { background: #007bff; }
-  .phase-fc   { background: #fd7e14; }
-  .phase-plz  { background: #dc3545; }
-
-  .legend-item { display:inline-flex; align-items:center; margin-right:14px; font-size:0.8rem; }
-  .legend-dot  { width:13px; height:13px; border-radius:2px; margin-right:4px; flex-shrink:0; }
-</style>
-
-<!-- LEGENDE (immer sichtbar) -->
-<div class="mb-2 d-flex flex-wrap align-items-center" style="gap:4px;">
-  <span class="legend-item"><span class="legend-dot" style="background:#d4edda;border:1px solid #c3e6cb;"></span><span class="phase-badge phase-de mr-1">DE</span> Double Elimination</span>
-  <span class="legend-item"><span class="legend-dot" style="background:#cce5ff;border:1px solid #b8daff;"></span><span class="phase-badge phase-wild mr-1">DE★</span> Wildcard</span>
-  <span class="legend-item"><span class="legend-dot" style="background:#fff3cd;border:1px solid #ffeeba;"></span><span class="phase-badge phase-fc mr-1">FC</span> Follower Cup</span>
-  <span class="legend-item"><span class="legend-dot" style="background:#f8d7da;border:1px solid #f5c6cb;"></span><span class="phase-badge phase-plz mr-1">PLZ</span> Platzierungsrunde</span>
-  <span style="font-size:0.72rem;color:#888;margin-left:6px;">FC/PLZ basiert auf G+ aller 28 Nicht-DE-Teams</span>
-</div>
-
-<!-- VIEW A: Gruppen 1–5 -->
+<!-- View A: Gruppen 1-5 -->
 <div id="view-a">
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <h2 class="display-title mb-0">Round Robin &mdash; Gruppen 1–5</h2>
-    <div class="timer-box">
-      Weiter in <span id="cd-a">35</span>s
-      <div class="progress mt-1" style="width:110px;height:5px;">
-        <div id="bar-a" class="progress-bar bg-warning" style="width:100%"></div>
-      </div>
+    <h2 class="display-title">Round Robin &mdash; <span style="color:#F59E0B;">Gruppen 1–5</span></h2>
+    <div class="cd-wrap">
+      Wechselt in <span id="cd-a">30</span>s
+      <div class="cd-bar"><div id="bar-a" class="cd-fill" style="background:#F59E0B;"></div></div>
     </div>
   </div>
-  <div id="groups-a" class="row"></div>
+  <div id="container-a" class="grp-row">
+    <div class="loading">Lade Daten...</div>
+  </div>
 </div>
 
-<!-- VIEW B: Gruppen 6–10 -->
+<!-- View B: Gruppen 6-10 -->
 <div id="view-b" style="display:none;">
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <h2 class="display-title mb-0">Round Robin &mdash; Gruppen 6–10</h2>
-    <div class="timer-box">
-      Weiter in <span id="cd-b">35</span>s
-      <div class="progress mt-1" style="width:110px;height:5px;">
-        <div id="bar-b" class="progress-bar bg-warning" style="width:100%"></div>
-      </div>
+    <h2 class="display-title">Round Robin &mdash; <span style="color:#60A5FA;">Gruppen 6–10</span></h2>
+    <div class="cd-wrap">
+      Wechselt in <span id="cd-b">30</span>s
+      <div class="cd-bar"><div id="bar-b" class="cd-fill" style="background:#60A5FA;"></div></div>
     </div>
   </div>
-  <div id="groups-b" class="row"></div>
+  <div id="container-b" class="grp-row">
+    <div class="loading">Lade Daten...</div>
+  </div>
 </div>
 
+<style>
+  body { background:#0F172A; color:#F1F5F9; font-family:'DM Sans',sans-serif; }
+
+  .display-title {
+    font-family:'Bebas Neue',cursive;
+    font-size:1.8rem; letter-spacing:2px; color:#F1F5F9;
+  }
+
+  /* Countdown */
+  .cd-wrap { font-size:.8rem; color:rgba(255,255,255,.5); text-align:right; }
+  .cd-bar   { width:120px; height:5px; background:rgba(255,255,255,.15); border-radius:99px; margin-top:4px; }
+  .cd-fill  { height:100%; border-radius:99px; transition:width 1s linear; }
+
+  /* Gruppen-Reihe */
+  .grp-row  { display:flex; gap:6px; width:100%; }
+  .grp-card { flex:1; background:#1E293B; border-radius:8px; border:1px solid #334155; overflow:hidden; min-width:0; }
+  .grp-head { background:#1e3a5f; color:#F59E0B; font-family:'Bebas Neue',cursive;
+              font-size:.95rem; letter-spacing:1px; text-align:center; padding:4px 2px; }
+  .grp-tbl  { width:100%; border-collapse:collapse; font-size:.7rem; }
+  .grp-tbl td { padding:2px 3px; border-bottom:1px solid #0F172A; }
+  .grp-tbl tr:last-child td { border-bottom:none; }
+
+  /* Phase-Zeilenfarben */
+  .ph-de   { background:rgba(22,163,74,.25); }
+  .ph-wc   { background:rgba(234,179,8,.3); }
+  .ph-fc   { background:rgba(124,58,237,.2); }
+  .ph-plz  { background:rgba(100,116,139,.15); }
+
+  /* Phase-Badge */
+  .pb { font-size:.58rem; font-weight:700; border-radius:3px; padding:1px 3px; white-space:nowrap; }
+  .pb-de  { background:#16A34A; color:#fff; }
+  .pb-wc  { background:#D97706; color:#fff; }
+  .pb-fc  { background:#7C3AED; color:#fff; }
+  .pb-plz { background:#475569; color:#fff; }
+
+  /* Rang-Kreis */
+  .rk { width:15px; height:15px; border-radius:50%; display:inline-flex;
+        align-items:center; justify-content:center; font-size:.6rem; font-weight:700; }
+  .rk1 { background:#F59E0B; color:#000; }
+  .rk2 { background:#94A3B8; color:#000; }
+  .rk3 { background:#CD7F32; color:#fff; }
+  .rkn { background:#334155; color:#94A3B8; }
+
+  /* Legende */
+  .legend { display:flex; gap:10px; flex-wrap:wrap; font-size:.7rem;
+            color:rgba(255,255,255,.6); margin-bottom:6px; }
+  .leg { display:flex; align-items:center; gap:3px; }
+  .leg-dot { width:9px; height:9px; border-radius:2px; }
+
+  .loading { color:rgba(255,255,255,.3); padding:2rem; width:100%; text-align:center; }
+</style>
+
 <script>
-  const gameName = "{{ game_name }}";
-  let pollTimer = null;
-  let cdTimer   = null;
+const GAME = "{{ game_name }}";
+let pollTimer = null;
+let cdTimer   = null;
+let currentView = 'a';   // 'a' = Gruppen 1-5, 'b' = Gruppen 6-10
 
-  const PHASE_CLASS = { 'DE': 'row-de', 'DE*': 'row-wild', 'FC': 'row-fc', 'PLZ': 'row-plz' };
-  const PHASE_BADGE = { 'DE': 'phase-de', 'DE*': 'phase-wild', 'FC': 'phase-fc', 'PLZ': 'phase-plz' };
-  const PHASE_LABEL = { 'DE': 'DE', 'DE*': 'DE★', 'FC': 'FC', 'PLZ': 'PLZ' };
+// ── Phasen-Helfer ────────────────────────────────────────────────────────────
+function rowCls(phase) {
+  if (phase==='DE*') return 'ph-wc';
+  if (phase==='DE')  return 'ph-de';
+  if (phase==='FC')  return 'ph-fc';
+  return 'ph-plz';
+}
+function badgeCls(phase) {
+  if (phase==='DE*') return 'pb pb-wc';
+  if (phase==='DE')  return 'pb pb-de';
+  if (phase==='FC')  return 'pb pb-fc';
+  return 'pb pb-plz';
+}
+function badgeLbl(phase) {
+  if (phase==='DE*') return 'DE⭐';
+  if (phase==='DE')  return 'DE';
+  if (phase==='FC')  return 'FC';
+  return 'PLZ';
+}
+function rkCls(i) { return ['rk1','rk2','rk3'][i]||'rkn'; }
 
-  function buildGroups(data, groupNums, containerId) {
-    var container = document.getElementById(containerId);
-    var html = '';
-    groupNums.forEach(function(g) {
-      var rows = data[g] || [];
-      var rowsHtml = '';
-      rows.forEach(function(r, i) {
-        var phase  = r.phase || 'PLZ';
-        var rClass = PHASE_CLASS[phase] || '';
-        var bClass = PHASE_BADGE[phase] || '';
-        var bLabel = PHASE_LABEL[phase] || phase;
-        var diff   = r.goal_difference;
-        var diffStr = (diff > 0 ? '+' : '') + diff;
-        var diffColor = diff > 0 ? 'color:#28a745;' : (diff < 0 ? 'color:#dc3545;' : '');
-        rowsHtml += '<tr class="' + rClass + '">' +
-          '<td class="text-center" style="width:20px;">' + (i+1) + '</td>' +
-          '<td style="max-width:105px;overflow:hidden;text-overflow:ellipsis;">' + r.team + '</td>' +
-          '<td class="text-center">' + r.matches_played + '</td>' +
-          '<td class="text-center font-weight-bold">' + r.goals_for + '</td>' +
-          '<td class="text-center">' + r.goals_against + '</td>' +
-          '<td class="text-center" style="' + diffColor + '">' + diffStr + '</td>' +
-          '<td class="text-center"><span class="phase-badge ' + bClass + '">' + bLabel + '</span></td>' +
-          '</tr>';
-      });
-      html += '<div class="col-md-4 mb-3">' +
-        '<div class="card group-card border-dark">' +
-        '<div class="card-header bg-dark text-white text-center font-weight-bold">Gruppe ' + g + '</div>' +
-        '<table class="table table-sm mb-0">' +
-        '<thead><tr>' +
-        '<th style="width:20px;">#</th><th>Team</th>' +
-        '<th class="text-center">Sp</th>' +
-        '<th class="text-center">G+</th>' +
-        '<th class="text-center">G-</th>' +
-        '<th class="text-center">Diff</th>' +
-        '<th class="text-center">Phase</th>' +
-        '</tr></thead>' +
-        '<tbody>' + rowsHtml + '</tbody>' +
-        '</table></div></div>';
-    });
-    container.innerHTML = html;
-  }
+// ── HTML für eine Gruppe ─────────────────────────────────────────────────────
+function buildGroup(g, rows) {
+  let body = '';
+  rows.forEach((r,i) => {
+    body += `<tr class="${rowCls(r.phase)}">
+      <td><span class="rk ${rkCls(i)}">${i+1}</span></td>
+      <td style="max-width:72px;overflow:hidden;text-overflow:ellipsis;color:#F1F5F9;font-weight:${i<3?'600':'400'};">${r.team}</td>
+      <td style="text-align:right;color:#F59E0B;font-weight:700;">${r.goals_for??r.points??'–'}</td>
+      <td style="text-align:right;"><span class="${badgeCls(r.phase)}">${badgeLbl(r.phase)}</span></td>
+    </tr>`;
+  });
+  return `<div class="grp-card">
+    <div class="grp-head">GRP ${g}</div>
+    <table class="grp-tbl"><tbody>${body}</tbody></table>
+  </div>`;
+}
 
-  function loadAndRender(groupNums, containerId) {
-    fetch('/api/display/' + gameName + '/groups_json')
-      .then(function(r) { return r.json(); })
-      .then(function(data) { buildGroups(data, groupNums, containerId); })
-      .catch(function() {});
-  }
+// ── Legende HTML ─────────────────────────────────────────────────────────────
+const LEGEND = `<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#16A34A;"></div>Double Elim</div>
+  <div class="leg"><div class="leg-dot" style="background:#D97706;"></div>DE Wildcard ⭐</div>
+  <div class="leg"><div class="leg-dot" style="background:#7C3AED;"></div>Follower Cup</div>
+  <div class="leg"><div class="leg-dot" style="background:#475569;"></div>Platzierung</div>
+</div>`;
 
-  function startCountdown(seconds, spanId, barId, onDone) {
-    var left = seconds;
+// ── Daten laden + Gruppen rendern ────────────────────────────────────────────
+let cachedData = null;
+
+function loadData(cb) {
+  fetch('/api/display/' + GAME + '/groups_json')
+    .then(r => r.json())
+    .then(data => { cachedData = data; cb(data); })
+    .catch(() => { if (cachedData) cb(cachedData); });
+}
+
+function renderGroups(data, groupNums, containerId) {
+  const c = document.getElementById(containerId);
+  let html = LEGEND + '<div style="display:flex;gap:6px;width:100%;flex:1;">';
+  groupNums.forEach(g => {
+    html += buildGroup(g, data[g] || []);
+  });
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+// ── Countdown ────────────────────────────────────────────────────────────────
+function startCd(secs, spanId, barId, onDone) {
+  let left = secs;
+  document.getElementById(spanId).textContent = left;
+  document.getElementById(barId).style.width = '100%';
+  clearInterval(cdTimer);
+  cdTimer = setInterval(() => {
+    left--;
     document.getElementById(spanId).textContent = left;
-    document.getElementById(barId).style.width = '100%';
-    clearInterval(cdTimer);
-    cdTimer = setInterval(function() {
-      left--;
-      document.getElementById(spanId).textContent = left;
-      document.getElementById(barId).style.width = (left / seconds * 100) + '%';
-      if (left <= 0) { clearInterval(cdTimer); onDone(); }
-    }, 1000);
-  }
+    document.getElementById(barId).style.width = (left/secs*100) + '%';
+    if (left <= 0) { clearInterval(cdTimer); onDone(); }
+  }, 1000);
+}
 
-  function showA() {
-    document.getElementById('view-a').style.display = '';
-    document.getElementById('view-b').style.display = 'none';
-    clearInterval(pollTimer);
-    loadAndRender([1,2,3,4,5], 'groups-a');
-    pollTimer = setInterval(function() { loadAndRender([1,2,3,4,5], 'groups-a'); }, 5000);
-    startCountdown(35, 'cd-a', 'bar-a', showB);
-  }
+// ── Views ────────────────────────────────────────────────────────────────────
+function showA() {
+  currentView = 'a';
+  document.getElementById('view-a').style.display = '';
+  document.getElementById('view-b').style.display = 'none';
+  clearInterval(pollTimer);
+  loadData(d => renderGroups(d, [1,2,3,4,5], 'container-a'));
+  pollTimer = setInterval(() => loadData(d => renderGroups(d, [1,2,3,4,5], 'container-a')), 5000);
+  startCd(30, 'cd-a', 'bar-a', showB);
+}
 
-  function showB() {
-    document.getElementById('view-a').style.display = 'none';
-    document.getElementById('view-b').style.display = '';
-    clearInterval(pollTimer);
-    loadAndRender([6,7,8,9,10], 'groups-b');
-    pollTimer = setInterval(function() { loadAndRender([6,7,8,9,10], 'groups-b'); }, 5000);
-    startCountdown(35, 'cd-b', 'bar-b', showA);
-  }
+function showB() {
+  currentView = 'b';
+  document.getElementById('view-a').style.display = 'none';
+  document.getElementById('view-b').style.display = '';
+  clearInterval(pollTimer);
+  loadData(d => renderGroups(d, [6,7,8,9,10], 'container-b'));
+  pollTimer = setInterval(() => loadData(d => renderGroups(d, [6,7,8,9,10], 'container-b')), 5000);
+  startCd(30, 'cd-b', 'bar-b', showA);
+}
 
-  showA();
+// Start
+showA();
 </script>
 {% endblock %}

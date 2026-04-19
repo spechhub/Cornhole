@@ -1,108 +1,91 @@
 {% extends "admin/base.html" %}
-
+{% block title %}Double Elimination — {{ game_name }}{% endblock %}
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Double Elimination <small class="text-muted">{{ game_name }}</small></h1>
-        <div>
-            <a href="{{ url_for('enter_double_elim_results', game_name=game_name) }}" class="btn btn-success">
-                <i class="fas fa-edit"></i> Ergebnisse eintragen
-            </a>
-            <a href="{{ url_for('generate_super_finals', game_name=game_name) }}" class="btn btn-warning ml-2">
-                <i class="fas fa-trophy"></i> Super Finals generieren
-            </a>
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1><i class="bi bi-diagram-3 me-2"></i>Double Elimination</h1>
+    <div class="subtitle">{{ game_name }} &mdash; Bracket A &amp; B</div>
+  </div>
+</div>
+<div class="container-fluid px-4 fade-in">
+  <!-- Tab-Navigation -->
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link active" data-bs-toggle="tab" href="#bracketA">
+        <i class="bi bi-diagram-2 me-1"></i>Bracket A (Gruppen 1–5)
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="tab" href="#bracketB">
+        <i class="bi bi-diagram-2 me-1"></i>Bracket B (Gruppen 6–10)
+      </a>
+    </li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="bracketA">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Winner Bracket A</strong>
+          <span class="badge badge-cat1">Gruppen 1–5</span>
         </div>
-    </div>
-
-    <div class="alert alert-info py-2 small">
-        <i class="fas fa-clock"></i>
-        <strong>Zeitplan:</strong>
-        WB R1: 13:20 (alle 16 Felder) &nbsp;|&nbsp;
-        WB R2 + LB R1: 14:10 &nbsp;|&nbsp;
-        WB VF + LB R2+R3: 15:00 &nbsp;|&nbsp;
-        LB R4: 15:25 &nbsp;|&nbsp;
-        WB HF + LB R5: 15:50 &nbsp;|&nbsp;
-        WB Final + LB R6: 16:40 &nbsp;|&nbsp;
-        LB R7: 17:05 &nbsp;|&nbsp;
-        LB HF: 17:30 &nbsp;|&nbsp;
-        LB Final: 17:55
-    </div>
-
-    <ul class="nav nav-tabs mb-3" id="bracketTabs" role="tablist">
-        <li class="nav-item">
-            <a class="nav-link active" id="tab-wb" data-toggle="tab" href="#bracket-wb" role="tab">
-                <span class="badge badge-success mr-1">WB</span> Winner Bracket
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="tab-lb" data-toggle="tab" href="#bracket-lb" role="tab">
-                <span class="badge badge-danger mr-1">LB</span> Loser Bracket
-            </a>
-        </li>
-    </ul>
-
-    <div class="tab-content" id="bracketTabContent">
-
-        {# ── Winner Bracket ── #}
-        <div class="tab-pane fade show active" id="bracket-wb" role="tabpanel">
-            <div class="d-flex overflow-auto pb-4">
-                {% for round in range(1, 6) %}
-                {% set round_label = ['1/16-Finale','1/8-Finale','Viertelfinale','Halbfinale','WB Final'][round-1] %}
-                <div class="round-column mx-2" style="min-width:220px">
-                    <div class="text-center font-weight-bold mb-3 text-success">{{ round_label }}</div>
-                    {% for match in matches if match.bracket == 'Winners' and match.round == round %}
-                    <div class="card mb-2 shadow-sm border-success">
-                        <div class="card-header py-1 small bg-light d-flex justify-content-between">
-                            <span class="font-weight-bold">#{{ match.match_number }}</span>
-                            <span class="text-muted">{{ match.time or '' }}{% if match.court %} &middot; F{{ match.court }}{% endif %}</span>
-                        </div>
-                        <div class="card-body p-2">
-                            <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
-                                <span class="text-truncate" style="max-width:150px">{{ match.team1 or 'TBD' }}</span>
-                                <span>{{ match.score1 if match.score1 is not none else '' }}</span>
-                            </div>
-                            <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
-                                <span class="text-truncate" style="max-width:150px">{{ match.team2 or 'TBD' }}</span>
-                                <span>{{ match.score2 if match.score2 is not none else '' }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead><tr><th>Runde</th><th>Bracket</th><th>#</th><th>Zeit</th><th>Feld</th><th>Team 1</th><th>vs</th><th>Team 2</th><th>Gewinner</th></tr></thead>
+              <tbody>
+                {% for m in bracket_a %}
+                <tr {% if m.winner %}class="table-success"{% endif %}>
+                  <td><span class="dark-badge">R{{ m.round }}</span></td>
+                  <td><span class="badge {% if m.bracket == 'Winners' %}badge-cat1{% else %}badge-cat4{% endif %}">{{ m.bracket }}</span></td>
+                  <td class="text-muted">{{ m.match_number or '–' }}</td>
+                  <td><strong>{{ m.time or '–' }}</strong></td>
+                  <td>{{ m.court or '–' }}</td>
+                  <td>{{ m.team1 or '<span class="placeholder-entry">TBD</span>'|safe }}</td>
+                  <td class="text-muted text-center">vs</td>
+                  <td>{{ m.team2 or '<span class="placeholder-entry">TBD</span>'|safe }}</td>
+                  <td>{% if m.winner %}<strong class="text-success">{{ m.winner }}</strong>{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9" class="text-center text-muted py-4">Brackets noch nicht generiert.</td></tr>
                 {% endfor %}
-            </div>
+              </tbody>
+            </table>
+          </div>
         </div>
-
-        {# ── Loser Bracket ── #}
-        <div class="tab-pane fade" id="bracket-lb" role="tabpanel">
-            <div class="d-flex overflow-auto pb-4">
-                {% for round in range(1, 10) %}
-                {% set round_label = 'LB Final' if round == 9 else ('LB Halbfinale' if round == 8 else 'LB R' ~ round) %}
-                <div class="round-column mx-2" style="min-width:220px">
-                    <div class="text-center font-weight-bold mb-3 text-danger">{{ round_label }}</div>
-                    {% for match in matches if match.bracket == 'Losers' and match.round == round %}
-                    <div class="card mb-2 shadow-sm border-danger">
-                        <div class="card-header py-1 small bg-light d-flex justify-content-between">
-                            <span class="font-weight-bold">#{{ match.match_number }}</span>
-                            <span class="text-muted">{{ match.time or '' }}{% if match.court %} &middot; F{{ match.court }}{% endif %}</span>
-                        </div>
-                        <div class="card-body p-2">
-                            <div class="d-flex justify-content-between {% if match.winner == match.team1 %}font-weight-bold text-success{% endif %}">
-                                <span class="text-truncate" style="max-width:150px">{{ match.team1 or 'TBD' }}</span>
-                                <span>{{ match.score1 if match.score1 is not none else '' }}</span>
-                            </div>
-                            <div class="d-flex justify-content-between {% if match.winner == match.team2 %}font-weight-bold text-success{% endif %}">
-                                <span class="text-truncate" style="max-width:150px">{{ match.team2 or 'TBD' }}</span>
-                                <span>{{ match.score2 if match.score2 is not none else '' }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
+      </div>
     </div>
+    <div class="tab-pane fade" id="bracketB">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Winner Bracket B</strong>
+          <span class="badge badge-cat3">Gruppen 6–10</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead><tr><th>Runde</th><th>Bracket</th><th>#</th><th>Zeit</th><th>Feld</th><th>Team 1</th><th>vs</th><th>Team 2</th><th>Gewinner</th></tr></thead>
+              <tbody>
+                {% for m in bracket_b %}
+                <tr {% if m.winner %}class="table-success"{% endif %}>
+                  <td><span class="dark-badge">R{{ m.round }}</span></td>
+                  <td><span class="badge {% if m.bracket == 'Winners' %}badge-cat3{% else %}badge-cat4{% endif %}">{{ m.bracket }}</span></td>
+                  <td class="text-muted">{{ m.match_number or '–' }}</td>
+                  <td><strong>{{ m.time or '–' }}</strong></td>
+                  <td>{{ m.court or '–' }}</td>
+                  <td>{{ m.team1 or '<span class="placeholder-entry">TBD</span>'|safe }}</td>
+                  <td class="text-muted text-center">vs</td>
+                  <td>{{ m.team2 or '<span class="placeholder-entry">TBD</span>'|safe }}</td>
+                  <td>{% if m.winner %}<strong class="text-success">{{ m.winner }}</strong>{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9" class="text-center text-muted py-4">Brackets noch nicht generiert.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

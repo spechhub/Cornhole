@@ -1,241 +1,236 @@
 {% extends "admin/base.html" %}
-
+{% block title %}Tabellen — {{ game_name }}{% endblock %}
 {% block content %}
-<style>
-    .de-row         { background-color: #d4edda !important; }
-    .de-wild-row    { background-color: #cce5ff !important; }
-    .fc-row         { background-color: #fff3cd !important; }
-    .pl-row         { background-color: #f8d7da !important; }
-    .zone-label { font-size: 0.7rem; font-weight: 600; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; white-space: nowrap; }
-    .zone-de  { background:#28a745; color:#fff; }
-    .zone-wild{ background:#007bff; color:#fff; }
-    .zone-fc  { background:#fd7e14; color:#fff; }
-    .zone-pl  { background:#dc3545; color:#fff; }
-</style>
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1><i class="bi bi-table me-2"></i>Gruppentabellen</h1>
+    <div class="subtitle">{{ game_name }} &mdash; Round Robin Standings</div>
+  </div>
+</div>
+<div class="container-fluid px-4 fade-in">
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>Gruppentabellen <small class="text-muted">{{ game_name }}</small></h1>
-        <form action="{{ url_for('recalculate_rankings', game_name=game_name) }}" method="POST">
-            <button type="submit" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-sync"></i> Neu berechnen
-            </button>
-        </form>
-    </div>
-
-    <!-- Legende -->
-    <div class="card mb-3">
-        <div class="card-body py-2">
-            <div class="d-flex flex-wrap" style="gap:14px; font-size:0.85rem; align-items:center;">
-                <div>
-                    <span style="display:inline-block;width:14px;height:14px;background:#d4edda;border:1px solid #c3e6cb;border-radius:2px;vertical-align:middle;"></span>
-                    &nbsp;<strong>Platz 1–3</strong> <span class="zone-label zone-de">DE</span> Double Elimination
-                </div>
-                <div>
-                    <span style="display:inline-block;width:14px;height:14px;background:#cce5ff;border:1px solid #b8daff;border-radius:2px;vertical-align:middle;"></span>
-                    &nbsp;<strong>Bester 4. ★1/★2</strong> <span class="zone-label zone-wild">DE ★</span> Double Elimination (Wildcard)
-                </div>
-                <div>
-                    <span style="display:inline-block;width:14px;height:14px;background:#fff3cd;border:1px solid #ffeeba;border-radius:2px;vertical-align:middle;"></span>
-                    <span class="zone-label zone-fc">FC</span> Follower Cup
-                </div>
-                <div>
-                    <span style="display:inline-block;width:14px;height:14px;background:#f8d7da;border:1px solid #f5c6cb;border-radius:2px;vertical-align:middle;"></span>
-                    <span class="zone-label zone-pl">PLZ</span> Platzierungsrunde
-                </div>
-            </div>
-            <div class="mt-2" style="font-size:0.78rem;color:#555;">
-                <i class="fas fa-info-circle"></i>
-                <strong>Sortierung:</strong> 1. G+ DESC &nbsp;|&nbsp; 2. Diff DESC &nbsp;|&nbsp; 3. Direkter Vergleich
-            </div>
-        </div>
-    </div>
-
-    {% for bracket_label, bracket_color, group_range in [
-        ('Bracket A (Gruppen 1–5)', 'primary', range(1, 6)),
-        ('Bracket B (Gruppen 6–10)', 'info',   range(6, 11))
-    ] %}
-    <div class="card mb-4 border-{{ bracket_color }}">
-        <div class="card-header bg-{{ bracket_color }} text-white py-2">
-            <h5 class="mb-0">{{ bracket_label }}</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                {% for i in group_range %}
-                <div class="col-md-6 col-xl-4 mb-3">
-                    <div class="card shadow-sm">
-                        <div class="card-header py-1 font-weight-bold">Gruppe {{ i }}</div>
-                        <div class="card-body p-0">
-                            <table class="table table-sm m-0" style="font-size:0.82rem">
-                                <thead class="thead-light">
-                                    <tr>
-                                        <th style="width:24px">#</th>
-                                        <th>Team</th>
-                                        <th class="text-center" title="Spiele">Sp</th>
-                                        <th class="text-center" title="Siege">S</th>
-                                        <th class="text-center" title="Niederlagen">N</th>
-                                        <th class="text-center font-weight-bold" title="Geworfene Punkte">G+</th>
-                                        <th class="text-center" title="Erhaltene Punkte">G-</th>
-                                        <th class="text-center" title="Differenz">Diff</th>
-                                        <th class="text-center" title="Phase">Phase</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for row in groups.get(i, []) %}
-                                    {% set is_best4_1 = (best_4th_1 and row.team == best_4th_1.team) %}
-                                    {% set is_best4_2 = (best_4th_2 and row.team == best_4th_2.team) %}
-                                    {% if row.team in de_teams and not is_best4_1 and not is_best4_2 %}
-                                        {% set row_class = 'de-row' %}
-                                        {% set phase_label = 'DE' %}
-                                        {% set phase_class = 'zone-de' %}
-                                    {% elif is_best4_1 or is_best4_2 %}
-                                        {% set row_class = 'de-wild-row' %}
-                                        {% set phase_label = 'DE ★' %}
-                                        {% set phase_class = 'zone-wild' %}
-                                    {% elif row.team in fc_teams %}
-                                        {% set row_class = 'fc-row' %}
-                                        {% set phase_label = 'FC' %}
-                                        {% set phase_class = 'zone-fc' %}
-                                    {% elif row.team in plz_teams %}
-                                        {% set row_class = 'pl-row' %}
-                                        {% set phase_label = 'PLZ' %}
-                                        {% set phase_class = 'zone-pl' %}
-                                    {% else %}
-                                        {% set row_class = '' %}
-                                        {% set phase_label = '?' %}
-                                        {% set phase_class = '' %}
-                                    {% endif %}
-                                    <tr class="{{ row_class }}">
-                                        <td class="font-weight-bold">{{ loop.index }}</td>
-                                        <td>
-                                            <span class="{% if row.is_ghost %}text-muted font-italic{% endif %}">{{ row.team }}</span>
-                                            {% if is_best4_1 %}<span class="badge badge-primary" style="font-size:0.6rem" title="Bester 4. global">★1</span>{% endif %}
-                                            {% if is_best4_2 %}<span class="badge badge-primary" style="font-size:0.6rem" title="Zweitbester 4. global">★2</span>{% endif %}
-                                        </td>
-                                        <td class="text-center">{{ row.matches_played }}</td>
-                                        <td class="text-center">{{ row.wins }}</td>
-                                        <td class="text-center">{{ row.losses }}</td>
-                                        <td class="text-center font-weight-bold">{{ row.goals_for }}</td>
-                                        <td class="text-center">{{ row.goals_against }}</td>
-                                        <td class="text-center {% if row.goal_difference > 0 %}text-success{% elif row.goal_difference < 0 %}text-danger{% endif %}">{{ row.goal_difference }}</td>
-                                        <td class="text-center"><span class="zone-label {{ phase_class }}">{{ phase_label }}</span></td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-
-    <!-- ⚠️ Gleichstand-Warnung Wildcards ────────────────────────────────────── -->
-    {% if wildcard_tie %}
-    <div class="alert alert-warning border border-warning shadow-sm mb-4">
-        <h5 class="alert-heading">
-            <i class="fas fa-exclamation-triangle"></i>
-            Gleichstand bei Wildcard ★2 — manuelle Entscheidung erforderlich!
-        </h5>
-        <p class="mb-2">
-            Die folgenden Teams haben <strong>identische G+ und Differenz</strong> und kämpfen um den letzten Platz in der Double Elimination:
-        </p>
-        <div class="row mb-3">
-            {% for t in wildcard_tie_teams %}
-            <div class="col-md-4">
-                <div class="card border-warning">
-                    <div class="card-body py-2 text-center">
-                        <strong>{{ t.team }}</strong><br>
-                        <small class="text-muted">Gruppe {{ t.group }} &nbsp;|&nbsp; G+: {{ t.goals_for }} &nbsp;|&nbsp; Diff: {{ t.goal_difference }}</small>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
+  <!-- Wildcard-Gleichstand Warnung -->
+  {% if wildcard_tie %}
+  <div class="alert alert-warning d-flex align-items-start gap-3 mb-4">
+    <i class="bi bi-exclamation-triangle-fill fs-4 mt-1"></i>
+    <div>
+      <strong>Wildcard-Gleichstand!</strong>
+      Platz 2 und 3 der Viertplatzierten haben identische Werte
+      (<strong>{{ wildcard_tie_teams[0].team }}</strong> und <strong>{{ wildcard_tie_teams[1].team }}</strong>
+      — je {{ wildcard_tie_teams[0].goals_for }} Punkte, {{ wildcard_tie_teams[0].goal_difference }} Diff).
+      <br>Bitte wähle manuell, wer als <strong>2. Wildcard in die DE</strong> einzieht:
+      <form method="POST" action="{{ url_for('set_wildcard_override', game_name=game_name) }}"
+            class="d-flex gap-2 mt-2 flex-wrap">
+        {% for t in wildcard_tie_teams %}
+        <button type="submit" name="wildcard2_team" value="{{ t.team }}"
+                class="btn btn-sm {% if current_override == t.team %}btn-success{% else %}btn-outline-primary{% endif %}">
+          {% if current_override == t.team %}<i class="bi bi-check-lg me-1"></i>{% endif %}
+          {{ t.team }}
+        </button>
+        {% endfor %}
         {% if current_override %}
-        <div class="alert alert-success py-2 mb-2">
-            <i class="fas fa-check-circle"></i>
-            Aktuelle Entscheidung: <strong>{{ current_override }}</strong> → DE ★2
-            <span class="text-muted ml-2">(kann geändert werden)</span>
-        </div>
+        <span class="badge bg-success align-self-center ms-2">
+          <i class="bi bi-check-circle me-1"></i>Aktiv: {{ current_override }}
+        </span>
         {% endif %}
-        <form action="{{ url_for('set_wildcard_override', game_name=game_name) }}" method="POST" class="d-flex align-items-center gap-2">
-            <label class="mb-0 mr-2 font-weight-bold">Welches Team erhält DE ★2?</label>
-            <select name="wildcard2_team" class="form-control w-auto mr-2" required>
-                <option value="">— Team auswählen —</option>
-                {% for t in wildcard_tie_teams %}
-                <option value="{{ t.team }}" {% if current_override == t.team %}selected{% endif %}>
-                    {{ t.team }} (Gruppe {{ t.group }})
-                </option>
-                {% endfor %}
-            </select>
-            <button type="submit" class="btn btn-warning font-weight-bold">
-                <i class="fas fa-save"></i> Entscheidung speichern
-            </button>
-        </form>
+      </form>
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
 
-    <!-- Vergleich aller 4. Platzierten -->
-    <div class="card mb-4">
-        <div class="card-header bg-dark text-white py-2">
-            <h6 class="mb-0">
-                <i class="fas fa-star"></i>
-                Vergleich aller 4. Platzierten – 2 beste → Double Elimination, Rest → Follower Cup
-            </h6>
+  <!-- Phasen-Übersicht -->
+  {% if de_teams or fc_teams or plz_teams %}
+  <div class="row g-3 mb-4">
+
+    <!-- DE Qualifizierte -->
+    <div class="col-md-4">
+      <div class="card" style="border-left:4px solid #16A34A;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong style="color:#16A34A;"><i class="bi bi-diagram-3 me-1"></i>Double Elimination</strong>
+          <span class="badge" style="background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0;">{{ de_teams|length }} Teams</span>
+        </div>
+        <div class="card-body p-2">
+          <div class="d-flex flex-wrap gap-1">
+            {% for team in de_teams|sort %}
+            <span class="badge" style="background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;font-size:.75rem;">
+              {% if best_4th_1 and team == best_4th_1.team %}⭐{% elif best_4th_2 and team == best_4th_2.team %}⭐{% endif %}
+              {{ team }}
+            </span>
+            {% endfor %}
+          </div>
+          {% if best_4th_1 or best_4th_2 %}
+          <div class="mt-2" style="font-size:.75rem;color:#64748B;">
+            ⭐ = Wildcard (bester 4. Platz)
+            {% if best_4th_1 %} — 1. WC: <strong>{{ best_4th_1.team }}</strong>{% endif %}
+            {% if best_4th_2 %} — 2. WC: <strong>{{ best_4th_2.team }}</strong>{% if wildcard_tie %} <span class="badge bg-warning text-dark" style="font-size:.7rem;">Gleichstand!</span>{% endif %}{% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- FC Qualifizierte -->
+    <div class="col-md-4">
+      <div class="card" style="border-left:4px solid #7C3AED;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong style="color:#7C3AED;"><i class="bi bi-trophy me-1"></i>Follower Cup</strong>
+          <span class="badge" style="background:#F5F3FF;color:#7C3AED;border:1px solid #DDD6FE;font-size:.75rem;">{{ fc_teams|length }} Teams</span>
+        </div>
+        <div class="card-body p-2">
+          <div class="d-flex flex-wrap gap-1">
+            {% for team in fc_teams|sort %}
+            <span class="badge" style="background:#F5F3FF;color:#6D28D9;border:1px solid #DDD6FE;font-size:.75rem;">{{ team }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Platzierungsrunde -->
+    <div class="col-md-4">
+      <div class="card" style="border-left:4px solid #64748B;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong style="color:#64748B;"><i class="bi bi-list-ol me-1"></i>Platzierungsrunde</strong>
+          <span class="badge" style="background:#F8FAFC;color:#475569;border:1px solid #CBD5E1;font-size:.75rem;">{{ plz_teams|length }} Teams</span>
+        </div>
+        <div class="card-body p-2">
+          <div class="d-flex flex-wrap gap-1">
+            {% for team in plz_teams|sort %}
+            <span class="badge" style="background:#F8FAFC;color:#475569;border:1px solid #CBD5E1;font-size:.75rem;">{{ team }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  {% endif %}
+
+  <!-- Viertplatzierte Rangliste (Wildcards) -->
+  {% if all_fourths %}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong><i class="bi bi-star me-2 text-warning"></i>Viertplatzierte — Wildcard-Rangliste</strong>
+      <small class="text-muted">Top 2 qualifizieren sich für Double Elimination</small>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-hover mb-0">
+        <thead><tr>
+          <th style="width:40px;">#</th>
+          <th>Team</th>
+          <th class="text-center">Gruppe</th>
+          <th class="text-center">Punkte</th>
+          <th class="text-center">Diff</th>
+          <th class="text-center">Phase</th>
+        </tr></thead>
+        <tbody>
+          {% for f in all_fourths %}
+          <tr {% if loop.index <= 2 %}style="background:#F0FDF4;"{% endif %}>
+            <td>
+              {% if loop.index == 1 %}
+              <span class="badge" style="background:#F59E0B;color:#000;">WC 1</span>
+              {% elif loop.index == 2 %}
+              <span class="badge" style="background:#D97706;color:#fff;">WC 2{% if wildcard_tie %} ⚠{% endif %}</span>
+              {% else %}
+              <span class="text-muted">{{ loop.index }}</span>
+              {% endif %}
+            </td>
+            <td><strong>{{ f.team }}</strong></td>
+            <td class="text-center"><span class="dark-badge">Grp {{ f.group }}</span></td>
+            <td class="text-center">{{ f.goals_for }}</td>
+            <td class="text-center">{{ f.goal_difference }}</td>
+            <td class="text-center">
+              {% if loop.index <= 2 %}
+              <span class="badge" style="background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;">DE</span>
+              {% else %}
+              <span class="badge" style="background:#F5F3FF;color:#6D28D9;border:1px solid #DDD6FE;">FC</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Gruppentabellen -->
+  <div class="row g-3">
+    {% for group_num, standings in groups.items() %}
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong><i class="bi bi-people me-2 text-primary"></i>Gruppe {{ group_num }}</strong>
+          <span class="badge badge-cat1">{{ standings|length }} Teams</span>
         </div>
         <div class="card-body p-0">
-            <table class="table table-sm m-0">
-                <thead class="thead-light">
-                    <tr>
-                        <th style="width:40px">Rang</th>
-                        <th>Team</th>
-                        <th class="text-center">Gruppe</th>
-                        <th class="text-center font-weight-bold">G+</th>
-                        <th class="text-center">Diff</th>
-                        <th>Phase</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for f in all_fourths %}
-                    <tr class="{% if loop.index <= 2 %}de-wild-row{% else %}fc-row{% endif %}">
-                        <td class="font-weight-bold">
-                            {{ loop.index }}
-                            {% if wildcard_tie and loop.index == 2 %}
-                            <i class="fas fa-exclamation-circle text-warning ml-1" title="Gleichstand!"></i>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {{ f.team }}
-                            {% if loop.index <= 2 %}
-                            <span class="badge badge-primary ml-1" style="font-size:0.65rem">★ Wildcard</span>
-                            {% endif %}
-                            {% if current_override and f.team == current_override %}
-                            <span class="badge badge-warning ml-1" style="font-size:0.65rem">manuell</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">{{ f.group }}</td>
-                        <td class="text-center font-weight-bold">{{ f.goals_for }}</td>
-                        <td class="text-center {% if f.goal_difference > 0 %}text-success{% elif f.goal_difference < 0 %}text-danger{% endif %}">
-                            {{ f.goal_difference }}
-                        </td>
-                        <td>
-                            {% if loop.index <= 2 %}
-                            <span class="zone-label zone-wild">DE ★</span>
-                            <span class="ml-1" style="font-size:0.8rem;">→ Double Elimination</span>
-                            {% else %}
-                            <span class="zone-label zone-fc">FC</span>
-                            <span class="ml-1" style="font-size:0.8rem;color:#666;">→ Follower Cup</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+          <table class="table table-sm mb-0">
+            <thead><tr>
+              <th style="width:28px;">#</th>
+              <th>Team</th>
+              <th class="text-center" title="Siege">S</th>
+              <th class="text-center" title="Niederlagen">N</th>
+              <th class="text-center">Pkt</th>
+              <th class="text-center">Phase</th>
+            </tr></thead>
+            <tbody>
+              {% for row in standings %}
+              {% set team_name = row.team %}
+              {% set is_de = team_name in de_teams %}
+              {% set is_wc = (best_4th_1 and team_name == best_4th_1.team) or (best_4th_2 and team_name == best_4th_2.team) %}
+              {% set is_fc = team_name in fc_teams %}
+              {% set is_plz = team_name in plz_teams %}
+              <tr>
+                <td>
+                  <span class="rank-badge {% if loop.index == 1 %}badge-cat1{% elif loop.index <= 3 %}badge-cat3{% else %}badge-cat2{% endif %}">
+                    {{ loop.index }}
+                  </span>
+                </td>
+                <td>
+                  <strong>{{ row.team }}</strong>
+                  {% if row.is_ghost %}<span class="placeholder-badge ms-1">Ghost</span>{% endif %}
+                </td>
+                <td class="text-center">{{ row.wins }}</td>
+                <td class="text-center text-muted">{{ row.losses }}</td>
+                <td class="text-center"><strong>{{ row.points }}</strong></td>
+                <td class="text-center">
+                  {% if is_wc %}
+                  <span class="badge" style="background:#FEF9C3;color:#92400E;border:1px solid #FDE68A;font-size:.65rem;">DE⭐WC</span>
+                  {% elif is_de %}
+                  <span class="badge" style="background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;font-size:.65rem;">DE</span>
+                  {% elif is_fc %}
+                  <span class="badge" style="background:#F5F3FF;color:#6D28D9;border:1px solid #DDD6FE;font-size:.65rem;">FC</span>
+                  {% elif is_plz %}
+                  <span class="badge" style="background:#F8FAFC;color:#475569;border:1px solid #CBD5E1;font-size:.65rem;">PLZ</span>
+                  {% else %}
+                  <span class="text-muted" style="font-size:.7rem;">–</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
+      </div>
     </div>
+    {% else %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body text-center text-muted py-5">
+          Noch keine Ergebnisse vorhanden.
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Legende -->
+  <div class="mt-3 d-flex gap-3 flex-wrap" style="font-size:.8rem;">
+    <span><span class="badge" style="background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;">DE</span> Double Elimination</span>
+    <span><span class="badge" style="background:#FEF9C3;color:#92400E;border:1px solid #FDE68A;">DE⭐WC</span> DE via Wildcard (bester 4. Platz)</span>
+    <span><span class="badge" style="background:#F5F3FF;color:#6D28D9;border:1px solid #DDD6FE;">FC</span> Follower Cup</span>
+    <span><span class="badge" style="background:#F8FAFC;color:#475569;border:1px solid #CBD5E1;">PLZ</span> Platzierungsrunde</span>
+  </div>
 
 </div>
 {% endblock %}

@@ -1,15 +1,21 @@
 {% extends "admin/base.html" %}
-
+{% block title %}Fehler{% endblock %}
 {% block content %}
-<div class="container mt-5">
-    <div class="alert alert-danger shadow-lg">
-        <h4 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Fehler aufgetreten!</h4>
-        <p>{{ error_message }}</p>
-        <hr>
-        <p class="mb-0">
-            <a href="javascript:history.back()" class="btn btn-outline-danger">Zurück</a>
-            <a href="{{ url_for('index') }}" class="btn btn-danger">Zum Hauptmenü</a>
-        </p>
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1><i class="bi bi-exclamation-triangle me-2"></i>Fehler</h1>
+  </div>
+</div>
+<div class="container-fluid px-4 fade-in">
+  <div class="card cat-4-border" style="max-width:600px;">
+    <div class="card-body">
+      <div class="alert alert-danger mb-3">
+        <i class="bi bi-exclamation-circle me-2"></i>{{ error_message }}
+      </div>
+      <a href="javascript:history.back()" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Zurück
+      </a>
     </div>
+  </div>
 </div>
 {% endblock %}
