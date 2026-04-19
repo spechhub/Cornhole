@@ -1256,13 +1256,9 @@ def calculate_round_robin_times(conn):
         print("❌ Keine Turnier-Konfiguration gefunden!")
         return 0
 
-    match_duration = config["match_duration"]
-    pause_between_games = config["break_between_games"]
-    try:
-        pause_between_rounds = config["break_between_rounds"]
-    except (KeyError, TypeError, IndexError):
-        pause_between_rounds = pause_between_games
-    start_time = config["start_time"]
+    match_duration = config['match_duration']
+    pause = config['break_between_games']  # NUR EINE Pause!
+    start_time = config['start_time']
 
 
     # Mittagspause
@@ -1280,7 +1276,7 @@ def calculate_round_robin_times(conn):
     print("⏰ ZEITBERECHNUNG ROUND ROBIN (PARALLELE SPIELE)")
     print("=" * 70)
     print(f"   Spieldauer: {match_duration} Min")
-    print(f"   Pause Spiele (A→B): {pause_between_games} Min | Pause Runden (B→A): {pause_between_rounds} Min")
+    print(f"   Pause: {pause} Min (gilt für alles)")
     print(f"   Startzeit: {start_time}")
     if lunch_enabled:
         print(f"   Mittagspause: {lunch_start} - {lunch_end}")
@@ -1321,8 +1317,7 @@ def calculate_round_robin_times(conn):
         print(f"      → {len(bracket_a_matches)} Matches parallel")
     
         # Zeit vorrücken: Spieldauer + Pause
-        # Zeit vorrücken nach Bracket A: Spieldauer + Pause A→B (=break_between_games)
-        current_time = add_minutes_to_time(current_time, match_duration + pause_between_games)
+        current_time = add_minutes_to_time(current_time, match_duration + pause)
     
         # BRACKET B (Gruppen 6-10) - ALLE PARALLEL
         print(f"   Bracket B (Gruppen 6-10):")
@@ -1351,8 +1346,8 @@ def calculate_round_robin_times(conn):
     
         print(f"      → {len(bracket_b_matches)} Matches parallel")
     
-        # Zeit vorrücken nach Bracket B: Spieldauer + Pause B→nächste Runde A (=break_between_rounds)
-        current_time = add_minutes_to_time(current_time, match_duration + pause_between_rounds)
+        # Zeit vorrücken: Spieldauer + Pause
+        current_time = add_minutes_to_time(current_time, match_duration + pause)
 
     conn.commit()
 
@@ -1971,121 +1966,6 @@ INTEGRATION IN app.py:
 
 
 
-def sort_group_with_head_to_head(conn, group_num):
-    """Sortiert eine Gruppe: 1. goals_for DESC  2. goal_difference DESC  3. direkter Vergleich"""
-    import functools
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT r.*, t.is_ghost
-        FROM rankings r
-        LEFT JOIN teams t ON r.team = t.name
-        WHERE r.group_number = ?
-    """, (group_num,))
-    teams = list(cursor.fetchall())
-
-    def h2h(team_a, team_b):
-        cursor.execute("""
-            SELECT score1, score2, team1 FROM matches
-            WHERE group_number = ?
-            AND ((team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?))
-            AND score1 IS NOT NULL
-        """, (group_num, team_a, team_b, team_b, team_a))
-        r = cursor.fetchone()
-        if not r: return 0
-        if r['team1'] == team_a:
-            return 3 if r['score1'] > r['score2'] else 0
-        else:
-            return 3 if r['score2'] > r['score1'] else 0
-
-    def compare(t1, t2):
-        if t1['goals_for'] != t2['goals_for']:
-            return -1 if t1['goals_for'] > t2['goals_for'] else 1
-        if t1['goal_difference'] != t2['goal_difference']:
-            return -1 if t1['goal_difference'] > t2['goal_difference'] else 1
-        a = h2h(t1['team'], t2['team'])
-        b = h2h(t2['team'], t1['team'])
-        if a != b:
-            return -1 if a > b else 1
-        return 0
-
-    return sorted(teams, key=functools.cmp_to_key(compare))
-
-
-def get_phase_assignment(conn):
-    """
-    Berechnet die Phasenzuteilung für alle Teams:
-    - DE: P1-3 jeder Gruppe (30) + 2 beste Viertplatzierte (goals_for) = 32
-    - FC: 8 restliche Viertplatzierte + Top 8 der 5./6. Platzierten = 16
-    - PLZ: letzte 12 der 5./6. Platzierten = 12
-    Returns: (de_teams, fc_teams, plz_teams, best2, rest8)
-    """
-    import functools
-    cursor = conn.cursor()
-
-    def sort_grp(g):
-        cursor.execute("""
-            SELECT r.*, t.is_ghost FROM rankings r
-            LEFT JOIN teams t ON r.team = t.name
-            WHERE r.group_number = ?
-        """, (g,))
-        teams = list(cursor.fetchall())
-        def cmp(t1, t2):
-            if t1['goals_for'] != t2['goals_for']:
-                return -1 if t1['goals_for'] > t2['goals_for'] else 1
-            if t1['goal_difference'] != t2['goal_difference']:
-                return -1 if t1['goal_difference'] > t2['goal_difference'] else 1
-            return 0
-        return sorted(teams, key=functools.cmp_to_key(cmp))
-
-    de_teams = set()
-    fourths = []
-    fives_sixes = []
-
-    for g in range(1, 11):
-        sg = sort_grp(g)
-        real = [t for t in sg if not t['is_ghost']]
-        for t in real[:3]:
-            de_teams.add(t['team'])
-        if len(real) >= 4:
-            f = real[3]
-            fourths.append({'team': f['team'], 'group': g,
-                            'goals_for': f['goals_for'],
-                            'goal_difference': f['goal_difference']})
-        for t in real[4:6]:
-            fives_sixes.append({'team': t['team'],
-                                'goals_for': t['goals_for'],
-                                'goal_difference': t['goal_difference']})
-
-    # 2 beste Viertplatzierte → DE
-    fourths.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
-
-    # Manueller Override bei Gleichstand (Wildcard 2)
-    try:
-        override_row = conn.execute("SELECT wildcard2_team FROM wildcard_override LIMIT 1").fetchone()
-    except Exception:
-        override_row = None
-
-    if override_row and override_row[0]:
-        override_team = override_row[0]
-        idx = next((i for i, f in enumerate(fourths) if f['team'] == override_team), None)
-        if idx is not None and idx != 1:
-            fourths[1], fourths[idx] = fourths[idx], fourths[1]
-
-    best2 = fourths[:2]
-    rest8 = fourths[2:]
-    for f in best2:
-        de_teams.add(f['team'])
-
-    # 5./6. Platzierte sortieren
-    fives_sixes.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
-    fc_from_5_6 = set(t['team'] for t in fives_sixes[:8])
-    plz_teams   = set(t['team'] for t in fives_sixes[8:])
-
-    fc_teams = set(f['team'] for f in rest8) | fc_from_5_6
-
-    return de_teams, fc_teams, plz_teams, best2, rest8
-
-
 def recalculate_rankings_internal(conn):
     """Rankings neu berechnen - KORRIGIERTE VERSION"""
     cursor = conn.cursor()
@@ -2195,17 +2075,6 @@ def create_new_game():
     conn.close()
     
     return redirect(url_for('game_overview', game_name=game_name))
-
-@app.route('/load_game_list')
-def load_game_list():
-    """Gibt Liste aller Turniere als JSON zurück (für index.html)"""
-    tournaments = []
-    if os.path.exists(TOURNAMENT_FOLDER):
-        for file in sorted(os.listdir(TOURNAMENT_FOLDER)):
-            if file.endswith('.db'):
-                tournaments.append(file.replace('.db', ''))
-    return jsonify({'tournaments': tournaments})
-
 
 @app.route('/load_game')
 def load_game():
@@ -2488,12 +2357,9 @@ def generate_matches(game_name):
     for team in all_teams:
         groups[team['group_number']].append(team['name'])
     
+    field_counter = 1
     # WICHTIG: match_number wird NICHT hier vergeben, sondern später!
-    # Bracket A (Gruppen 1-5) und Bracket B (Gruppen 6-10) spielen zeitlich
-    # VERSETZT auf denselben Feldern 1-15 → separate field_counter pro Bracket
-    field_counter_a = 1  # Felder für Gruppen 1-5
-    field_counter_b = 1  # Felder für Gruppen 6-10
-
+    
     for group_num in sorted(groups.keys()):
         teams = groups[group_num]
         
@@ -2502,9 +2368,6 @@ def generate_matches(game_name):
         
         n = len(teams)
         rounds = n - 1 if n % 2 == 0 else n
-
-        # Welches Bracket? A = Gruppen 1-5, B = Gruppen 6-10
-        is_bracket_b = (group_num >= 6)
         
         for round_num in range(1, rounds + 1):
             for i in range(n // 2):
@@ -2514,19 +2377,14 @@ def generate_matches(game_name):
                 if team1_idx < len(teams) and team2_idx < len(teams):
                     team1 = teams[team1_idx]
                     team2 = teams[team2_idx]
-
-                    if is_bracket_b:
-                        field = field_counter_b
-                        field_counter_b = (field_counter_b % 15) + 1
-                    else:
-                        field = field_counter_a
-                        field_counter_a = (field_counter_a % 15) + 1
                     
                     # KEINE match_number hier! Wird später vergeben
                     cursor.execute("""
                         INSERT INTO matches (round, team1, team2, group_number, field)
                         VALUES (?, ?, ?, ?, ?)
-                    """, (round_num, team1, team2, group_num, field))
+                    """, (round_num, team1, team2, group_num, field_counter))
+                    
+                    field_counter = (field_counter % 15) + 1
             
             if n > 2:
                 teams = [teams[0]] + [teams[-1]] + teams[1:-1]
@@ -2555,7 +2413,6 @@ def generate_matches(game_name):
 
     recalculate_rankings_internal(conn)
     conn.close()
-    return redirect(url_for('game_overview', game_name=game_name))
 
 def generate_double_elim(game_name):
     """Beide Double Elimination Brackets generieren - 16 Teams pro Bracket (32 gesamt)"""
@@ -2971,80 +2828,69 @@ def recalculate_rankings(game_name):
     return redirect(url_for('group_standings', game_name=game_name))
 
 
-@app.route('/set_wildcard_override/<game_name>', methods=['POST'])
-def set_wildcard_override(game_name):
-    """Manuelle Auswahl des 2. Wildcard-Teams bei Gleichstand"""
-    team = request.form.get('wildcard2_team', '').strip()
-    if not team:
-        return redirect(url_for('group_standings', game_name=game_name))
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    conn = get_db_connection(db_path)
-    try:
-        conn.execute("CREATE TABLE IF NOT EXISTS wildcard_override (id INTEGER PRIMARY KEY, wildcard2_team TEXT NOT NULL)")
-        conn.execute("DELETE FROM wildcard_override")
-        conn.execute("INSERT INTO wildcard_override (id, wildcard2_team) VALUES (1, ?)", (team,))
-        conn.commit()
-    except Exception:
-        pass
-    finally:
-        conn.close()
-    return redirect(url_for('group_standings', game_name=game_name))
-
-
 @app.route('/group_standings/<game_name>')
 def group_standings(game_name):
     """Gruppentabellen anzeigen"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-
+    
     if not os.path.exists(db_path):
         return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
-
+    
     conn = get_db_connection(db_path)
-
+    cursor = conn.cursor()
+    
     groups = {}
     for group_num in range(1, 11):
-        groups[group_num] = sort_group_with_head_to_head(conn, group_num)
-
-    de_teams, fc_teams, plz_teams, best2, rest8 = get_phase_assignment(conn)
-
-    # Alle Viertplatzierten für Wildcard-Tabelle
-    all_fourths = rest8 + best2
-    all_fourths.sort(key=lambda x: (-x['goals_for'], -x['goal_difference']))
-    best_4th_1 = best2[0] if len(best2) > 0 else None
-    best_4th_2 = best2[1] if len(best2) > 1 else None
-
-    # Gleichstand-Prüfung Platz 2 und 3 der Viertplatzierten
-    wildcard_tie = False
-    wildcard_tie_teams = []
-    if len(all_fourths) >= 3:
-        p2 = all_fourths[1]
-        p3 = all_fourths[2]
-        if p2['goals_for'] == p3['goals_for'] and p2['goal_difference'] == p3['goal_difference']:
-            wildcard_tie = True
-            wildcard_tie_teams = [p2, p3]
-
-    # Aktuellen Override laden
-    try:
-        conn.execute("CREATE TABLE IF NOT EXISTS wildcard_override (id INTEGER PRIMARY KEY, wildcard2_team TEXT NOT NULL)")
-        override_row = conn.execute("SELECT wildcard2_team FROM wildcard_override LIMIT 1").fetchone()
-        current_override = override_row[0] if override_row else None
-    except Exception:
-        current_override = None
-
+        cursor.execute("""
+            SELECT r.*, t.is_ghost
+            FROM rankings r
+            LEFT JOIN teams t ON r.team = t.name
+            WHERE r.group_number = ?
+            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
+        """, (group_num,))
+        groups[group_num] = cursor.fetchall()
+    
+    # Beste 4. Platzierte Bracket A - KORRIGIERT
+    cursor.execute("""
+        WITH ranked_teams AS (
+            SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number,
+                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC) as position
+            FROM rankings r
+            WHERE r.group_number BETWEEN 1 AND 5
+            AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
+        )
+        SELECT team, points, goal_difference, goals_for, group_number, position
+        FROM ranked_teams
+        WHERE position = 4
+        ORDER BY points DESC, goal_difference DESC, goals_for DESC
+        LIMIT 1
+    """)
+    best_4th_a = cursor.fetchone()
+    
+    # Beste 4. Platzierte Bracket B - KORRIGIERT
+    cursor.execute("""
+        WITH ranked_teams AS (
+            SELECT r.team, r.points, r.goal_difference, r.goals_for, r.group_number,
+                   ROW_NUMBER() OVER (PARTITION BY r.group_number ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC) as position
+            FROM rankings r
+            WHERE r.group_number BETWEEN 6 AND 10
+            AND r.team NOT IN (SELECT name FROM teams WHERE is_ghost = 1)
+        )
+        SELECT team, points, goal_difference, goals_for, group_number, position
+        FROM ranked_teams
+        WHERE position = 4
+        ORDER BY points DESC, goal_difference DESC, goals_for DESC
+        LIMIT 1
+    """)
+    best_4th_b = cursor.fetchone()
+    
     conn.close()
-
+    
     return render_template("admin/group_standings.html",
-                           game_name=game_name,
-                           groups=groups,
-                           wildcard_tie=wildcard_tie,
-                           wildcard_tie_teams=wildcard_tie_teams,
-                           current_override=current_override,
-                           best_4th_1=best_4th_1,
-                           best_4th_2=best_4th_2,
-                           all_fourths=all_fourths,
-                           de_teams=de_teams,
-                           fc_teams=fc_teams,
-                           plz_teams=plz_teams)
+                         game_name=game_name,
+                         groups=groups,
+                         best_4th_a=best_4th_a,
+                         best_4th_b=best_4th_b)
 
 
 @app.route('/generate_double_elim/<game_name>')
@@ -4168,85 +4014,6 @@ def display_groups(game_name):
                          groups=groups)
 
 
-@app.route('/display/<game_name>/round_robin')
-def display_round_robin(game_name):
-    """Round Robin Live Display - wechselt automatisch zu Bracket Standings"""
-    return render_template("display/display_round_robin.html", game_name=game_name)
-
-
-@app.route('/api/display/<game_name>/groups_json')
-def api_groups_json(game_name):
-    """JSON API: Aktuelle Gruppentabellen fuer Live-Polling"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return jsonify({})
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    groups = {}
-    for group_num in range(1, 11):
-        cursor.execute("""
-            SELECT r.team, r.points, r.goal_difference, r.goals_for,
-                   r.matches_played, r.wins, r.losses
-            FROM rankings r
-            LEFT JOIN teams t ON r.team = t.name
-            WHERE r.group_number = ? AND (t.is_ghost IS NULL OR t.is_ghost = 0)
-            ORDER BY r.points DESC, r.goal_difference DESC, r.goals_for DESC
-        """, (group_num,))
-        rows = cursor.fetchall()
-        groups[group_num] = [dict(row) for row in rows]
-    conn.close()
-    return jsonify(groups)
-
-
-@app.route('/api/display/<game_name>/bracket_standings_json')
-def api_bracket_standings_json(game_name):
-    """JSON API: Bracket Standings fuer Live-Polling"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return jsonify({'A': [], 'B': []})
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    result = {}
-    for bracket, table in [('A', 'double_elim_matches_a'), ('B', 'double_elim_matches_b')]:
-        cursor.execute(f"""
-            SELECT DISTINCT team1 as team FROM {table} WHERE team1 IS NOT NULL AND team1 != ''
-            UNION
-            SELECT DISTINCT team2 as team FROM {table} WHERE team2 IS NOT NULL AND team2 != ''
-        """)
-        all_teams = set(row['team'] for row in cursor.fetchall())
-        cursor.execute(f"""
-            SELECT DISTINCT loser as team FROM {table}
-            WHERE bracket = 'Losers' AND loser IS NOT NULL AND loser != ''
-        """)
-        eliminated = set(row['team'] for row in cursor.fetchall())
-        team_status = {}
-        for team in all_teams:
-            cursor.execute(f"""
-                SELECT MAX(round) as max_round, bracket
-                FROM {table}
-                WHERE (team1 = ? OR team2 = ?) AND winner IS NOT NULL
-                GROUP BY bracket
-                ORDER BY MAX(round) DESC
-                LIMIT 1
-            """, (team, team))
-            row = cursor.fetchone()
-            if team in eliminated:
-                status = "Ausgeschieden"
-            elif row:
-                b = "WB" if row['bracket'] == 'Winners' else "LB"
-                status = f"{b} R{row['max_round']}"
-            else:
-                status = "WB R1"
-            team_status[team] = {'team': team, 'status': status, 'eliminated': team in eliminated}
-        def sort_key(t):
-            if not t['eliminated']:
-                return (0, -int(t['status'].split('R')[-1]) if 'R' in t['status'] else 0)
-            return (1, 0)
-        result[bracket] = sorted(team_status.values(), key=sort_key)
-    conn.close()
-    return jsonify(result)
-
-
 @app.route('/display/<game_name>/qualification_tree')
 def display_qualification_tree(game_name):
     """Qualifikationsbaum für Beamer"""
@@ -4390,494 +4157,6 @@ def display_slideshow(game_name):
     """Automatischer Slideshow-Durchlauf"""
     return render_template("display/display_slideshow.html",
                          game_name=game_name)
-
-
-# ============================================================================
-# MELDEBLATT PDF EXPORT
-# ============================================================================
-
-@app.route('/print_matches/<game_name>')
-def print_matches(game_name):
-    """Generiert PDF mit Meldeblättern - 2 pro A4-Seite"""
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
-
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
-
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT match_number, team1, team2, time, field, group_number, round
-        FROM matches
-        WHERE match_number IS NOT NULL
-        ORDER BY match_number
-    """)
-    matches = cursor.fetchall()
-    conn.close()
-
-    if not matches:
-        return render_template("admin/error.html",
-                               error_message="Keine Spiele gefunden! Bitte zuerst Spielplan generieren.")
-
-    def draw_match_card(c, x, y, w, h, match):
-        pad = 6*mm
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(1.5)
-        c.rect(x, y, w, h)
-        header_h = 14*mm
-        c.setLineWidth(1)
-        c.line(x, y + h - header_h, x + w, y + h - header_h)
-        c.setFont("Helvetica-Bold", 20)
-        c.setFillColor(colors.black)
-        c.drawString(x + pad, y + h - header_h + 3*mm, f"Spiel #{match['match_number']}")
-        c.setFont("Helvetica", 10)
-        info = f"Gruppe {match['group_number']}  |  Runde {match['round']}"
-        c.drawRightString(x + w - pad, y + h - header_h + 4*mm, info)
-        mid_y = y + h - header_h - 16*mm
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(x + pad, mid_y + 8*mm, "Zeit:")
-        c.drawString(x + pad, mid_y, "Feld:")
-        c.setFont("Helvetica", 14)
-        time_str = match['time'] if match['time'] else '-'
-        field_str = str(match['field']) if match['field'] else '-'
-        c.drawString(x + 30*mm, mid_y + 8*mm, time_str)
-        c.drawString(x + 30*mm, mid_y, field_str)
-        teams_y = y + h - header_h - 34*mm
-        c.setLineWidth(0.5)
-        c.setStrokeColor(colors.grey)
-        c.line(x + pad, teams_y + 18*mm, x + w - pad, teams_y + 18*mm)
-        c.setStrokeColor(colors.black)
-        c.setFont("Helvetica-Bold", 15)
-        c.drawString(x + pad, teams_y + 10*mm, match['team1'] or '-')
-        c.setFont("Helvetica", 10)
-        c.drawString(x + pad, teams_y + 3*mm, "Punkte:")
-        c.setLineWidth(0.8)
-        c.line(x + 28*mm, teams_y + 3*mm, x + 60*mm, teams_y + 3*mm)
-        c.setFont("Helvetica-Bold", 11)
-        c.setFillColor(colors.grey)
-        c.drawCentredString(x + w/2, teams_y - 2*mm, "vs.")
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica-Bold", 15)
-        c.drawString(x + pad, teams_y - 10*mm, match['team2'] or '-')
-        c.setFont("Helvetica", 10)
-        c.drawString(x + pad, teams_y - 17*mm, "Punkte:")
-        c.setLineWidth(0.8)
-        c.line(x + 28*mm, teams_y - 17*mm, x + 60*mm, teams_y - 17*mm)
-        sig_y = y + 8*mm
-        c.setFont("Helvetica", 8)
-        c.setFillColor(colors.grey)
-        c.drawString(x + pad, sig_y + 4*mm, "Unterschrift Schiedsrichter:")
-        c.setLineWidth(0.5)
-        c.line(x + 60*mm, sig_y + 4*mm, x + w - pad, sig_y + 4*mm)
-        c.setFillColor(colors.black)
-
-    buf = io.BytesIO()
-    width, height = A4
-    c = rl_canvas.Canvas(buf, pagesize=A4)
-    margin = 10*mm
-    card_w = width - 2*margin
-    card_h = (height - 3*margin) / 2
-
-    for i, match in enumerate(matches):
-        pos = i % 2
-        if pos == 0 and i > 0:
-            c.showPage()
-        y_pos = margin if pos == 1 else margin + card_h + margin
-        draw_match_card(c, margin, y_pos, card_w, card_h, match)
-
-    c.save()
-    buf.seek(0)
-    return send_file(
-        buf,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=f"{game_name}_meldeblätter.pdf"
-    )
-
-
-@app.route('/print_ko_matches/<game_name>')
-def print_ko_matches(game_name):
-    """Meldeblätter KO-Phase: 2 Karten pro Seite mit fixem Zeitplan"""
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
-
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
-
-    T1  = "13:20"
-    T2  = add_minutes_to_time(T1, 50)
-    T3  = add_minutes_to_time(T2, 25)
-    T4  = add_minutes_to_time(T3, 25)
-    T5  = add_minutes_to_time(T4, 25)
-    T6  = add_minutes_to_time(T5, 25)
-    T7  = add_minutes_to_time(T6, 25)
-    T8  = add_minutes_to_time(T7, 25)
-    T9  = add_minutes_to_time(T8, 25)
-    T10 = add_minutes_to_time(T9, 25)
-    T11 = add_minutes_to_time(T10, 25)
-
-    FIXED_SCHEDULE = [
-        *[(151+i, 'Winner Bracket', '1/16-Finale',  T1, i+1)             for i in range(16)],
-        *[(167+i, 'Winner Bracket', '1/8-Finale',   T2, [1,2,3,4,13,14,15,16][i]) for i in range(8)],
-        *[(175+i, 'Loser Bracket',  'LB R1',         T2, 5+i)             for i in range(8)],
-        *[(183+i, 'Winner Bracket', 'Viertelfinale', T4, 9+i)             for i in range(4)],
-        *[(187+i, 'Loser Bracket',  'LB R2',         T4, 1+i)             for i in range(8)],
-        *[(195+i, 'Loser Bracket',  'LB R3',         T5, 5+i)             for i in range(4)],
-        *[(199+i, 'Winner Bracket', 'Halbfinale',    T6, 11+i)            for i in range(2)],
-        *[(201+i, 'Loser Bracket',  'LB R4',         T6, 1+i)             for i in range(4)],
-        *[(205+i, 'Loser Bracket',  'LB R5',         T7, 3+i)             for i in range(2)],
-        (207,     'Winner Bracket', 'WB Final',      T8, 7),
-        *[(208+i, 'Loser Bracket',  'LB R6',         T8, 4+i)             for i in range(2)],
-        (210,     'Loser Bracket',  'LB R7',         T9,  4),
-        (211,     'Loser Bracket',  'LB R8',         T10, 5),
-        (212,     'Loser Bracket',  'LB Final',      T11, 5),
-        *[(230+i, 'Follower Cup',   '1/8-Finale',    T3, 9+i)             for i in range(8)],
-        *[(238+i, 'Follower Cup',   'Viertelfinale', T4, 13+i)            for i in range(4)],
-        *[(242+i, 'Follower Cup',   'Halbfinale',    T5, 9+i)             for i in range(2)],
-        (244,     'Follower Cup',   'Platz 3',       T6, 7),
-        (245,     'Follower Cup',   'Final',         T6, 8),
-        *[(246+i, 'Platzierungsrunde', f'P{49+i*2}', T3, 1+i)            for i in range(6)],
-    ]
-    FIXED_SCHEDULE.sort(key=lambda x: x[0])
-
-    KAT_COLORS = {
-        'Winner Bracket':    colors.HexColor('#1a6b3a'),
-        'Loser Bracket':     colors.HexColor('#7a3000'),
-        'Follower Cup':      colors.HexColor('#7a5200'),
-        'Platzierungsrunde': colors.HexColor('#6b1a1a'),
-    }
-
-    buf = io.BytesIO()
-    W, H = A4
-    c = rl_canvas.Canvas(buf, pagesize=A4)
-    margin = 10*mm
-    card_w = W - 2*margin
-    card_h = (H - 3*margin) / 2
-
-    def draw_ko_card(c, x, y, w, h, match):
-        pad = 6*mm
-        kat = match['kategorie']
-        kat_color = KAT_COLORS.get(kat, colors.black)
-        bh = 13*mm
-
-        c.setStrokeColor(kat_color)
-        c.setLineWidth(2)
-        c.rect(x, y, w, h)
-
-        c.setFillColor(kat_color)
-        c.rect(x, y+h-bh, w, bh, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont('Helvetica-Bold', 10)
-        c.drawString(x+pad, y+h-bh+4*mm, kat.upper())
-        c.setFont('Helvetica', 9)
-        c.drawRightString(x+w-pad, y+h-bh+4*mm, match['runde'])
-
-        c.setFillColor(colors.black)
-        c.setFont('Helvetica-Bold', 30)
-        c.drawString(x+pad, y+h-bh-17*mm, f"#{match['match_number']}")
-
-        box_y = y+h-bh-30*mm
-        box_h = 12*mm
-        c.setFillColor(colors.HexColor('#f0f4fa'))
-        c.setStrokeColor(kat_color)
-        c.setLineWidth(0.8)
-        c.rect(x+pad, box_y, 45*mm, box_h, fill=1, stroke=1)
-        c.setFillColor(colors.HexColor('#888888'))
-        c.setFont('Helvetica', 7)
-        c.drawString(x+pad+2*mm, box_y+8*mm, 'SPIELZEIT')
-        c.setFillColor(kat_color)
-        c.setFont('Helvetica-Bold', 16)
-        c.drawString(x+pad+2*mm, box_y+1.5*mm, str(match['time']))
-
-        c.setFillColor(colors.HexColor('#f0f4fa'))
-        c.setStrokeColor(kat_color)
-        c.rect(x+pad+50*mm, box_y, 30*mm, box_h, fill=1, stroke=1)
-        c.setFillColor(colors.HexColor('#888888'))
-        c.setFont('Helvetica', 7)
-        c.drawString(x+pad+52*mm, box_y+8*mm, 'FELD')
-        c.setFillColor(kat_color)
-        c.setFont('Helvetica-Bold', 16)
-        c.drawString(x+pad+52*mm, box_y+1.5*mm, str(match['court']))
-
-        sep_y = box_y - 5*mm
-        c.setStrokeColor(colors.HexColor('#dddddd'))
-        c.setLineWidth(0.5)
-        c.line(x+pad, sep_y, x+w-pad, sep_y)
-
-        t1_y = sep_y - 12*mm
-        c.setFillColor(kat_color)
-        c.setFont('Helvetica-Bold', 8)
-        c.drawString(x+pad, t1_y+5*mm, 'TEAM 1')
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(0.8)
-        c.line(x+pad, t1_y, x+w-pad-38*mm, t1_y)
-        c.setFillColor(colors.HexColor('#f8f8f8'))
-        c.setStrokeColor(colors.HexColor('#aaaaaa'))
-        c.setLineWidth(0.5)
-        c.rect(x+w-pad-35*mm, t1_y-3.5*mm, 35*mm, 8*mm, fill=1, stroke=1)
-        c.setFillColor(colors.HexColor('#999999'))
-        c.setFont('Helvetica', 7)
-        c.drawCentredString(x+w-pad-17.5*mm, t1_y-0.5*mm, 'Punkte')
-
-        vs_y = t1_y - 8*mm
-        c.setFillColor(colors.HexColor('#bbbbbb'))
-        c.setFont('Helvetica-BoldOblique', 9)
-        c.drawCentredString(x+w/2, vs_y, '— vs. —')
-
-        t2_y = vs_y - 8*mm
-        c.setFillColor(kat_color)
-        c.setFont('Helvetica-Bold', 8)
-        c.drawString(x+pad, t2_y+5*mm, 'TEAM 2')
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(0.8)
-        c.line(x+pad, t2_y, x+w-pad-38*mm, t2_y)
-        c.setFillColor(colors.HexColor('#f8f8f8'))
-        c.setStrokeColor(colors.HexColor('#aaaaaa'))
-        c.setLineWidth(0.5)
-        c.rect(x+w-pad-35*mm, t2_y-3.5*mm, 35*mm, 8*mm, fill=1, stroke=1)
-        c.setFillColor(colors.HexColor('#999999'))
-        c.setFont('Helvetica', 7)
-        c.drawCentredString(x+w-pad-17.5*mm, t2_y-0.5*mm, 'Punkte')
-
-        sig_y = y + 6*mm
-        c.setFillColor(colors.HexColor('#aaaaaa'))
-        c.setFont('Helvetica', 7.5)
-        c.drawString(x+pad, sig_y+3*mm, 'Unterschrift Schiedsrichter:')
-        c.setStrokeColor(colors.HexColor('#bbbbbb'))
-        c.setLineWidth(0.4)
-        c.line(x+57*mm, sig_y+3*mm, x+w-pad, sig_y+3*mm)
-
-    matches = [{'match_number': s[0], 'kategorie': s[1], 'runde': s[2],
-                'time': s[3], 'court': str(s[4])} for s in FIXED_SCHEDULE]
-
-    for i, match in enumerate(matches):
-        pos = i % 2
-        if pos == 0 and i > 0:
-            c.showPage()
-        y_pos = margin if pos == 1 else margin + card_h + margin
-        draw_ko_card(c, margin, y_pos, card_w, card_h, match)
-
-    c.save()
-    buf.seek(0)
-    return send_file(buf, mimetype='application/pdf', as_attachment=True,
-                     download_name=f"{game_name}_ko_meldeblätter.pdf")
-
-
-@app.route('/spielplan_pdf/<game_name>')
-def spielplan_pdf(game_name):
-    """Spielplan-Übersicht als PDF (Querformat, 8 Felder pro Seite)"""
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
-
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
-
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT match_number, team1, team2, time, field, group_number, round
-        FROM matches WHERE match_number IS NOT NULL ORDER BY round, field
-    """)
-    matches = cursor.fetchall()
-    conn.close()
-
-    if not matches:
-        return render_template("admin/error.html",
-                               error_message="Keine Spiele gefunden! Bitte zuerst Spielplan generieren.")
-
-    bracket_a, bracket_b = {}, {}
-    all_rounds   = sorted(set(m['round'] for m in matches))
-    all_fields_a = sorted(set(m['field'] for m in matches if m['group_number'] <= 5))
-    all_fields_b = sorted(set(m['field'] for m in matches if m['group_number'] >= 6))
-
-    for m in matches:
-        f, r = m['field'], m['round']
-        if m['group_number'] <= 5:
-            bracket_a.setdefault(f, {})[r] = dict(m)
-        else:
-            bracket_b.setdefault(f, {})[r] = dict(m)
-
-    page_w, page_h = landscape(A4)
-    buf = io.BytesIO()
-    c = rl_canvas.Canvas(buf, pagesize=landscape(A4))
-
-    COL_BG  = colors.HexColor("#1e3a5f")
-    ROW_BG  = colors.HexColor("#2d5a9e")
-    WHITE   = colors.white
-    EVEN_BG = colors.HexColor("#eef3ff")
-    ODD_BG  = colors.white
-    BORDER  = colors.HexColor("#b0bcd4")
-    TITLE_C = colors.HexColor("#1e3a5f")
-    GRP_C   = colors.HexColor("#2d5a9e")
-    VS_C    = colors.HexColor("#aaaaaa")
-    NR_C    = colors.HexColor("#cccccc")
-
-    def trunc(text, n):
-        if not text: return "-"
-        return text if len(text) <= n else text[:n-1] + "\u2026"
-
-    def draw_page(bracket_data, fields, rounds, bracket_name, sub, page_info=""):
-        margin    = 10 * mm
-        title_h   = 15 * mm
-        num_r     = len(rounds)
-        num_f     = len(fields)
-        row_hdr_w = 18 * mm
-        col_hdr_h = 15 * mm
-        table_top = page_h - margin - title_h
-        table_bot = margin + 5 * mm
-        avail_h   = table_top - table_bot
-        col_w     = (page_w - 2*margin - row_hdr_w) / num_r
-        row_h     = (avail_h - col_hdr_h) / num_f
-
-        # Titel
-        c.setFillColor(TITLE_C)
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(margin, page_h - margin - 9*mm,
-                     f"Round Robin Spielplan \u2014 {bracket_name}  {page_info}")
-        c.setFont("Helvetica", 8)
-        c.setFillColor(colors.HexColor("#555555"))
-        c.drawString(margin, page_h - margin - 14*mm, sub)
-
-        # Spalten-Header
-        c.setFillColor(COL_BG)
-        c.rect(margin, table_top - col_hdr_h, row_hdr_w, col_hdr_h, fill=1, stroke=0)
-        for ri, rnd in enumerate(rounds):
-            x = margin + row_hdr_w + ri * col_w
-            c.setFillColor(COL_BG)
-            c.rect(x, table_top - col_hdr_h, col_w, col_hdr_h, fill=1, stroke=0)
-            c.setFillColor(WHITE)
-            c.setFont("Helvetica-Bold", 10)
-            c.drawCentredString(x + col_w/2, table_top - col_hdr_h + 8*mm, f"Runde {rnd}")
-            rnd_time = "\u2013"
-            for f in fields:
-                if f in bracket_data and rnd in bracket_data[f]:
-                    rnd_time = bracket_data[f][rnd].get('time') or "\u2013"
-                    break
-            c.setFont("Helvetica", 9)
-            c.setFillColor(colors.HexColor("#a8c4e8"))
-            c.drawCentredString(x + col_w/2, table_top - col_hdr_h + 3*mm, rnd_time)
-
-        # Zeilen
-        for fi, field in enumerate(fields):
-            row_y   = table_top - col_hdr_h - (fi+1)*row_h
-            cell_bg = EVEN_BG if fi % 2 == 0 else ODD_BG
-
-            # Feld-Label
-            c.setFillColor(ROW_BG)
-            c.rect(margin, row_y, row_hdr_w, row_h, fill=1, stroke=0)
-            c.setFillColor(WHITE)
-            c.setFont("Helvetica", 7)
-            c.drawCentredString(margin + row_hdr_w/2, row_y + row_h*0.65, "Feld")
-            c.setFont("Helvetica-Bold", 14)
-            c.drawCentredString(margin + row_hdr_w/2, row_y + row_h*0.28, str(field))
-
-            for ri, rnd in enumerate(rounds):
-                x = margin + row_hdr_w + ri * col_w
-                c.setFillColor(cell_bg)
-                c.rect(x, row_y, col_w, row_h, fill=1, stroke=0)
-
-                m = bracket_data.get(field, {}).get(rnd)
-                if not m:
-                    c.setFillColor(colors.HexColor("#cccccc"))
-                    c.setFont("Helvetica", 8)
-                    c.drawCentredString(x + col_w/2, row_y + row_h/2, "\u2013")
-                    continue
-
-                pad        = 3 * mm
-                bottom_pad = 3 * mm
-                line_h     = 4.5 * mm
-
-                team2_y  = row_y + bottom_pad
-                vs_y     = team2_y + line_h
-                team1_y  = vs_y + line_h * 0.9
-                header_y = row_y + row_h - 4*mm
-
-                # Header: Gruppe + Spielnummer
-                c.setFillColor(GRP_C)
-                c.setFont("Helvetica-Bold", 7.5)
-                c.drawString(x + pad, header_y, f"Grp {m['group_number']}")
-                c.setFillColor(NR_C)
-                c.setFont("Helvetica", 6.5)
-                c.drawRightString(x + col_w - pad, header_y, f"#{m['match_number']}")
-
-                # Trennlinie
-                c.setStrokeColor(colors.HexColor("#dddddd"))
-                c.setLineWidth(0.3)
-                c.line(x + pad, header_y - 1.5*mm, x + col_w - pad, header_y - 1.5*mm)
-
-                # Team 1
-                c.setFillColor(colors.black)
-                c.setFont("Helvetica-Bold", 8.5)
-                c.drawString(x + pad, team1_y, trunc(m['team1'], 23))
-
-                # vs.
-                c.setFillColor(VS_C)
-                c.setFont("Helvetica-Oblique", 7)
-                c.drawString(x + pad, vs_y, "vs.")
-
-                # Team 2
-                c.setFillColor(colors.black)
-                c.setFont("Helvetica-Bold", 8.5)
-                c.drawString(x + pad, team2_y, trunc(m['team2'], 23))
-
-        # Gitter
-        total_w = row_hdr_w + num_r * col_w
-        total_h = col_hdr_h + num_f * row_h
-        c.setStrokeColor(BORDER)
-        c.setLineWidth(0.4)
-        for fi in range(num_f + 1):
-            y_l = table_top - col_hdr_h - fi * row_h
-            c.line(margin, y_l, margin + total_w, y_l)
-        for ri in range(num_r + 1):
-            x_l = margin + row_hdr_w + ri * col_w
-            c.line(x_l, table_top - total_h, x_l, table_top)
-        c.line(margin, table_top - total_h, margin, table_top)
-        c.line(margin, table_top, margin + total_w, table_top)
-        c.setStrokeColor(TITLE_C)
-        c.setLineWidth(1.5)
-        c.rect(margin, table_top - total_h, total_w, total_h)
-
-        # Footer
-        c.setFont("Helvetica", 7)
-        c.setFillColor(colors.HexColor("#888888"))
-        c.drawString(margin, margin/2 + 1*mm, game_name)
-        c.drawRightString(page_w - margin, margin/2 + 1*mm,
-                          f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
-
-    FIELDS_PER_PAGE = 8
-    for bracket_data, fields, bname in [
-        (bracket_a, sorted(all_fields_a), "Bracket A (Gruppen 1\u20135)"),
-        (bracket_b, sorted(all_fields_b), "Bracket B (Gruppen 6\u201310)"),
-    ]:
-        sub_a = "Gruppen 1, 2, 3, 4, 5  |  Top 3 je Gruppe + beste 4. qualifizieren sich f\u00fcr Double Elimination"
-        sub_b = "Gruppen 6, 7, 8, 9, 10  |  Top 3 je Gruppe + beste 4. qualifizieren sich f\u00fcr Double Elimination"
-        sub = sub_a if "1" in bname else sub_b
-        total_pages = (len(fields) + FIELDS_PER_PAGE - 1) // FIELDS_PER_PAGE
-        for i in range(0, len(fields), FIELDS_PER_PAGE):
-            chunk  = fields[i:i+FIELDS_PER_PAGE]
-            page_n = i // FIELDS_PER_PAGE + 1
-            draw_page(bracket_data, chunk, all_rounds, bname, sub,
-                      f"(Seite {page_n}/{total_pages})")
-            c.showPage()
-
-    c.save()
-    buf.seek(0)
-    return send_file(
-        buf,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=f"{game_name}_spielplan.pdf"
-    )
 
 
 # ============================================================================
@@ -5144,497 +4423,51 @@ def debug_follower_cup(game_name):
 
 
 # ============================================================================
-# STATISTIKEN & SCHLUSSRANGLISTE
+# STATISTIKEN
 # ============================================================================
-
-def _get_total_stats(cursor, team):
-    """Gesamte Goals + Differenz über ALLE Phasen"""
-    gf = gd = 0
-    for table, t1f, s1f, t2f, s2f in [
-        ('matches','team1','score1','team2','score2'),
-        ('double_elim_matches','team1','score1','team2','score2'),
-        ('follower_cup_matches','team1','score1','team2','score2'),
-        ('placement_matches','team1','score1','team2','score2'),
-    ]:
-        try:
-            cursor.execute(f"SELECT {s1f},{s2f} FROM {table} WHERE {t1f}=? AND {s1f} IS NOT NULL",(team,))
-            for r in cursor.fetchall(): gf+=r[0]; gd+=(r[0]-r[1])
-            cursor.execute(f"SELECT {s1f},{s2f} FROM {table} WHERE {t2f}=? AND {s1f} IS NOT NULL",(team,))
-            for r in cursor.fetchall(): gf+=r[1]; gd+=(r[1]-r[0])
-        except Exception: pass
-    return gf, gd
-
-
-def _compute_final_rankings(conn):
-    """Vollständige Schlussrangliste P1-P60"""
-    cursor = conn.cursor()
-    rankings = []
-    placed = set()
-
-    def add(place, team, phase):
-        if team and team not in placed:
-            gf, gd = _get_total_stats(cursor, team)
-            rankings.append({'place':place,'team':team,'phase':phase,
-                             'total_goals':gf,'goal_diff':gd})
-            placed.add(team)
-
-    def add_sorted(start, teams, phase):
-        enriched = []
-        for t in teams:
-            if t and t not in placed:
-                gf, gd = _get_total_stats(cursor, t)
-                enriched.append((t, gf, gd))
-        enriched.sort(key=lambda x: (-x[1], -x[2]))
-        for i,(t,gf,gd) in enumerate(enriched):
-            rankings.append({'place':start+i,'team':t,'phase':phase,
-                             'total_goals':gf,'goal_diff':gd})
-            placed.add(t)
-
-    # P1-P2: Super Finals
-    cursor.execute("SELECT * FROM super_finals_matches WHERE match_id='FINAL'")
-    sf = cursor.fetchone()
-    if not sf or not sf['winner']:
-        cursor.execute("SELECT * FROM super_finals_matches WHERE match_id='HF1'")
-        sf = cursor.fetchone()
-    if sf and sf['winner']:
-        loser = sf['team2'] if sf['winner']==sf['team1'] else sf['team1']
-        add(1, sf['winner'], 'Turniersieger')
-        add(2, loser, 'Finalist')
-
-    # P3+: DE via LB Verlierer rückwärts
-    for lb_rnd, start in [(8,3),(7,4),(6,5),(5,7),(4,9),(3,13),(2,17),(1,25)]:
-        cursor.execute("""SELECT loser FROM double_elim_matches
-            WHERE bracket='Losers' AND round=? AND loser IS NOT NULL
-            ORDER BY match_index""", (lb_rnd,))
-        losers = [r['loser'] for r in cursor.fetchall()]
-        add_sorted(start, losers, f'DE — LB R{lb_rnd}')
-
-    # P33-48: Follower Cup
-    cursor.execute("SELECT * FROM follower_cup_matches WHERE round='final' LIMIT 1")
-    fc_f = cursor.fetchone()
-    if fc_f and fc_f['winner']:
-        fc_l = fc_f['team2'] if fc_f['winner']==fc_f['team1'] else fc_f['team1']
-        add(33, fc_f['winner'], 'FC Sieger')
-        add(34, fc_l, 'FC Finalist')
-
-    cursor.execute("SELECT * FROM follower_cup_matches WHERE round='third' LIMIT 1")
-    fc_3 = cursor.fetchone()
-    if fc_3 and fc_3['winner']:
-        fc_3l = fc_3['team2'] if fc_3['winner']==fc_3['team1'] else fc_3['team1']
-        add(35, fc_3['winner'], 'FC Platz 3')
-        add(36, fc_3l, 'FC Platz 4')
-
-    def fc_losers(rnd):
-        cursor.execute(
-            "SELECT team1, team2, winner FROM follower_cup_matches WHERE round=? AND winner IS NOT NULL",
-            (rnd,))
-        return [r['team2'] if r['winner']==r['team1'] else r['team1'] for r in cursor.fetchall()]
-
-    add_sorted(37, fc_losers('semi'),    'FC Halbfinale')
-    add_sorted(39, fc_losers('quarter'), 'FC Viertelfinale')
-    add_sorted(43, fc_losers('eighth'),  'FC 1/8-Finale')
-
-    # P49-60: Platzierungsrunde
-    cursor.execute("SELECT * FROM placement_matches WHERE winner IS NOT NULL ORDER BY placement")
-    for m in cursor.fetchall():
-        plz_str = m['placement'] or 'P49'
-        plz_num = int(plz_str[1:]) if plz_str.startswith('P') else 49
-        loser_plz = m['team2'] if m['winner']==m['team1'] else m['team1']
-        add(plz_num,   m['winner'], 'PLZ Sieger')
-        add(plz_num+1, loser_plz,  'PLZ Verlierer')
-
-    # Noch nicht platzierte Teams aus RR auffüllen
-    cursor.execute("""SELECT DISTINCT team FROM (
-        SELECT team1 as team FROM matches UNION SELECT team2 FROM matches)
-        WHERE team NOT IN (SELECT name FROM teams WHERE is_ghost=1)""")
-    all_teams = [r['team'] for r in cursor.fetchall()]
-    next_place = max((r['place'] for r in rankings), default=0) + 1
-    unplaced = [t for t in all_teams if t not in placed]
-    add_sorted(next_place, unplaced, 'Round Robin')
-
-    rankings.sort(key=lambda x: x['place'])
-    return rankings
-
-
-def _compute_tournament_facts(conn):
-    """Interessante Turnier-Statistiken"""
-    cursor = conn.cursor()
-    facts = []
-    all_matches = []
-    for table, phase in [
-        ('matches','Round Robin'),
-        ('double_elim_matches','Double Elimination'),
-        ('follower_cup_matches','Follower Cup'),
-        ('placement_matches','Platzierungsrunde'),
-    ]:
-        try:
-            cursor.execute(f"SELECT team1,team2,score1,score2 FROM {table} WHERE score1 IS NOT NULL AND score2 IS NOT NULL")
-            for r in cursor.fetchall():
-                all_matches.append({'team1':r['team1'],'team2':r['team2'],
-                                    'score1':r['score1'],'score2':r['score2'],'phase':phase})
-        except Exception: pass
-
-    if not all_matches:
-        return facts
-
-    total_g = len(all_matches)
-    total_pts = sum(m['score1']+m['score2'] for m in all_matches)
-    avg = round(total_pts/total_g, 1)
-    facts.append({'label':'Total Spiele gespielt','value':str(total_g)})
-    facts.append({'label':'Total geworfene Punkte','value':str(total_pts)})
-    facts.append({'label':'Ø Punkte pro Spiel','value':str(avg)})
-
-    best = max(all_matches, key=lambda m: abs(m['score1']-m['score2']))
-    bw = best['team1'] if best['score1']>best['score2'] else best['team2']
-    bl = best['team2'] if best['score1']>best['score2'] else best['team1']
-    bws,bls = (best['score1'],best['score2']) if best['score1']>best['score2'] else (best['score2'],best['score1'])
-    facts.append({'label':'Höchster Sieg','value':f"{bw} {bws}:{bls} gegen {bl} ({best['phase']})"})
-
-    close = min(all_matches, key=lambda m: abs(m['score1']-m['score2']))
-    facts.append({'label':'Engster Match','value':f"{close['team1']} {close['score1']}:{close['score2']} {close['team2']} ({close['phase']})"})
-
-    tg = {}; tw = {}; tgames = {}
-    for m in all_matches:
-        tg[m['team1']] = tg.get(m['team1'],0)+m['score1']
-        tg[m['team2']] = tg.get(m['team2'],0)+m['score2']
-        w = m['team1'] if m['score1']>m['score2'] else m['team2']
-        tw[w] = tw.get(w,0)+1
-        tgames[m['team1']] = tgames.get(m['team1'],0)+1
-        tgames[m['team2']] = tgames.get(m['team2'],0)+1
-
-    if tg:
-        top_tg = max(tg, key=tg.get)
-        facts.append({'label':'Meiste Punkte gesamt','value':f"{top_tg} — {tg[top_tg]} Punkte"})
-    if tw:
-        top_tw = max(tw, key=tw.get)
-        facts.append({'label':'Meiste Siege gesamt','value':f"{top_tw} — {tw[top_tw]} Siege"})
-    return facts
-
 
 @app.route('/final_rankings/<game_name>')
 def final_rankings(game_name):
-    """Schlussrangliste Webseite"""
+    """Finale Gesamtplatzierung"""
     db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
-    conn = get_db_connection(db_path)
-    rankings = _compute_final_rankings(conn)
-    facts    = _compute_tournament_facts(conn)
-    conn.close()
-    return render_template("admin/final_rankings.html",
-                           game_name=game_name, rankings=rankings, facts=facts)
-
-
-@app.route('/final_rankings_pdf/<game_name>')
-def final_rankings_pdf(game_name):
-    """Schlussrangliste als PDF"""
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
-
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
-
-    conn = get_db_connection(db_path)
-    rankings = _compute_final_rankings(conn)
-    conn.close()
-
-    buf = io.BytesIO()
-    W, H = A4
-    c = rl_canvas.Canvas(buf, pagesize=A4)
-    mg = 12*mm
-
-    def place_color(place):
-        if place == 1: return colors.HexColor('#FFD700')
-        if place == 2: return colors.HexColor('#C0C0C0')
-        if place == 3: return colors.HexColor('#CD7F32')
-        if place <= 32: return colors.HexColor('#1a6b3a')
-        if place <= 48: return colors.HexColor('#7a5200')
-        return colors.HexColor('#6b1a1a')
-
-    def phase_bg(place):
-        if place <= 4:  return colors.HexColor('#fffbe6')
-        if place <= 32: return colors.HexColor('#f0f7f0')
-        if place <= 48: return colors.HexColor('#fdf5e6')
-        return colors.HexColor('#fdf0f0')
-
-    col_place = 12*mm; col_team = 72*mm; col_phase = 52*mm
-    col_goals = 18*mm; col_diff = 16*mm; row_h = 7*mm
-    header_h = 18*mm; col_hdr_h = 7*mm
-
-    def draw_header(page_num):
-        c.setFillColor(colors.HexColor('#1e3a5f'))
-        c.rect(mg, H-mg-18*mm, W-2*mg, 18*mm, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont('Helvetica-Bold', 16)
-        c.drawString(mg+5*mm, H-mg-12*mm, f'Schlussrangliste  —  {game_name}')
-        c.setFont('Helvetica', 8)
-        c.drawRightString(W-mg-3*mm, H-mg-12*mm,
-                          f'Erstellt: {datetime.now().strftime("%d.%m.%Y %H:%M")}')
-
-    def draw_table_header(y):
-        c.setFillColor(colors.HexColor('#2d5a9e'))
-        c.rect(mg, y, W-2*mg, col_hdr_h, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont('Helvetica-Bold', 8)
-        x = mg + 3*mm
-        for lbl, offset in [('Platz',0),('Team',col_place),('Phase',col_place+col_team),
-                              ('Punkte',col_place+col_team+col_phase),('Diff',col_place+col_team+col_phase+col_goals)]:
-            c.drawString(x+offset, y+2*mm, lbl)
-
-    page = 1
-    draw_header(page)
-    y = H - mg - header_h - col_hdr_h
-    draw_table_header(y)
-    y -= row_h
-
-    for r in rankings:
-        if y < mg + 15*mm:
-            c.showPage(); page += 1
-            draw_header(page)
-            y = H - mg - header_h - col_hdr_h
-            draw_table_header(y)
-            y -= row_h
-
-        bg = phase_bg(r['place'])
-        clr = place_color(r['place'])
-        c.setFillColor(bg)
-        c.rect(mg, y, W-2*mg, row_h, fill=1, stroke=0)
-        c.setFillColor(clr)
-        c.rect(mg, y, col_place, row_h, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont('Helvetica-Bold', 9)
-        c.drawCentredString(mg+col_place/2, y+2*mm, str(r['place']))
-        c.setFillColor(colors.black)
-        c.setFont('Helvetica-Bold' if r['place'] <= 3 else 'Helvetica', 8.5)
-        c.drawString(mg+col_place+3*mm, y+2*mm, (r['team'] or '—')[:38])
-        c.setFont('Helvetica', 7.5)
-        c.setFillColor(colors.HexColor('#555555'))
-        c.drawString(mg+col_place+col_team+3*mm, y+2*mm, r['phase'])
-        c.setFillColor(colors.black)
-        c.setFont('Helvetica', 8)
-        c.drawRightString(mg+col_place+col_team+col_phase+col_goals-2*mm, y+2*mm, str(r.get('total_goals','')))
-        diff = r.get('goal_diff', 0)
-        diff_str = ('+' if diff > 0 else '') + str(diff)
-        diff_clr = colors.HexColor('#1a6b3a') if diff > 0 else (colors.HexColor('#7a1a1a') if diff < 0 else colors.black)
-        c.setFillColor(diff_clr)
-        c.drawRightString(mg+col_place+col_team+col_phase+col_goals+col_diff-2*mm, y+2*mm, diff_str)
-        c.setStrokeColor(colors.HexColor('#dddddd'))
-        c.setLineWidth(0.3)
-        c.line(mg, y, mg+W-2*mg, y)
-        y -= row_h
-
-    c.save()
-    buf.seek(0)
-    return send_file(buf, mimetype='application/pdf', as_attachment=True,
-                     download_name=f"{game_name}_schlussrangliste.pdf")
-
-
-@app.route('/recalculate_all_times/<game_name>', methods=['POST'])
-def recalculate_all_times(game_name):
-    """Alle Zeiten und Felder neu berechnen"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
+    
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) as c FROM double_elim_matches WHERE time IS NOT NULL")
-    if cursor.fetchone()['c'] > 0:
-        calculate_double_elim_times_and_courts(conn)
-    cursor.execute("SELECT COUNT(*) as c FROM super_finals_matches")
-    if cursor.fetchone()['c'] > 0:
-        calculate_super_finals_times(conn)
-    conn.close()
-    return redirect(url_for('game_overview', game_name=game_name))
-
-
-@app.route('/api/display/<game_name>/final_rankings_json')
-def api_display_final_rankings(game_name):
-    """JSON API: Schlussrangliste für Display"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return jsonify({})
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    winner = None
-    for mid in ['FINAL', 'HF1']:
-        cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id=? AND winner IS NOT NULL", (mid,))
-        r = cursor.fetchone()
-        if r and r['winner']:
-            winner = r['winner']
-            break
-    rankings = _compute_final_rankings(conn)
-    conn.close()
-    return jsonify({'winner': winner, 'rankings': rankings})
-
-
-@app.route('/api/de_matches/<game_name>')
-def api_de_matches(game_name):
-    """JSON API: Alle DE-Matches mit aktuellem Stand"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return jsonify([])
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
+    
+    rankings = []
+    
+    # Platz 1-4: Super Finals
+    cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id = 'FINAL'")
+    row = cursor.fetchone()
+    if row and row['winner']:
+        rankings.append({'place': 1, 'team': row['winner'], 'phase': 'Super Finals Sieger'})
+    
     cursor.execute("""
-        SELECT id, round, bracket, match_index, match_number,
-               team1, team2, score1, score2, winner, loser, court, time
-        FROM double_elim_matches
-        ORDER BY round, bracket DESC, match_index
+        SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'FINAL'
     """)
-    matches = [dict(r) for r in cursor.fetchall()]
+    row = cursor.fetchone()
+    if row and row['winner']:
+        loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
+        rankings.append({'place': 2, 'team': loser, 'phase': 'Super Finals Finalist'})
+    
+    cursor.execute("SELECT winner FROM super_finals_matches WHERE match_id = 'THIRD'")
+    row = cursor.fetchone()
+    if row and row['winner']:
+        rankings.append({'place': 3, 'team': row['winner'], 'phase': 'Spiel um Platz 3'})
+    
+    cursor.execute("""
+        SELECT team1, team2, winner FROM super_finals_matches WHERE match_id = 'THIRD'
+    """)
+    row = cursor.fetchone()
+    if row and row['winner']:
+        loser = row['team2'] if row['winner'] == row['team1'] else row['team1']
+        rankings.append({'place': 4, 'team': loser, 'phase': 'Spiel um Platz 3'})
+    
     conn.close()
-    return jsonify(matches)
-
-
-@app.route('/api/display/<game_name>/brackets_full_json')
-def api_brackets_full_json(game_name):
-    """JSON API: Vollständige DE + FC + PLZ Daten für Display"""
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return jsonify({})
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT round,match_index,match_number,team1,team2,score1,score2,winner,loser,court,time FROM double_elim_matches WHERE bracket='Winners' ORDER BY round,match_index")
-    wb = [dict(r) for r in cursor.fetchall()]
-    cursor.execute("SELECT round,match_index,match_number,team1,team2,score1,score2,winner,loser,court,time FROM double_elim_matches WHERE bracket='Losers' ORDER BY round,match_index")
-    lb = [dict(r) for r in cursor.fetchall()]
-    cursor.execute("SELECT round,match_index,match_number,team1,team2,score1,score2,winner,court,time FROM follower_cup_matches ORDER BY CASE round WHEN 'eighth' THEN 1 WHEN 'quarter' THEN 2 WHEN 'semi' THEN 3 WHEN 'final' THEN 4 WHEN 'third' THEN 5 END,match_index")
-    fc = [dict(r) for r in cursor.fetchall()]
-    cursor.execute("SELECT placement,match_number,team1,team2,score1,score2,winner,court,time FROM placement_matches ORDER BY match_number")
-    plz = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    return jsonify({'wb':wb,'lb':lb,'fc':fc,'plz':plz})
-
-
-@app.route('/team_schedules_pdf/<game_name>')
-def team_schedules_pdf(game_name):
-    """Individuelle Spielpläne für alle Teams — 2 Teams pro A4-Seite"""
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
-
-    db_path = os.path.join(TOURNAMENT_FOLDER, f"{game_name}.db")
-    if not os.path.exists(db_path):
-        return render_template("admin/error.html", error_message="Turnier nicht gefunden!")
-
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, group_number FROM teams WHERE is_ghost=0 ORDER BY group_number, name")
-    teams = cursor.fetchall()
-    cursor.execute("SELECT match_number, round, team1, team2, field, time, score1, score2 FROM matches ORDER BY match_number")
-    all_matches = cursor.fetchall()
-    conn.close()
-
-    # Matches pro Team indexieren
-    team_matches = {t['name']: [] for t in teams}
-    for m in all_matches:
-        for side, opp, s1, s2 in [(m['team1'], m['team2'], m['score1'], m['score2']),
-                                   (m['team2'], m['team1'], m['score2'], m['score1'])]:
-            if side in team_matches:
-                team_matches[side].append({
-                    'match_number': m['match_number'],
-                    'time':  m['time'],
-                    'field': m['field'],
-                    'opponent': opp,
-                    'score1': s1, 'score2': s2
-                })
-    for name in team_matches:
-        team_matches[name].sort(key=lambda x: (x['match_number'] or 0))
-
-    buf = io.BytesIO()
-    W, H = A4
-    mg   = 10*mm
-    HALF = H / 2
-
-    COL_HEADER  = colors.HexColor('#1e3a5f')
-    COL_GROUP   = colors.HexColor('#2d5a9e')
-    COL_ROW_ODD = colors.HexColor('#f0f4fb')
-    COL_WIN     = colors.HexColor('#d4edda')
-    COL_LOSS    = colors.HexColor('#f8d7da')
-
-    c = rl_canvas.Canvas(buf, pagesize=A4)
-
-    def draw_team_slot(team, idx, top_y):
-        name    = team['name']
-        group   = team['group_number']
-        matches = team_matches.get(name, [])
-
-        hdr_h = 16*mm; thdr_h = 7*mm; row_h = 8*mm
-        col_x = [mg, mg+15*mm, mg+32*mm, mg+50*mm, mg+98*mm]
-
-        c.setFillColor(COL_HEADER)
-        c.rect(mg, top_y - hdr_h, W - 2*mg, hdr_h, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont('Helvetica-Bold', 14)
-        c.drawString(mg + 4*mm, top_y - 10*mm, name)
-        c.setFont('Helvetica', 8)
-        c.drawString(mg + 4*mm, top_y - 14*mm, f'Gruppe {group}  —  Round Robin Spielplan')
-        c.setFont('Helvetica', 7)
-        c.drawRightString(W - mg - 2*mm, top_y - 8*mm, game_name)
-
-        tbl_top = top_y - hdr_h - thdr_h
-        c.setFillColor(COL_GROUP)
-        c.rect(mg, tbl_top, W - 2*mg, thdr_h, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont('Helvetica-Bold', 7)
-        for lbl, cx in zip(['#', 'Zeit', 'Feld', 'Gegner', 'Resultat'], col_x):
-            c.drawString(cx + 1.5*mm, tbl_top + 2*mm, lbl)
-
-        y = tbl_top - row_h
-        for mi, m in enumerate(matches):
-            has = m['score1'] is not None and m['score2'] is not None
-            if has:
-                bg = COL_WIN if m['score1'] > m['score2'] else COL_LOSS
-            else:
-                bg = COL_ROW_ODD if mi % 2 == 0 else colors.white
-            c.setFillColor(bg)
-            c.rect(mg, y, W - 2*mg, row_h, fill=1, stroke=0)
-            c.setStrokeColor(colors.HexColor('#dddddd'))
-            c.setLineWidth(0.3)
-            c.line(mg, y, W - mg, y)
-            c.setFillColor(colors.black)
-            c.setFont('Helvetica-Bold', 8)
-            c.drawString(col_x[0] + 1.5*mm, y + 2.5*mm, f"#{m['match_number']}")
-            c.setFont('Helvetica', 8)
-            c.drawString(col_x[1] + 1.5*mm, y + 2.5*mm, m['time'] or '—')
-            c.drawString(col_x[2] + 1.5*mm, y + 2.5*mm, f"Feld {m['field']}" if m['field'] else '—')
-            c.setFont('Helvetica-Bold', 8)
-            c.drawString(col_x[3] + 1.5*mm, y + 2.5*mm, (m['opponent'] or '—')[:30])
-            if has:
-                res = f"{m['score1']} : {m['score2']}  {'SIEG' if m['score1']>m['score2'] else 'NL'}"
-                clr = colors.HexColor('#155724') if m['score1']>m['score2'] else colors.HexColor('#721c24')
-                c.setFillColor(clr)
-                c.setFont('Helvetica-Bold', 8)
-                c.drawString(col_x[4] + 1.5*mm, y + 2.5*mm, res)
-                c.setFillColor(colors.black)
-            y -= row_h
-
-        # Rahmen
-        c.setStrokeColor(COL_HEADER)
-        c.setLineWidth(0.8)
-        c.rect(mg, y, W - 2*mg, top_y - y, fill=0, stroke=1)
-
-    for i in range(0, len(teams), 2):
-        draw_team_slot(teams[i], i, H - mg)
-        if i + 1 < len(teams):
-            draw_team_slot(teams[i+1], i+1, HALF - 4*mm)
-        # Trennlinie
-        c.setStrokeColor(colors.HexColor('#888888'))
-        c.setLineWidth(0.8)
-        c.setDash(4, 4)
-        c.line(mg, HALF, W - mg, HALF)
-        c.setDash()
-        c.setFillColor(colors.HexColor('#888888'))
-        c.setFont('Helvetica', 7)
-        c.drawCentredString(W / 2, HALF + 1*mm, '✂')
-        c.showPage()
-
-    c.save()
-    buf.seek(0)
-    return send_file(buf, mimetype='application/pdf', as_attachment=True,
-                     download_name=f"{game_name}_team_spielplaene.pdf")
+    
+    return render_template("admin/final_rankings.html",
+                         game_name=game_name,
+                         rankings=rankings)
 
 
 # ============================================================================
