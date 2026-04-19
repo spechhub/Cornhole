@@ -71,22 +71,9 @@
           <i class="bi bi-person-dash ms-auto" style="font-size:2rem;color:var(--text-muted);opacity:.4;"></i>
         </div>
         <div class="card-footer">
-          <div class="d-flex gap-2 flex-wrap">
-            <form action="{{ url_for('recalculate_all_times', game_name=game_name) }}" method="POST" class="m-0">
-              <button type="submit" class="btn btn-sm btn-outline-secondary" title="Alle Zeiten neu berechnen">
-                <i class="bi bi-clock-history"></i> Zeiten neu
-              </button>
-            </form>
-            <a href="{{ url_for('export_complete', game_name=game_name) }}" class="btn btn-sm btn-outline-secondary">
-              <i class="bi bi-download"></i> Export
-            </a>
-            <form action="{{ url_for('cancel_game', game_name=game_name) }}" method="POST" class="m-0"
-                  onsubmit="return confirm('Wirklich ALLES löschen?');">
-              <button type="submit" class="btn btn-sm btn-outline-danger">
-                <i class="bi bi-trash"></i> Reset
-              </button>
-            </form>
-          </div>
+          <a href="{{ url_for('export_complete', game_name=game_name) }}" class="btn btn-sm btn-outline-secondary btn-sm">
+            <i class="bi bi-download"></i> Export
+          </a>
         </div>
       </div>
     </div>
@@ -217,6 +204,67 @@
             <i class="bi bi-house"></i>Display Startseite
           </a>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config & Werkzeuge -->
+  <div class="card mb-3" style="border-left:4px solid #64748B;">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-gear" style="color:#64748B;"></i>
+      <strong>Konfiguration &amp; Werkzeuge</strong>
+    </div>
+    <div class="card-body">
+      <div class="row g-2">
+
+        <div class="col-6 col-md-2">
+          <a href="{{ url_for('tournament_config', game_name=game_name) }}" class="quick-btn">
+            <i class="bi bi-sliders"></i>Turnier-Config
+          </a>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <form action="{{ url_for('recalculate_all_times', game_name=game_name) }}" method="POST" class="m-0 w-100">
+            <button type="submit" class="quick-btn w-100" style="border:none;cursor:pointer;">
+              <i class="bi bi-clock-history"></i>Zeiten neu berechnen
+            </button>
+          </form>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <form action="{{ url_for('renumber_all_matches', game_name=game_name) }}" method="POST" class="m-0 w-100">
+            <button type="submit" class="quick-btn w-100" style="border:none;cursor:pointer;">
+              <i class="bi bi-hash"></i>Nummern neu vergeben
+            </button>
+          </form>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <a href="{{ url_for('export_complete', game_name=game_name) }}" class="quick-btn">
+            <i class="bi bi-download"></i>Export (ZIP)
+          </a>
+        </div>
+
+        <!-- RR Spielplan löschen -->
+        <div class="col-6 col-md-2">
+          <form action="{{ url_for('reset_round_robin', game_name=game_name) }}" method="POST" class="m-0 w-100"
+                onsubmit="return confirm('RR Spielplan wirklich löschen?\n\nTeams und Gruppen bleiben erhalten.\nAlle Ergebnisse gehen verloren.')">
+            <button type="submit" class="quick-btn q-danger w-100" style="border:none;cursor:pointer;">
+              <i class="bi bi-calendar-x"></i>RR Spielplan löschen
+            </button>
+          </form>
+        </div>
+
+        <!-- Alle Matches löschen -->
+        <div class="col-6 col-md-2">
+          <form action="{{ url_for('cancel_game', game_name=game_name) }}" method="POST" class="m-0 w-100"
+                onsubmit="return confirm('ALLE Matches löschen?\n(RR, DE, FC, PLZ, SF)\n\nNur Teams bleiben erhalten!')">
+            <button type="submit" class="quick-btn q-danger w-100" style="border:none;cursor:pointer;">
+              <i class="bi bi-trash"></i>Alle Matches löschen
+            </button>
+          </form>
+        </div>
+
       </div>
     </div>
   </div>

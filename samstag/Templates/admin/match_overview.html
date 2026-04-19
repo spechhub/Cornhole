@@ -1,5 +1,6 @@
 {% extends "admin/base.html" %}
 {% block title %}Spielplan — {{ game_name }}{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div class="container-fluid px-4">
@@ -7,53 +8,293 @@
     <div class="subtitle">{{ game_name }} &mdash; {{ matches|length }} Spiele total</div>
   </div>
 </div>
+
 <div class="container-fluid px-4 fade-in">
-  <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <strong>Alle Spiele</strong>
-      <div class="d-flex gap-2">
-        <a href="{{ url_for('spielplan_pdf', game_name=game_name) }}" target="_blank" class="btn btn-sm btn-outline-danger">
-          <i class="bi bi-file-earmark-pdf me-1"></i>PDF
-        </a>
-        <a href="{{ url_for('print_matches', game_name=game_name) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-printer me-1"></i>Meldeblätter
-        </a>
-      </div>
+
+  <!-- Toolbar -->
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+
+    <!-- Bracket Tabs -->
+    <div class="btn-group" role="group">
+      <button type="button" class="btn btn-sm bracket-btn active" data-bracket="A"
+              style="background:#1e3a5f;color:#fff;border-color:#1e3a5f;">
+        <i class="bi bi-grid-3x3 me-1"></i>Bracket A
+        <span class="badge rounded-pill ms-1" style="background:rgba(255,255,255,.2);">Grp 1–5</span>
+      </button>
+      <button type="button" class="btn btn-sm bracket-btn" data-bracket="B"
+              style="background:transparent;color:#1e3a5f;border-color:#1e3a5f;">
+        <i class="bi bi-grid-3x3 me-1"></i>Bracket B
+        <span class="badge rounded-pill ms-1" style="background:rgba(30,58,95,.1);">Grp 6–10</span>
+      </button>
     </div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0">
-          <thead><tr>
-            <th>#</th><th>Zeit</th><th>Feld</th><th>Gruppe</th><th>Runde</th>
-            <th>Team 1</th><th>Score</th><th>Team 2</th>
-          </tr></thead>
-          <tbody>
-            {% for m in matches %}
-            <tr>
-              <td><span class="dark-badge">{{ m.match_number or '–' }}</span></td>
-              <td><strong>{{ m.time or '–' }}</strong></td>
-              <td>{{ m.field or '–' }}</td>
-              <td><span class="badge badge-cat1">Grp {{ m.group_number }}</span></td>
-              <td class="text-muted">R{{ m.round }}</td>
-              <td>{{ m.team1 }}</td>
-              <td class="text-center">
-                {% if m.score1 is not none and m.score2 is not none %}
-                <span style="font-family:'Bebas Neue',cursive;font-size:1rem;">
-                  {{ m.score1 }} : {{ m.score2 }}
-                </span>
-                {% else %}
-                <span class="text-muted">–</span>
-                {% endif %}
-              </td>
-              <td>{{ m.team2 }}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="8" class="text-center text-muted py-4">Noch kein Spielplan generiert.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+
+    <!-- Runden Buttons -->
+    <div class="d-flex gap-1 flex-wrap" id="roundBtns">
+      <button class="round-btn active" data-round="all"
+              style="padding:3px 12px;font-size:.78rem;border-radius:99px;background:#1e3a5f;color:#fff;border:1px solid #1e3a5f;cursor:pointer;">
+        Alle
+      </button>
+      {% for r in rounds %}
+      <button class="round-btn" data-round="{{ r }}"
+              style="padding:3px 12px;font-size:.78rem;border-radius:99px;background:transparent;color:#1e3a5f;border:1px solid #1e3a5f;cursor:pointer;">
+        Runde {{ r }}
+      </button>
+      {% endfor %}
+    </div>
+
+    <div class="ms-auto d-flex gap-2">
+      <a href="{{ url_for('spielplan_pdf', game_name=game_name) }}" target="_blank"
+         class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+      </a>
+      <a href="{{ url_for('print_matches', game_name=game_name) }}" target="_blank"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-printer me-1"></i>Meldeblätter
+      </a>
     </div>
   </div>
+
+  <!-- Status-Zeile -->
+  <div class="d-flex gap-3 mb-3" style="font-size:.8rem;color:var(--text-muted);">
+    <span id="statusInfo">Lade…</span>
+    <span class="d-flex align-items-center gap-2">
+      <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#F0FDF4;border:1px solid #BBF7D0;"></span> Gespielt
+      <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#FEF9C3;border:1px solid #FDE68A;"></span> Offen
+    </span>
+  </div>
+
+  <!-- Runden-Kacheln -->
+  <div id="roundCards">
+    {% for rnd in rounds %}
+    <div class="round-card mb-4" data-round="{{ rnd }}">
+
+      <!-- Runden-Header mit Zeiten -->
+      <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+        <div style="background:#1e3a5f;color:#fff;font-family:'Bebas Neue',cursive;
+                    font-size:1.05rem;letter-spacing:1.5px;padding:5px 16px;border-radius:6px;
+                    white-space:nowrap;">
+          Runde {{ rnd }}
+        </div>
+
+        {% set ns = namespace(time_a='', time_b='') %}
+        {% for m in matches %}
+          {% if m.round == rnd %}
+            {% if m.group_number <= 5 and ns.time_a == '' and m.time %}
+              {% set ns.time_a = m.time %}
+            {% endif %}
+            {% if m.group_number > 5 and ns.time_b == '' and m.time %}
+              {% set ns.time_b = m.time %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+
+        <span class="bracket-a-time d-flex align-items-center gap-1"
+              style="font-size:.82rem;">
+          <span style="background:#EFF6FF;color:#1d4ed8;border:1px solid #BFDBFE;
+                       padding:2px 8px;border-radius:99px;font-weight:600;">A</span>
+          {% if ns.time_a %}
+          <i class="bi bi-clock" style="color:var(--text-muted);"></i>
+          <strong>{{ ns.time_a }}</strong>
+          {% else %}<span style="color:var(--text-muted);">–</span>{% endif %}
+        </span>
+
+        <span class="bracket-b-time d-flex align-items-center gap-1"
+              style="font-size:.82rem;">
+          <span style="background:#F0FDF4;color:#15803d;border:1px solid #BBF7D0;
+                       padding:2px 8px;border-radius:99px;font-weight:600;">B</span>
+          {% if ns.time_b %}
+          <i class="bi bi-clock" style="color:var(--text-muted);"></i>
+          <strong>{{ ns.time_b }}</strong>
+          {% else %}<span style="color:var(--text-muted);">–</span>{% endif %}
+        </span>
+
+        <!-- Spiele-Zähler -->
+        {% set ns2 = namespace(total_a=0, played_a=0, total_b=0, played_b=0) %}
+        {% for m in matches %}
+          {% if m.round == rnd %}
+            {% if m.group_number <= 5 %}
+              {% set ns2.total_a = ns2.total_a + 1 %}
+              {% if m.score1 is not none %}{% set ns2.played_a = ns2.played_a + 1 %}{% endif %}
+            {% else %}
+              {% set ns2.total_b = ns2.total_b + 1 %}
+              {% if m.score1 is not none %}{% set ns2.played_b = ns2.played_b + 1 %}{% endif %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        <span class="bracket-a-count ms-1" style="font-size:.75rem;color:var(--text-muted);">
+          {{ ns2.played_a }}/{{ ns2.total_a }} gespielt
+        </span>
+        <span class="bracket-b-count" style="font-size:.75rem;color:var(--text-muted);">
+          {{ ns2.played_b }}/{{ ns2.total_b }} gespielt
+        </span>
+      </div>
+
+      <!-- Tabelle -->
+      <div class="card">
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0" style="font-size:.85rem;">
+            <thead style="position:sticky;top:0;z-index:1;background:var(--card-bg);">
+              <tr style="border-bottom:2px solid #1e3a5f;">
+                <th style="width:55px;padding:8px 10px;">#</th>
+                <th style="width:65px;">Zeit</th>
+                <th style="width:52px;">Feld</th>
+                <th style="width:72px;">Gruppe</th>
+                <th>Team 1</th>
+                <th style="width:85px;text-align:center;">Ergebnis</th>
+                <th>Team 2</th>
+                <th style="width:75px;text-align:center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in matches %}
+              {% if m.round == rnd %}
+              {% set played = m.score1 is not none and m.score2 is not none %}
+              <tr class="match-row bracket-{{ 'A' if m.group_number <= 5 else 'B' }}"
+                  data-group="{{ m.group_number }}"
+                  style="background:{{ '#F0FDF4' if played else '#FFFBEB' }};
+                         border-bottom:1px solid var(--border);">
+
+                <td style="padding:6px 10px;">
+                  <span class="dark-badge">{{ m.match_number or '–' }}</span>
+                </td>
+
+                <td>
+                  <strong style="color:#1e3a5f;font-size:.9rem;">{{ m.time or '–' }}</strong>
+                </td>
+
+                <td>
+                  <span style="display:inline-flex;align-items:center;justify-content:center;
+                               width:30px;height:30px;background:#1e3a5f;color:#fff;
+                               border-radius:6px;font-weight:700;font-size:.85rem;">
+                    {{ m.field or '–' }}
+                  </span>
+                </td>
+
+                <td>
+                  {% if m.group_number <= 5 %}
+                  <span class="badge" style="background:#EFF6FF;color:#1d4ed8;border:1px solid #BFDBFE;">
+                    Grp {{ m.group_number }}
+                  </span>
+                  {% else %}
+                  <span class="badge" style="background:#F0FDF4;color:#15803d;border:1px solid #BBF7D0;">
+                    Grp {{ m.group_number }}
+                  </span>
+                  {% endif %}
+                </td>
+
+                <td><strong>{{ m.team1 or '–' }}</strong></td>
+
+                <td style="text-align:center;">
+                  {% if played %}
+                  <span style="font-family:'Bebas Neue',cursive;font-size:1.15rem;letter-spacing:1px;">
+                    <span style="color:{{ '#16A34A' if m.score1 > m.score2 else '#dc2626' }};">{{ m.score1 }}</span>
+                    <span style="color:var(--text-muted);font-size:.85rem;"> : </span>
+                    <span style="color:{{ '#16A34A' if m.score2 > m.score1 else '#dc2626' }};">{{ m.score2 }}</span>
+                  </span>
+                  {% else %}
+                  <span style="color:var(--text-muted);">vs.</span>
+                  {% endif %}
+                </td>
+
+                <td><strong>{{ m.team2 or '–' }}</strong></td>
+
+                <td style="text-align:center;">
+                  {% if played %}
+                  <span class="badge" style="background:#F0FDF4;color:#15803D;border:1px solid #BBF7D0;font-size:.65rem;">
+                    <i class="bi bi-check2-circle me-1"></i>Gespielt
+                  </span>
+                  {% else %}
+                  <span class="badge" style="background:#FEF9C3;color:#92400E;border:1px solid #FDE68A;font-size:.65rem;">
+                    <i class="bi bi-hourglass me-1"></i>Offen
+                  </span>
+                  {% endif %}
+                </td>
+
+              </tr>
+              {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
 </div>
-{% endblock %}
+
+<script>
+(function() {
+  let activeBracket = 'A';
+  let activeRound   = 'all';
+
+  const bracketBtns = document.querySelectorAll('.bracket-btn');
+  const roundBtns   = document.querySelectorAll('.round-btn');
+  const statusEl    = document.getElementById('statusInfo');
+
+  function applyFilter() {
+    let played = 0, open = 0;
+
+    document.querySelectorAll('.round-card').forEach(card => {
+      const rnd = card.dataset.round;
+      const showCard = (activeRound === 'all' || activeRound === rnd);
+      card.style.display = showCard ? '' : 'none';
+      if (!showCard) return;
+
+      // Bracket-Zeit + Zähler je sichtbar/unsichtbar
+      const elA  = card.querySelector('.bracket-a-time');
+      const elB  = card.querySelector('.bracket-b-time');
+      const cntA = card.querySelector('.bracket-a-count');
+      const cntB = card.querySelector('.bracket-b-count');
+      if (elA)  elA.style.display  = activeBracket === 'A' ? '' : 'none';
+      if (elB)  elB.style.display  = activeBracket === 'B' ? '' : 'none';
+      if (cntA) cntA.style.display = activeBracket === 'A' ? '' : 'none';
+      if (cntB) cntB.style.display = activeBracket === 'B' ? '' : 'none';
+
+      card.querySelectorAll('.match-row').forEach(row => {
+        const inBracket = row.classList.contains('bracket-' + activeBracket);
+        row.style.display = inBracket ? '' : 'none';
+        if (!inBracket) return;
+        if (row.querySelector('.bi-check2-circle')) played++;
+        else open++;
+      });
+    });
+
+    const rndLabel = activeRound === 'all' ? 'alle Runden' : 'Runde ' + activeRound;
+    statusEl.innerHTML =
+      `Bracket <strong>${activeBracket}</strong> · ${rndLabel} · ` +
+      `<span style="color:#16A34A;font-weight:600;">${played} gespielt</span> · ` +
+      `<span style="color:#92400E;font-weight:600;">${open} offen</span> · ` +
+      `<span style="font-weight:600;">${played+open} total</span>`;
+  }
+
+  bracketBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeBracket = btn.dataset.bracket;
+      bracketBtns.forEach(b => {
+        const on = b === btn;
+        b.style.background  = on ? '#1e3a5f' : 'transparent';
+        b.style.color       = on ? '#fff'    : '#1e3a5f';
+        b.classList.toggle('active', on);
+      });
+      applyFilter();
+    });
+  });
+
+  roundBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeRound = btn.dataset.round;
+      roundBtns.forEach(b => {
+        const on = b === btn;
+        b.style.background  = on ? '#1e3a5f' : 'transparent';
+        b.style.color       = on ? '#fff'    : '#1e3a5f';
+      });
+      applyFilter();
+    });
+  });
+
+  applyFilter();
+})();
+</script>
+
+{% endblock %}s
