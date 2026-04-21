@@ -1,365 +1,212 @@
 {% extends "admin/base.html" %}
+{% block title %}DE Ergebnisse — {{ game_name }}{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1 class="mb-4">Ergebnisse eintragen <small class="text-muted">Double Elimination</small></h1>
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div id="save-status" class="text-muted small"></div>
-        <button type="button" id="save-all-btn" class="btn btn-primary">
-            <i class="fas fa-save"></i> Alle speichern
-        </button>
-    </div>
-
-    <ul class="nav nav-pills mb-3">
-        <li class="nav-item">
-            <a class="nav-link active" id="pills-wb-tab" href="#pills-wb">
-                <span class="badge badge-success mr-1">WB</span> Winner Bracket
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" id="pills-lb-tab" href="#pills-lb">
-                <span class="badge badge-danger mr-1">LB</span> Loser Bracket
-            </a>
-        </li>
-    </ul>
-
-    <div class="tab-content">
-        <div class="tab-pane fade show active" id="pills-wb"></div>
-        <div class="tab-pane fade" id="pills-lb"></div>
-    </div>
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1><i class="bi bi-diagram-3 me-2"></i>Double Elimination — Ergebnisse</h1>
+    <div class="subtitle">{{ game_name }}</div>
+  </div>
 </div>
 
+<div class="container-fluid px-4 fade-in">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div id="save-status" class="text-muted" style="font-size:.82rem;"></div>
+    <button type="button" id="save-all-btn" class="btn btn-sm btn-primary">
+      <i class="bi bi-save me-1"></i>Alle speichern
+    </button>
+  </div>
+
+  <ul class="nav nav-pills mb-3" id="deTabs">
+    <li class="nav-item">
+      <button class="nav-link active" data-tab="pills-wb">
+        <i class="bi bi-trophy me-1" style="color:#16A34A;"></i>Winner Bracket
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-tab="pills-lb">
+        <i class="bi bi-shield-x me-1" style="color:#dc2626;"></i>Loser Bracket
+      </button>
+    </li>
+  </ul>
+
+  <div id="pills-wb"></div>
+  <div id="pills-lb" style="display:none;"></div>
+
+</div>
+
+<style>
+.match-card { background:var(--card-bg); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; overflow:hidden; }
+.match-card.pending { opacity:.55; }
+.match-card.done { border-left:3px solid #16A34A; }
+.match-card .mc-head { background:#1e3a5f; color:#94A3B8; font-size:.68rem; padding:3px 10px; display:flex; gap:12px; }
+.mc-head .mn { color:#fff; font-weight:700; }
+.mc-head .mt { color:#F59E0B; }
+.mc-head .mf { color:#60A5FA; }
+.match-body { display:flex; align-items:center; gap:8px; padding:8px 10px; }
+.team-name { width:160px; font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.team-name.winner-team { color:#16A34A; }
+.team-name.right { text-align:right; }
+.score-inp { width:52px; text-align:center; padding:4px; border-radius:6px; border:1px solid var(--border); background:var(--input-bg,#0F172A); color:var(--text,#F1F5F9); font-weight:700; font-size:.9rem; }
+.score-inp:focus { outline:none; border-color:#3b82f6; }
+.round-header { font-size:.85rem; font-weight:700; letter-spacing:1px; padding:4px 12px; border-radius:6px; color:#fff; margin:16px 0 6px; display:inline-block; }
+.rh-wb { background:#1a6b3a; }
+.rh-lb { background:#7a3000; }
+.winner-badge { font-size:.65rem; background:#F0FDF4; color:#15803D; border:1px solid #BBF7D0; border-radius:4px; padding:2px 6px; white-space:nowrap; }
+</style>
+
 <script>
-var GAME_NAME = {{ game_name | tojson }};
-var API_URL   = '/api/de_matches/' + GAME_NAME;
-var SAVE_URL  = '/update_double_elim_result/' + GAME_NAME + '/';
+const GAME    = "{{ game_name }}";
+const API_URL = '/api/de_matches/' + GAME;
+const SAVE_URL= '/update_double_elim_result/' + GAME + '/';
 
-var WB_LABELS = ['1/16-Finale','1/8-Finale','Viertelfinale','Halbfinale','WB Final'];
-var LB_LABELS = {'1':'LB Runde 1','2':'LB Runde 2','3':'LB Runde 3','4':'LB Runde 4',
-                 '5':'LB Runde 5','6':'LB Runde 6','7':'LB Runde 7','8':'LB Halbfinale','9':'LB Final'};
+const WB_LABELS = {1:'1/16-Finale', 2:'1/8-Finale', 3:'Viertelfinale', 4:'WB Finale'};
+const LB_LABELS = {1:'LB R1', 2:'LB R2', 3:'LB R3', 4:'LB R4', 5:'LB R5', 6:'LB R6', 7:'LB R7', 8:'LB Finale'};
 
-// Lokal gecachte Matches
-var matchCache = {};
+let matchCache = {};
 
-// ── Tab-Navigation ────────────────────────────────────────────────────────────
-function activateTab(tabId) {
-    document.querySelectorAll('.nav-link').forEach(function(el) { el.classList.remove('active'); });
-    document.querySelectorAll('.tab-pane').forEach(function(el) { el.classList.remove('show','active'); });
-    var tab = document.getElementById(tabId + '-tab');
-    var pane = document.getElementById(tabId);
-    if (tab) tab.classList.add('active');
-    if (pane) pane.classList.add('show','active');
-}
-document.querySelectorAll('.nav-link').forEach(function(link) {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        var target = link.getAttribute('href').replace('#','');
-        activateTab(target);
-        history.replaceState(null, '', '#' + target);
-    });
+document.querySelectorAll('#deTabs .nav-link').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#deTabs .nav-link').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.getElementById('pills-wb').style.display = tab === 'pills-wb' ? '' : 'none';
+    document.getElementById('pills-lb').style.display = tab === 'pills-lb' ? '' : 'none';
+  });
 });
-var hash = window.location.hash;
-activateTab((hash && hash.length > 1) ? hash.replace('#','') : 'pills-wb');
 
-// ── DOM-Aufbau ────────────────────────────────────────────────────────────────
-function renderMatches(matches) {
-    // In Cache schreiben
-    matches.forEach(function(m) { matchCache[m.id] = m; });
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-    var wb = {}, lb = {};
-    matches.forEach(function(m) {
-        if (m.bracket === 'Winners') {
-            if (!wb[m.round]) wb[m.round] = [];
-            wb[m.round].push(m);
-        } else {
-            if (!lb[m.round]) lb[m.round] = [];
-            lb[m.round].push(m);
-        }
-    });
+function buildCard(m) {
+  const played = m.winner != null;
+  const hasTeams = m.team1 && m.team2;
+  const cls = 'match-card' + (played ? ' done' : (!hasTeams ? ' pending' : ''));
+  const t1win = played && m.winner === m.team1;
+  const t2win = played && m.winner === m.team2;
+  const badge = played ? `<span class="winner-badge"><i class="bi bi-check2 me-1"></i>${esc(m.winner)}</span>` : '';
 
-    buildBracket('pills-wb', wb, WB_LABELS, 'success');
-    buildBracket('pills-lb', lb, LB_LABELS, 'danger');
+  if (!hasTeams) {
+    return `<div class="${cls}" id="card-${m.id}">
+      <div class="mc-head"><span class="mn">#${m.match_number||'?'}</span><span class="mt">${m.time||'–'}</span><span class="mf">${m.court?'Feld '+m.court:''}</span></div>
+      <div class="match-body" style="color:#94A3B8;font-size:.8rem;"><i class="bi bi-hourglass me-2"></i>Wartet auf Ergebnisse…</div>
+    </div>`;
+  }
+
+  return `<div class="${cls}" id="card-${m.id}">
+    <div class="mc-head">
+      <span class="mn">#${m.match_number||'?'}</span>
+      <span class="mt">${m.time||'–'}</span>
+      <span class="mf">${m.court?'Feld '+m.court:''}</span>
+      <span class="ms-auto">${badge}</span>
+    </div>
+    <div class="match-body">
+      <div class="team-name right ${t1win?'winner-team':''}">${esc(m.team1)}</div>
+      <input type="number" class="score-inp score1" data-id="${m.id}" value="${m.score1!=null?m.score1:''}" min="0" max="42" placeholder="–">
+      <span style="color:#94A3B8;font-size:.8rem;">:</span>
+      <input type="number" class="score-inp score2" data-id="${m.id}" value="${m.score2!=null?m.score2:''}" min="0" max="42" placeholder="–">
+      <div class="team-name ${t2win?'winner-team':''}">${esc(m.team2)}</div>
+      <button class="btn btn-sm btn-success save-btn ms-auto" data-id="${m.id}" style="padding:3px 10px;"><i class="bi bi-check-lg"></i></button>
+    </div>
+  </div>`;
 }
 
-function buildBracket(containerId, rounds, labels, color) {
-    var container = document.getElementById(containerId);
-    var html = '';
-    Object.keys(rounds).sort(function(a,b){return a-b;}).forEach(function(rnd) {
-        var label = Array.isArray(labels) ? (labels[rnd-1] || 'Runde ' + rnd) : (labels[rnd] || 'Runde ' + rnd);
-        html += '<h5 class="mt-3 text-' + color + '">' + label + '</h5>';
-        rounds[rnd].forEach(function(m) {
-            html += buildCard(m, color);
-        });
-    });
-    container.innerHTML = html;
-    container.querySelectorAll('.save-btn').forEach(attachSaveHandler);
+function renderAll(matches) {
+  matches.forEach(m => matchCache[m.id] = m);
+  const wb = {}, lb = {};
+  matches.forEach(m => {
+    if (m.bracket === 'Winners') { (wb[m.round] = wb[m.round]||[]).push(m); }
+    else { (lb[m.round] = lb[m.round]||[]).push(m); }
+  });
+  buildSection('pills-wb', wb, WB_LABELS, 'rh-wb');
+  buildSection('pills-lb', lb, LB_LABELS, 'rh-lb');
+  attachHandlers();
 }
 
-function buildCard(m, color) {
-    var hasTeams = m.team1 && m.team2;
-    var borderClass = color ? 'border-' + color : 'border-secondary';
-    var t1class = (m.winner && m.winner === m.team1) ? 'text-success' : '';
-    var t2class = (m.winner && m.winner === m.team2) ? 'text-success' : '';
-    var s1val = (m.score1 !== null && m.score1 !== undefined) ? m.score1 : '';
-    var s2val = (m.score2 !== null && m.score2 !== undefined) ? m.score2 : '';
-    var winnerBadge = m.winner ? '<span class="badge badge-success small">&#10003; ' + esc(m.winner) + '</span>' : '';
+function buildSection(containerId, rounds, labels, hdrCls) {
+  const c = document.getElementById(containerId);
+  let html = '';
+  Object.keys(rounds).map(Number).sort((a,b)=>a-b).forEach(r => {
+    html += `<div class="round-header ${hdrCls}">${labels[r]||'Runde '+r}</div>`;
+    rounds[r].forEach(m => html += buildCard(m));
+  });
+  c.innerHTML = html || '<div class="text-muted p-3">Keine Matches.</div>';
+}
 
-    if (!hasTeams) {
-        // Match noch nicht bereit — grau, keine Inputs
-        return '<div class="card match-card mb-2 ' + borderClass + ' bg-light" id="card-' + m.id + '" style="opacity:0.5">' +
-            '<div class="row align-items-center py-1 px-2">' +
-            '<div class="col-auto text-muted small text-center" style="min-width:90px">' +
-            '<div class="font-weight-bold">#' + (m.match_number || '?') + '</div>' +
-            '<div>' + (m.time || '&mdash;') + '</div>' +
-            '<div>Feld ' + (m.court || '?') + '</div></div>' +
-            '<div class="col text-center text-muted"><em>Wartet auf Ergebnisse…</em></div></div></div>';
+function saveMatch(id, btn) {
+  const card = document.getElementById('card-' + id);
+  const s1 = card.querySelector('.score1').value.trim();
+  const s2 = card.querySelector('.score2').value.trim();
+  if (!s1 || !s2 || parseInt(s1) === parseInt(s2)) {
+    btn.classList.add('btn-warning'); btn.classList.remove('btn-success');
+    setTimeout(() => { btn.classList.remove('btn-warning'); btn.classList.add('btn-success'); }, 1500);
+    return;
+  }
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+  const fd = new FormData();
+  fd.append('score1', s1); fd.append('score2', s2);
+  fetch(SAVE_URL + id, { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    if (data.ok && data.matches) {
+      data.matches.forEach(m => { matchCache[m.id] = m; });
+      renderAll(Object.values(matchCache));
+    } else if (data.error) {
+      document.getElementById('save-status').textContent = '❌ ' + data.error;
     }
-
-    return '<div class="card match-card mb-2 ' + borderClass + '" id="card-' + m.id + '">' +
-        '<div class="row align-items-center py-1 px-2">' +
-        '<div class="col-auto text-muted small text-center" style="min-width:90px">' +
-        '<div class="font-weight-bold">#' + (m.match_number || '?') + '</div>' +
-        '<div>' + (m.time || '&mdash;') + '</div>' +
-        '<div>Feld ' + (m.court || '?') + '</div></div>' +
-        '<div class="col"><div class="d-flex justify-content-center align-items-center">' +
-        '<div class="text-right mr-2" style="width:140px"><strong class="' + t1class + '">' + esc(m.team1) + '</strong></div>' +
-        '<input type="number" class="form-control score-input score1 mx-1" value="' + s1val + '" min="0" max="42" style="width:55px" data-match-id="' + m.id + '" data-url="' + SAVE_URL + m.id + '">' +
-        '<span>:</span>' +
-        '<input type="number" class="form-control score-input score2 mx-1" value="' + s2val + '" min="0" max="42" style="width:55px">' +
-        '<div class="text-left ml-2" style="width:140px"><strong class="' + t2class + '">' + esc(m.team2) + '</strong></div>' +
-        '<button type="button" class="btn btn-success btn-sm ml-2 save-btn" data-match-id="' + m.id + '" data-url="' + SAVE_URL + m.id + '">' +
-        '<i class="fas fa-save"></i></button></div></div>' +
-        '<div class="col-auto" style="min-width:80px">' + winnerBadge + '</div>' +
-        '</div></div>';
+  })
+  .catch(() => {
+    btn.disabled = false; btn.classList.add('btn-danger'); btn.classList.remove('btn-success');
+    btn.innerHTML = '<i class="bi bi-x"></i>';
+    setTimeout(() => { btn.classList.remove('btn-danger'); btn.classList.add('btn-success'); btn.innerHTML = '<i class="bi bi-check-lg"></i>'; }, 2000);
+  });
 }
 
-function esc(str) {
-    if (!str) return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function attachHandlers() {
+  document.querySelectorAll('.save-btn').forEach(btn => {
+    const nb = btn.cloneNode(true); btn.replaceWith(nb);
+    nb.addEventListener('click', () => saveMatch(nb.dataset.id, nb));
+  });
 }
 
-// ── Nach Speichern alle Matches updaten ───────────────────────────────────────
-function refreshAllFromData(matches) {
-    // Nur Cards updaten, NICHT neu aufbauen → Scroll-Position bleibt, Inputs bleiben
-    matches.forEach(function(m) {
-        var old = matchCache[m.id];
-        var card = document.getElementById('card-' + m.id);
-
-        // Team neu hinzugekommen oder Winner gesetzt → Card updaten
-        var changed = !old
-            || old.team1 !== m.team1 || old.team2 !== m.team2
-            || old.winner !== m.winner || old.score1 !== m.score1;
-
-        if (changed) {
-            matchCache[m.id] = m;
-            var color = m.bracket === 'Winners' ? 'success' : 'danger';
-
-            if (!card) {
-                // Neue Card einfügen (Team gerade vorgerückt)
-                insertNewCard(m, color);
-            } else {
-                // Bestehende Card updaten (Winner-Highlight, Badge)
-                updateExistingCard(card, m);
-            }
-        }
-    });
-}
-
-function updateExistingCard(card, m) {
-    // Winner-Highlighting auf Teamnamen updaten
-    var t1el = card.querySelector('.text-right strong');
-    var t2el = card.querySelector('.text-left strong');
-    if (t1el) {
-        t1el.className = (m.winner === m.team1) ? 'text-success' : '';
-        t1el.textContent = m.team1 || '';
-    }
-    if (t2el) {
-        t2el.className = (m.winner === m.team2) ? 'text-success' : '';
-        t2el.textContent = m.team2 || '';
-    }
-    // Winner-Badge
-    var badgeContainer = card.querySelector('.col-auto[style*="min-width:80px"]');
-    if (badgeContainer) {
-        badgeContainer.innerHTML = m.winner
-            ? '<span class="badge badge-success small">&#10003; ' + esc(m.winner) + '</span>'
-            : '';
-    }
-    // Scores
-    var s1 = card.querySelector('.score1');
-    var s2 = card.querySelector('.score2');
-    if (s1 && m.score1 !== null && m.score1 !== undefined) s1.value = m.score1;
-    if (s2 && m.score2 !== null && m.score2 !== undefined) s2.value = m.score2;
-}
-
-function insertNewCard(m, color) {
-    // Finde den richtigen Container (WB oder LB Tab)
-    var tabId = m.bracket === 'Winners' ? 'pills-wb' : 'pills-lb';
-    var container = document.getElementById(tabId);
-    if (!container) return;
-
-    // Finde die richtige Runden-Sektion
-    var label = m.bracket === 'Winners'
-        ? (WB_LABELS[m.round - 1] || 'Runde ' + m.round)
-        : (LB_LABELS[String(m.round)] || 'Runde ' + m.round);
-
-    // Suche h5 mit diesem Label
-    var headers = container.querySelectorAll('h5');
-    var targetHeader = null;
-    headers.forEach(function(h) {
-        if (h.textContent.trim() === label) targetHeader = h;
-    });
-
-    var newCardHtml = buildCard(m, color);
-    var tempDiv = document.createElement('div');
-    tempDiv.innerHTML = newCardHtml;
-    var newCard = tempDiv.firstElementChild;
-
-    if (targetHeader) {
-        // Einfügen nach dem letzten Match dieser Runde
-        var sibling = targetHeader.nextElementSibling;
-        var lastCard = targetHeader;
-        while (sibling && sibling.classList.contains('card')) {
-            lastCard = sibling;
-            sibling = sibling.nextElementSibling;
-        }
-        lastCard.insertAdjacentElement('afterend', newCard);
-    } else {
-        // Neue Runde anlegen
-        var h5 = document.createElement('h5');
-        h5.className = 'mt-3 text-' + color;
-        h5.textContent = label;
-        container.appendChild(h5);
-        container.appendChild(newCard);
-    }
-
-    // Highlight-Animation
-    newCard.style.transition = 'background 1s';
-    newCard.style.background = '#e8f5e9';
-    setTimeout(function() { newCard.style.background = ''; }, 2000);
-
-    // Save-Handler anhängen
-    var btn = newCard.querySelector('.save-btn');
-    if (btn) attachSaveHandler(btn);
-}
-
-// ── Speichern-Logik ───────────────────────────────────────────────────────────
-function saveMatch(url, s1, s2) {
-    var fd = new FormData();
-    fd.append('score1', s1);
-    fd.append('score2', s2);
-    return fetch(url, { method: 'POST', body: fd })
-        .then(function(r) {
-            if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || 'Fehler'); });
-            return r.json();
-        });
-}
-
-function flash(btn, cls, icon, duration) {
-    if (!btn) return;
-    btn.disabled = false;
-    btn.classList.remove('btn-success','btn-primary','btn-warning','btn-danger');
-    btn.classList.add(cls);
-    btn.innerHTML = '<i class="fas ' + icon + '"></i>';
-    setTimeout(function() {
-        btn.classList.remove(cls);
-        btn.classList.add('btn-success');
-        btn.innerHTML = '<i class="fas fa-save"></i>';
-        btn.disabled = false;
-    }, duration);
-}
-
-function attachSaveHandler(btn) {
-    btn.addEventListener('click', function() {
-        var matchId = btn.dataset.matchId;
-        var card    = document.getElementById('card-' + matchId);
-        var s1 = card.querySelector('.score1').value;
-        var s2 = card.querySelector('.score2').value;
-        if (s1 === '' || s2 === '' || parseInt(s1) === parseInt(s2)) {
-            flash(btn, 'btn-warning', 'fa-exclamation', 1500);
-            return;
-        }
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        saveMatch(btn.dataset.url, s1, s2)
-        .then(function(data) {
-            if (data.matches) refreshAllFromData(data.matches);
-            var b = document.querySelector('.save-btn[data-match-id="' + matchId + '"]');
-            flash(b, 'btn-primary', 'fa-check', 1500);
-        })
-        .catch(function(e) {
-            flash(btn, 'btn-danger', 'fa-times', 2000);
-        });
-    });
-}
-
-// ── Alle speichern ────────────────────────────────────────────────────────────
 document.getElementById('save-all-btn').addEventListener('click', function() {
-    var allBtn = this;
-    var status = document.getElementById('save-status');
-
-    var toSave = [];
-    document.querySelectorAll('.score1').forEach(function(s1input) {
-        var card = s1input.closest('.card');
-        if (!card) return;
-        var s2 = card.querySelector('.score2').value;
-        var s1 = s1input.value;
-        if (s1 !== '' && s2 !== '' && parseInt(s1) !== parseInt(s2)) {
-            toSave.push({ matchId: s1input.dataset.matchId, url: s1input.dataset.url, s1: s1, s2: s2 });
-        }
-    });
-
-    if (toSave.length === 0) {
-        status.textContent = 'Keine gültigen Ergebnisse.';
-        setTimeout(function() { status.textContent = ''; }, 2000);
-        return;
-    }
-
-    allBtn.disabled = true;
-    allBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Speichere...';
-    var saved = 0, errors = 0;
-
-    function saveNext(i) {
-        if (i >= toSave.length) {
-            allBtn.disabled = false;
-            allBtn.classList.remove('btn-primary','btn-warning','btn-danger');
-            allBtn.classList.add(errors === 0 ? 'btn-success' : 'btn-warning');
-            allBtn.innerHTML = errors === 0
-                ? '<i class="fas fa-check"></i> ' + saved + ' gespeichert'
-                : '<i class="fas fa-exclamation"></i> ' + saved + ' OK, ' + errors + ' Fehler';
-            status.textContent = '';
-            setTimeout(function() {
-                allBtn.classList.remove('btn-success','btn-warning');
-                allBtn.classList.add('btn-primary');
-                allBtn.innerHTML = '<i class="fas fa-save"></i> Alle speichern';
-            }, 3000);
-            return;
-        }
-        var item = toSave[i];
-        status.textContent = (i+1) + ' / ' + toSave.length + ' speichern…';
-        var btn = document.querySelector('.save-btn[data-match-id="' + item.matchId + '"]');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
-
-        saveMatch(item.url, item.s1, item.s2)
-        .then(function(data) {
-            if (data.matches) refreshAllFromData(data.matches);
-            if (btn) flash(btn, 'btn-primary', 'fa-check', 1000);
-            saved++;
-            saveNext(i + 1);
-        })
-        .catch(function() {
-            errors++;
-            if (btn) flash(btn, 'btn-danger', 'fa-times', 1500);
-            saveNext(i + 1);
-        });
-    }
-    saveNext(0);
+  const toSave = [];
+  document.querySelectorAll('.score1').forEach(inp => {
+    const id = inp.dataset.id;
+    const card = document.getElementById('card-' + id);
+    if (!card) return;
+    const s1 = inp.value.trim(), s2 = card.querySelector('.score2').value.trim();
+    if (s1 && s2 && parseInt(s1) !== parseInt(s2)) toSave.push({id, s1, s2});
+  });
+  if (!toSave.length) return;
+  const status = document.getElementById('save-status');
+  let done = 0;
+  function next(i) {
+    if (i >= toSave.length) { status.textContent = done + ' gespeichert ✓'; renderAll(Object.values(matchCache)); return; }
+    const {id, s1, s2} = toSave[i];
+    status.textContent = (i+1) + '/' + toSave.length + ' speichern…';
+    const fd = new FormData(); fd.append('score1', s1); fd.append('score2', s2);
+    fetch(SAVE_URL + id, { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd })
+    .then(r => r.json())
+    .then(data => { if (data.ok && data.matches) data.matches.forEach(m => { matchCache[m.id] = m; }); done++; next(i+1); })
+    .catch(() => next(i+1));
+  }
+  next(0);
 });
 
-// ── Initial laden ─────────────────────────────────────────────────────────────
 fetch(API_URL)
-    .then(function(r) { return r.json(); })
-    .then(function(matches) { renderMatches(matches); });
-
+  .then(r => r.json())
+  .then(data => {
+    if (!Array.isArray(data) || data.length === 0) {
+      document.getElementById('pills-wb').innerHTML = '<div class="text-muted p-3"><i class="bi bi-info-circle me-2"></i>Noch keine Double Elimination generiert.</div>';
+      document.getElementById('pills-lb').innerHTML = '<div class="text-muted p-3"><i class="bi bi-info-circle me-2"></i>Noch keine Double Elimination generiert.</div>';
+      return;
+    }
+    renderAll(data);
+  })
+  .catch(err => {
+    document.getElementById('pills-wb').innerHTML = '<div class="text-danger p-3">Fehler beim Laden: ' + err + '</div>';
+  });
 </script>
 {% endblock %}
